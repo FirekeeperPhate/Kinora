@@ -44,13 +44,24 @@ public static partial class NfoReader
         if (start < 0)
             return null;
         XElement root;
+        var xml = CutXml(text, start);
         try
         {
-            root = XDocument.Parse(CutXml(text, start)).Root!;
+            root = XDocument.Parse(xml).Root!;
         }
         catch (System.Xml.XmlException)
         {
-            return null;
+            // A file holding two episodes (S01E01-E02) has one <episodedetails> per episode: two
+            // roots. The first one describes the file well enough.
+            try
+            {
+                var body = XmlDeclaration().Replace(xml, "");
+                root = XDocument.Parse("<kinora>" + body + "</kinora>").Root!.Elements().First();
+            }
+            catch (Exception e) when (e is System.Xml.XmlException or InvalidOperationException)
+            {
+                return null;
+            }
         }
 
         var data = new NfoData
@@ -66,7 +77,11 @@ public static partial class NfoReader
             CriticRating = Int(Str(root, "criticrating")),
             Mpaa = Str(root, "mpaa"),
             Premiered = Date(Str(root, "premiered") ?? Str(root, "releasedate") ?? Str(root, "aired")),
-            ImdbId = UniqueId(root, "imdb") ?? Imdb(Str(root, "imdbid")) ?? Imdb(Str(root, "id")),
+            ImdbId = UniqueId(root, "imdb") ?? Imdb(Str(root, "imdbid")) ?? Imdb(Str(root, "imdb_id")) ?? Imdb(Str(root, "id")),
+            TvdbId = UniqueId(root, "tvdb") ?? Digits(Str(root, "tvdbid")),
+            Status = Str(root, "status"),
+            Season = Int(Str(root, "season")),
+            Episode = Int(Str(root, "episode")),
             TmdbId = UniqueId(root, "tmdb") ?? Digits(Str(root, "tmdbid")),
             Collection = Str(root.Element("set"), "name") ?? StrOnlyText(root.Element("set")),
             Watched = Watched(root),
@@ -185,6 +200,9 @@ public static partial class NfoReader
             return b;
         return Int(Str(root, "playcount")) is { } count ? count > 0 : null;
     }
+
+    [GeneratedRegex(@"<\?xml[^>]*\?>")]
+    private static partial Regex XmlDeclaration();
 
     [GeneratedRegex(@"<\s*([A-Za-z_][\w.-]*)")]
     private static partial Regex RootName();

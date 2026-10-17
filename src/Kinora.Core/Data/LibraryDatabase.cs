@@ -9,9 +9,9 @@ namespace Kinora.Core.Data;
 /// The library in SQLite. One connection per call (they are pooled); writes that belong
 /// together go in one transaction.
 /// </summary>
-public sealed class LibraryDatabase
+public sealed partial class LibraryDatabase
 {
-    private const int SchemaVersion = 2;
+    private const int SchemaVersion = 3;
 
     private readonly string _connectionString;
 
@@ -142,6 +142,99 @@ public sealed class LibraryDatabase
                     manual INTEGER NOT NULL DEFAULT 0,
                     tried INTEGER NOT NULL,
                     PRIMARY KEY (root_id, video_file)
+                );
+                """, transaction: tx);
+        }
+        if (version < 3)
+        {
+            c.Execute("""
+                CREATE TABLE series (
+                    id INTEGER PRIMARY KEY,
+                    root_id INTEGER NOT NULL REFERENCES roots(id) ON DELETE CASCADE,
+                    folder TEXT NOT NULL,
+                    stamp INTEGER NOT NULL DEFAULT 0,
+                    title TEXT NOT NULL,
+                    original_title TEXT,
+                    sort_title TEXT,
+                    year INTEGER,
+                    end_year INTEGER,
+                    plot TEXT,
+                    rating REAL,
+                    mpaa TEXT,
+                    premiered TEXT,
+                    status TEXT,
+                    imdb_id TEXT,
+                    tmdb_id TEXT,
+                    tvdb_id TEXT,
+                    genres TEXT NOT NULL DEFAULT '',
+                    studios TEXT NOT NULL DEFAULT '',
+                    poster_file TEXT,
+                    fanart_file TEXT,
+                    logo_file TEXT,
+                    thumb_key TEXT,
+                    online_poster TEXT,
+                    online_fanart TEXT,
+                    online_logo TEXT,
+                    date_added INTEGER NOT NULL,
+                    last_episode_added INTEGER NOT NULL DEFAULT 0
+                );
+                CREATE UNIQUE INDEX ix_series_folder ON series(root_id, folder);
+                CREATE TABLE seasons (
+                    series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+                    number INTEGER NOT NULL,
+                    poster_file TEXT,
+                    thumb_key TEXT,
+                    online_poster TEXT,
+                    PRIMARY KEY (series_id, number)
+                );
+                CREATE TABLE episodes (
+                    id INTEGER PRIMARY KEY,
+                    series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+                    season INTEGER,
+                    number INTEGER,
+                    number_end INTEGER,
+                    title TEXT NOT NULL,
+                    plot TEXT,
+                    aired TEXT,
+                    runtime INTEGER,
+                    rating REAL,
+                    directors TEXT NOT NULL DEFAULT '',
+                    imdb_id TEXT,
+                    video_file TEXT NOT NULL,
+                    video_size INTEGER NOT NULL DEFAULT 0,
+                    thumb_file TEXT,
+                    online_still TEXT,
+                    resolution TEXT,
+                    video_codec TEXT,
+                    audio_codec TEXT,
+                    audio_channels INTEGER,
+                    subtitles TEXT NOT NULL DEFAULT '',
+                    watched INTEGER NOT NULL DEFAULT 0,
+                    date_added INTEGER NOT NULL
+                );
+                CREATE UNIQUE INDEX ix_episodes_video ON episodes(series_id, video_file);
+                CREATE TABLE series_cast (
+                    series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+                    ord INTEGER NOT NULL,
+                    name TEXT NOT NULL,
+                    role TEXT,
+                    PRIMARY KEY (series_id, ord)
+                );
+                CREATE TABLE tmdb_series (
+                    tmdb_id TEXT PRIMARY KEY,
+                    imdb_id TEXT,
+                    tvdb_id TEXT,
+                    language TEXT NOT NULL,
+                    data TEXT NOT NULL,
+                    fetched INTEGER NOT NULL
+                );
+                CREATE TABLE tmdb_seasons (
+                    tmdb_id TEXT NOT NULL,
+                    season INTEGER NOT NULL,
+                    language TEXT NOT NULL,
+                    data TEXT NOT NULL,
+                    fetched INTEGER NOT NULL,
+                    PRIMARY KEY (tmdb_id, season)
                 );
                 """, transaction: tx);
         }

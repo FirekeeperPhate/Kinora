@@ -1,6 +1,6 @@
 # Kinora
 
-A desktop library for movies (and, soon, TV shows) kept in folders on a disk or a NAS.
+A desktop library for movies and TV shows kept in folders on a disk or a NAS.
 Covers, metadata, light and dark theme; Play opens the file with the player the OS associates
 with it. Windows, Linux and macOS (Avalonia 12, .NET 10).
 
@@ -23,6 +23,20 @@ with it. Windows, Linux and macOS (Avalonia 12, .NET 10).
 - Folders that are mounted somewhere else later (another drive letter, another OS): change the
   root's path in Settings, nothing is scanned again. Paths are stored relative to the root.
 
+## TV shows
+
+- One folder per show, with `tvshow.nfo` and pictures (poster, fanart, clearlogo, `seasonNN-poster.jpg`);
+  episodes in season folders (`Season 01`, `S2`, `Specials`…) or loose in the show folder.
+- Episode numbers from the episode nfo or the name: `S01E02`, `S04E10-E11` (two in one file), `1x02`,
+  `05 - Title` or `Episode 5` inside a season folder.
+- A show is read again only when its folder or a season folder changed. 159 shows and 7,274
+  episodes on a NAS: first scan about 20 s, the next 0.3 s.
+- The show page lists seasons and episodes with their pictures (made on demand), marks episodes
+  watched one by one or a season at a time, and plays the next one not seen. With TMDB, episodes
+  missing from the folder are listed greyed out.
+- Watched episodes are remembered by the show's ids and the episode number, so a better copy of
+  an episode keeps the flag.
+
 ## Online metadata (TMDB)
 
 With a TMDB API key (Settings), what the folders don't say comes from The Movie Database:
@@ -43,10 +57,9 @@ only the user can read.
 
 ## Planned
 
-1. TV shows: series, seasons, episodes.
-2. Subtitles from OpenSubtitles (by file hash first).
-3. Moving movies between library folders.
-4. Packages for Windows (Inno Setup), Linux (AppImage / tar.gz) and macOS (.app).
+1. Subtitles from OpenSubtitles (by file hash first).
+2. Moving movies and shows between library folders.
+3. Packages for Windows (Inno Setup), Linux (AppImage / tar.gz) and macOS (.app).
 
 ## Building
 

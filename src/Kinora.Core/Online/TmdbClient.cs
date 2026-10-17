@@ -141,6 +141,129 @@ public sealed class TmdbClient : IDisposable
         }
     }
 
+    // ---- TV ----
+
+    public async Task<List<TmdbSearchResult>> SearchTvAsync(string query, int? year, CancellationToken ct)
+    {
+        var args = new List<(string, string)> { ("query", query), ("include_adult", "false"), ("language", Language) };
+        if (year is { } y)
+            args.Add(("first_air_date_year", y.ToString()));
+        using var doc = await GetJsonAsync("search/tv", args, ct);
+        var results = new List<TmdbSearchResult>();
+        foreach (var r in doc.RootElement.GetProperty("results").EnumerateArray())
+        {
+            results.Add(new TmdbSearchResult(
+                Id: r.GetProperty("id").GetRawText(),
+                Title: Str(r, "name") ?? "",
+                OriginalTitle: Str(r, "original_name"),
+                Year: Str(r, "first_air_date") is { Length: >= 4 } d && int.TryParse(d[..4], out var ry) ? ry : null,
+                Overview: Str(r, "overview"),
+                PosterPath: Str(r, "poster_path"),
+                Popularity: r.TryGetProperty("popularity", out var p) && p.ValueKind == JsonValueKind.Number ? p.GetDouble() : 0));
+        }
+        return results;
+    }
+
+    /// <summary>A show by its IMDb or TVDB id.</summary>
+    public async Task<string?> FindTvAsync(string id, bool tvdb, CancellationToken ct)
+    {
+        using var doc = await GetJsonAsync($"find/{Uri.EscapeDataString(id)}", [("external_source", tvdb ? "tvdb_id" : "imdb_id")], ct);
+        var shows = doc.RootElement.GetProperty("tv_results");
+        return shows.GetArrayLength() > 0 ? shows[0].GetProperty("id").GetRawText() : null;
+    }
+
+    public async Task<TmdbSeries?> GetSeriesAsync(string tmdbId, CancellationToken ct)
+    {
+        var lang2 = Language.Split('-')[0];
+        JsonDocument doc;
+        try
+        {
+            doc = await GetJsonAsync($"tv/{Uri.EscapeDataString(tmdbId)}",
+                [("language", Language), ("append_to_response", "aggregate_credits,content_ratings,images,external_ids"),
+                 ("include_image_language", $"{lang2},en,null")], ct);
+        }
+        catch (TmdbException e) when (e.Status == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        using (doc)
+        {
+            var r = doc.RootElement;
+            var ids = r.TryGetProperty("external_ids", out var ext) ? ext : default;
+            var series = new TmdbSeries
+            {
+                Id = r.GetProperty("id").GetRawText(),
+                ImdbId = ids.ValueKind == JsonValueKind.Object ? Str(ids, "imdb_id") : null,
+                TvdbId = ids.ValueKind == JsonValueKind.Object && ids.TryGetProperty("tvdb_id", out var tv) && tv.ValueKind == JsonValueKind.Number ? tv.GetRawText() : null,
+                Language = Language,
+                Name = Str(r, "name") ?? "",
+                OriginalName = Str(r, "original_name"),
+                Overview = Str(r, "overview"),
+                FirstAirDate = Str(r, "first_air_date"),
+                LastAirDate = Str(r, "last_air_date"),
+                Status = Str(r, "status"),
+                VoteAverage = r.TryGetProperty("vote_average", out var va) && va.ValueKind == JsonValueKind.Number && va.GetDouble() > 0 ? Math.Round(va.GetDouble(), 1) : null,
+                Genres = Names(r, "genres"),
+                Networks = Names(r, "networks"),
+                PosterPath = Str(r, "poster_path"),
+                BackdropPath = Str(r, "backdrop_path"),
+                LogoPath = Logo(r, lang2),
+            };
+            if (r.TryGetProperty("seasons", out var seasons))
+                foreach (var s in seasons.EnumerateArray())
+                    if (s.TryGetProperty("season_number", out var n) && n.ValueKind == JsonValueKind.Number && Str(s, "poster_path") is { } poster)
+                        series.SeasonPosters[n.GetInt32()] = poster;
+            if (r.TryGetProperty("aggregate_credits", out var credits))
+                foreach (var c in credits.GetProperty("cast").EnumerateArray().Take(30))
+                    if (Str(c, "name") is { } name)
+                    {
+                        var role = c.TryGetProperty("roles", out var roles) && roles.GetArrayLength() > 0 ? Str(roles[0], "character") : null;
+                        series.Cast.Add(new TmdbCast(name, role));
+                    }
+            if (r.TryGetProperty("content_ratings", out var ratings))
+            {
+                var country = Language.Contains('-') ? Language.Split('-')[1].ToUpperInvariant() : "US";
+                string? Rating(string iso) => ratings.GetProperty("results").EnumerateArray()
+                                                     .Where(x => Str(x, "iso_3166_1") == iso).Select(x => Str(x, "rating")).FirstOrDefault(x => x is not null);
+                series.Certification = Rating(country) ?? Rating("US");
+            }
+            return series;
+        }
+    }
+
+    public async Task<TmdbSeason?> GetSeasonAsync(string tmdbId, int season, CancellationToken ct)
+    {
+        JsonDocument doc;
+        try
+        {
+            doc = await GetJsonAsync($"tv/{Uri.EscapeDataString(tmdbId)}/season/{season}", [("language", Language)], ct);
+        }
+        catch (TmdbException e) when (e.Status == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+        using (doc)
+        {
+            var r = doc.RootElement;
+            var result = new TmdbSeason { Number = season, Language = Language, PosterPath = Str(r, "poster_path") };
+            foreach (var e in r.GetProperty("episodes").EnumerateArray())
+            {
+                if (!e.TryGetProperty("episode_number", out var n) || n.ValueKind != JsonValueKind.Number)
+                    continue;
+                result.Episodes.Add(new TmdbEpisode(
+                    n.GetInt32(),
+                    Str(e, "name") ?? "",
+                    Str(e, "overview"),
+                    Str(e, "air_date"),
+                    e.TryGetProperty("runtime", out var rt) && rt.ValueKind == JsonValueKind.Number && rt.GetInt32() > 0 ? rt.GetInt32() : null,
+                    e.TryGetProperty("vote_average", out var va) && va.ValueKind == JsonValueKind.Number && va.GetDouble() > 0 ? Math.Round(va.GetDouble(), 1) : null,
+                    Str(e, "still_path")));
+            }
+            return result;
+        }
+    }
+
     private async Task<JsonDocument> GetJsonAsync(string path, List<(string Key, string Value)> args, CancellationToken ct)
     {
         if (_apiKey is not null)

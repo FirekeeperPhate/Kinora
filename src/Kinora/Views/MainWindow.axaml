@@ -16,7 +16,7 @@
 
     <Panel>
         <!-- Library -->
-        <Grid ColumnDefinitions="236,*" IsVisible="{Binding Detail, Converter={x:Static ObjectConverters.IsNull}}">
+        <Grid ColumnDefinitions="236,*" IsVisible="{Binding ShowLibrary}">
 
             <!-- Sidebar -->
             <Border Background="{DynamicResource SidebarBackground}">
@@ -25,6 +25,14 @@
                         <Image Source="/Assets/kinora-64.png" Width="30" Height="30" />
                         <TextBlock Text="Kinora" FontSize="21" FontWeight="Bold" VerticalAlignment="Center" />
                     </StackPanel>
+
+                    <!-- Movies or TV shows -->
+                    <Border DockPanel.Dock="Top" Margin="16,0,16,10" Padding="3" CornerRadius="10" Background="{DynamicResource ChipBackground}">
+                        <UniformGrid Columns="2">
+                            <RadioButton Classes="segment" Content="Movies" IsChecked="{Binding IsMoviesMode}" GroupName="mode" />
+                            <RadioButton Classes="segment" Content="TV shows" IsChecked="{Binding IsShowsMode}" GroupName="mode" />
+                        </UniformGrid>
+                    </Border>
 
                     <Button DockPanel.Dock="Bottom" Classes="nav" Margin="10,8,10,14" Padding="12,9"
                             HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
@@ -117,7 +125,7 @@
                                         </ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="vm:MovieCardViewModel">
+                                        <DataTemplate x:DataType="vm:CardViewModel">
                                             <Button Classes="card" Width="{Binding CardWidth}" Command="{Binding OpenCommand}"
                                                     ToolTip.Tip="{Binding Title}" ToolTip.ShowDelay="900">
                                                 <Button.ContextMenu>
@@ -143,6 +151,12 @@
                                                                       StrokeLineCap="Round" StrokeJoin="Round" Stretch="Uniform"
                                                                       Width="13" Height="13" />
                                                             </Border>
+                                                            <Border IsVisible="{Binding ShowUnwatchedCount}" MinWidth="26" Height="26" CornerRadius="13" Padding="7,0"
+                                                                    Margin="8" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                                    Background="{DynamicResource AccentBrush}" ToolTip.Tip="Episodes not watched yet">
+                                                                <TextBlock Text="{Binding UnwatchedCount}" Foreground="White" FontSize="12" FontWeight="SemiBold"
+                                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                            </Border>
                                                             <Border IsVisible="{Binding IsUnavailable}" CornerRadius="6" Padding="7,3"
                                                                     Margin="8" HorizontalAlignment="Left" VerticalAlignment="Bottom"
                                                                     Background="#B0000000">
@@ -167,7 +181,7 @@
                 <StackPanel Grid.Row="1" IsVisible="{Binding ShowEmptyLibrary}" VerticalAlignment="Center"
                             HorizontalAlignment="Center" Spacing="14" MaxWidth="420" Margin="0,0,0,80">
                     <Image Source="/Assets/kinora-128.png" Width="88" Height="88" />
-                    <TextBlock Text="Your library is empty" FontSize="22" FontWeight="Bold" HorizontalAlignment="Center" />
+                    <TextBlock Text="{Binding EmptyLibraryTitle}" FontSize="22" FontWeight="Bold" HorizontalAlignment="Center" />
                     <TextBlock Text="{Binding EmptyLibraryText}" TextWrapping="Wrap" TextAlignment="Center" Classes="subtle" />
                     <Button Classes="accent" HorizontalAlignment="Center" Content="Add a folder"
                             Command="{Binding OpenSettingsCommand}" Margin="0,6,0,0" />
@@ -199,5 +213,7 @@
         <!-- Movie page -->
         <views:MovieDetailView DataContext="{Binding Detail}"
                                IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).Detail, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <views:SeriesDetailView DataContext="{Binding SeriesDetail}"
+                                IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).SeriesDetail, Converter={x:Static ObjectConverters.IsNotNull}}" />
     </Panel>
 </Window>

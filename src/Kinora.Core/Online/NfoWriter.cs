@@ -44,6 +44,39 @@ public static class NfoWriter
         return sb.ToString().Replace("encoding=\"utf-16\"", "encoding=\"utf-8\"");
     }
 
+    public static string WriteTvShow(TmdbSeries t)
+    {
+        var show = new XElement("tvshow",
+            Text("title", t.Name),
+            Text("originaltitle", t.OriginalName),
+            Text("year", t.Year?.ToString(CultureInfo.InvariantCulture)),
+            Text("plot", t.Overview),
+            t.VoteAverage is { } rating
+                ? new XElement("ratings", new XElement("rating", new XAttribute("name", "themoviedb"), new XAttribute("default", "true"),
+                                                       new XElement("value", rating.ToString("0.0", CultureInfo.InvariantCulture))))
+                : null,
+            Text("mpaa", t.Certification),
+            Text("premiered", t.FirstAirDate),
+            Text("status", t.Status),
+            new XElement("uniqueid", new XAttribute("type", "tmdb"), new XAttribute("default", "true"), t.Id),
+            t.TvdbId is null ? null : new XElement("uniqueid", new XAttribute("type", "tvdb"), t.TvdbId),
+            t.ImdbId is null ? null : new XElement("uniqueid", new XAttribute("type", "imdb"), t.ImdbId),
+            new XElement("tmdbid", t.Id),
+            t.Genres.Select(g => new XElement("genre", g)),
+            t.Networks.Select(n => new XElement("studio", n)),
+            t.Cast.Select((c, i) => new XElement("actor", new XElement("name", c.Name), Text("role", c.Character), new XElement("order", i))));
+        return Serialize(show);
+    }
+
+    private static string Serialize(XElement root)
+    {
+        var doc = new XDocument(new XDeclaration("1.0", "utf-8", "yes"), root);
+        var sb = new StringBuilder();
+        using (var writer = XmlWriter.Create(sb, new XmlWriterSettings { Indent = true, Encoding = Encoding.UTF8 }))
+            doc.Save(writer);
+        return sb.ToString().Replace("encoding=\"utf-16\"", "encoding=\"utf-8\"");
+    }
+
     private static XElement? Text(string name, string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : new XElement(name, value);
 }

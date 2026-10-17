@@ -25,18 +25,21 @@ public partial class IdentifyResult(TmdbSearchResult result) : ObservableObject
 /// <summary>Search TMDB by hand and say which movie a file is.</summary>
 public partial class IdentifyViewModel : ViewModelBase, IDisposable
 {
-    private readonly TmdbClient _client;
-    private CancellationTokenSource? _search;
+    private readonly Func<string, int?, CancellationToken, Task<List<TmdbSearchResult>>> _search;
+    private CancellationTokenSource? _pending;
 
-    public IdentifyViewModel(TmdbClient client, string fileName, string title, int? year)
+    public IdentifyViewModel(Func<string, int?, CancellationToken, Task<List<TmdbSearchResult>>> search, string heading,
+                             string fileName, string title, int? year)
     {
-        _client = client;
+        _search = search;
+        Heading = heading;
         FileName = fileName;
         Query = title;
         YearText = year?.ToString(CultureInfo.InvariantCulture) ?? "";
         _ = SearchAsync();
     }
 
+    public string Heading { get; }
     public string FileName { get; }
     public ObservableCollection<IdentifyResult> Results { get; } = [];
     public string? ChosenId { get; private set; }
@@ -63,10 +66,10 @@ public partial class IdentifyViewModel : ViewModelBase, IDisposable
 
     private async Task SearchAsync()
     {
-        if (_search is not null)
-            await _search.CancelAsync();
-        _search = new CancellationTokenSource();
-        var ct = _search.Token;
+        if (_pending is not null)
+            await _pending.CancelAsync();
+        _pending = new CancellationTokenSource();
+        var ct = _pending.Token;
         var query = Query.Trim();
         if (query.Length == 0)
             return;
@@ -77,9 +80,9 @@ public partial class IdentifyViewModel : ViewModelBase, IDisposable
         Results.Clear();
         try
         {
-            var found = await _client.SearchMovieAsync(query, year, ct);
+            var found = await _search(query, year, ct);
             if (found.Count == 0 && year is not null)
-                found = await _client.SearchMovieAsync(query, null, ct);
+                found = await _search(query, null, ct);
             foreach (var r in found.Take(20))
                 Results.Add(new IdentifyResult(r));
             Message = Results.Count == 0 ? "Nothing found. Try another title, or leave the year empty." : null;
@@ -128,7 +131,7 @@ public partial class IdentifyViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
-        _search?.Cancel();
+        _pending?.Cancel();
         foreach (var r in Results)
             r.Poster?.Dispose();
     }

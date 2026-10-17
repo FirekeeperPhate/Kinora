@@ -50,6 +50,9 @@ public sealed class AppSettings
     public bool SortDescending { get; set; }
     public double CardWidth { get; set; } = 170;
 
+    /// <summary>The library opens on TV shows rather than movies.</summary>
+    public bool ShowTvShows { get; set; }
+
     public double WindowWidth { get; set; } = 1280;
     public double WindowHeight { get; set; } = 820;
     public bool WindowMaximized { get; set; }

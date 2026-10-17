@@ -14,6 +14,7 @@ public static class AppPaths
     public static string PosterCache => Path.Combine(DataDir, "cache", "posters");
     public static string BackdropCache => Path.Combine(DataDir, "cache", "backdrops");
     public static string LogoCache => Path.Combine(DataDir, "cache", "logos");
+    public static string StillCache => Path.Combine(DataDir, "cache", "stills");
 
     private static string Resolve()
     {

@@ -48,7 +48,40 @@ internal sealed class FakeTmdb : HttpMessageHandler
         {
             var imdb = path["find/".Length..];
             var hits = Movies.Where(m => m.ImdbId == imdb).Select(m => $$"""{"id":{{m.Id}},"title":"{{m.Title}}"}""");
-            return Json(HttpStatusCode.OK, $$"""{"movie_results":[{{string.Join(",", hits)}}]}""");
+            var tv = imdb == "81189" || imdb == "tt0903747" ? """{"id":1396,"name":"Breaking Bad"}""" : "";
+            return Json(HttpStatusCode.OK, $$"""{"movie_results":[{{string.Join(",", hits)}}],"tv_results":[{{tv}}]}""");
+        }
+
+        if (path == "search/tv")
+        {
+            var q = query["query"] ?? "";
+            var hits = q.Contains("Breaking", StringComparison.OrdinalIgnoreCase)
+                ? """{"id":1396,"name":"Breaking Bad","original_name":"Breaking Bad","first_air_date":"2008-01-20","popularity":90,"poster_path":"/bb.jpg"}"""
+                : "";
+            return Json(HttpStatusCode.OK, $$"""{"results":[{{hits}}]}""");
+        }
+
+        if (path == "tv/1396")
+            return Json(HttpStatusCode.OK, """
+                {
+                  "id": 1396, "name": "Breaking Bad", "original_name": "Breaking Bad", "overview": "A teacher turns to crime.",
+                  "first_air_date": "2008-01-20", "last_air_date": "2013-09-29", "status": "Ended", "vote_average": 8.9,
+                  "genres": [{"name":"Drama"},{"name":"Crime"}], "networks": [{"name":"AMC"}],
+                  "poster_path": "/bb.jpg", "backdrop_path": "/bbb.jpg",
+                  "seasons": [{"season_number":0,"poster_path":"/s0.jpg"},{"season_number":1,"poster_path":"/s1.jpg"},{"season_number":2,"poster_path":"/s2.jpg"}],
+                  "external_ids": {"imdb_id":"tt0903747","tvdb_id":81189},
+                  "aggregate_credits": {"cast":[{"name":"Bryan Cranston","roles":[{"character":"Walter White"}]}]},
+                  "content_ratings": {"results":[{"iso_3166_1":"US","rating":"TV-MA"}]},
+                  "images": {"logos":[{"file_path":"/bblogo.png","iso_639_1":"en"}]}
+                }
+                """);
+
+        if (path.StartsWith("tv/1396/season/"))
+        {
+            var n = int.Parse(path["tv/1396/season/".Length..]);
+            var eps = Enumerable.Range(1, 3).Select(e =>
+                $$"""{"episode_number":{{e}},"name":"Episode {{n}}.{{e}}","overview":"Plot {{n}}.{{e}}","air_date":"2008-0{{e}}-01","runtime":47,"still_path":"/still{{n}}{{e}}.jpg"}""");
+            return Json(HttpStatusCode.OK, $$"""{"season_number":{{n}},"poster_path":"/s{{n}}.jpg","episodes":[{{string.Join(",", eps)}}]}""");
         }
 
         if (path.StartsWith("movie/"))

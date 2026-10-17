@@ -1,0 +1,284 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Kinora.ViewModels"
+             xmlns:core="using:Kinora.Core.Models"
+             xmlns:k="using:Kinora"
+             x:Class="Kinora.Views.SeriesDetailView"
+             x:DataType="vm:SeriesDetailViewModel"
+             Background="{DynamicResource AppBackground}">
+
+    <UserControl.Styles>
+        <Style Selector="Image.backdrop.blurred">
+            <Setter Property="Effect" Value="blur(48)" />
+        </Style>
+        <Style Selector="ListBox.seasons">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="ListBox.seasons > ListBoxItem">
+            <Setter Property="Padding" Value="14,7" />
+            <Setter Property="Margin" Value="0,0,8,8" />
+            <Setter Property="CornerRadius" Value="18" />
+            <Setter Property="Background" Value="{DynamicResource ChipBackground}" />
+        </Style>
+        <Style Selector="ListBox.seasons > ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="ListBox.seasons > ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="ToggleButton.watched">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}" />
+            <Setter Property="BorderThickness" Value="1.5" />
+            <Setter Property="Foreground" Value="{DynamicResource SubtleText}" />
+        </Style>
+        <!-- The check icon follows the button's Foreground, not the presenter's -->
+        <Style Selector="ToggleButton.watched:checked">
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="ToggleButton.watched:checked /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="ToggleButton.watched:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="Border.episode">
+            <Setter Property="Background" Value="{DynamicResource SurfaceBackground}" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="10" />
+        </Style>
+        <Style Selector="Border.episode.missing">
+            <Setter Property="Opacity" Value="0.5" />
+        </Style>
+        <Style Selector="Button.episodeButton">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.episodeButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.episodeButton:pointerover TextBlock.episodeTitle">
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Panel>
+        <Panel ClipToBounds="True">
+            <Image Classes="backdrop" Classes.blurred="{Binding BackdropIsPoster}" Source="{Binding Backdrop}"
+                   Stretch="UniformToFill" VerticalAlignment="Top" Opacity="0.9" />
+            <Border>
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                        <GradientStop Offset="0" Color="{DynamicResource BackdropFade}" />
+                        <GradientStop Offset="0.55" Color="{DynamicResource BackdropFadeTransparent}" />
+                    </LinearGradientBrush>
+                </Border.Background>
+            </Border>
+            <Border>
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                        <GradientStop Offset="0" Color="{DynamicResource BackdropFadeTransparent}" />
+                        <GradientStop Offset="0.3" Color="{DynamicResource BackdropFadeTransparent}" />
+                        <GradientStop Offset="0.7" Color="{DynamicResource BackdropFade}" />
+                    </LinearGradientBrush>
+                </Border.Background>
+            </Border>
+            <Border Background="{DynamicResource AppBackground}" Opacity="{DynamicResource BackdropVeil}" />
+        </Panel>
+
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="48,22,48,48" Spacing="28">
+                <Button Classes="pill" Command="{Binding BackCommand}" HorizontalAlignment="Left" ToolTip.Tip="Back (Esc)" Padding="12,8,16,8">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Path Classes="icon" Data="{x:Static k:Icons.Back}" Width="14" Height="14" />
+                        <TextBlock Text="Library" />
+                    </StackPanel>
+                </Button>
+
+                <Grid ColumnDefinitions="Auto,*" Margin="0,16,0,0">
+                    <Border Width="250" Height="375" CornerRadius="14" ClipToBounds="True" VerticalAlignment="Top"
+                            Background="{DynamicResource PlaceholderBackground}" BoxShadow="0 18 40 0 #60000000">
+                        <Panel>
+                            <TextBlock Text="{Binding Title}" TextWrapping="Wrap" TextAlignment="Center" VerticalAlignment="Center"
+                                       Margin="20" Classes="subtle" IsVisible="{Binding !HasPoster}" />
+                            <Image Source="{Binding Poster}" Stretch="UniformToFill" />
+                        </Panel>
+                    </Border>
+
+                    <StackPanel Grid.Column="1" Margin="44,4,0,0" Spacing="14" MaxWidth="860" HorizontalAlignment="Left">
+                        <Image Source="{Binding Logo}" IsVisible="{Binding HasLogo}" MaxHeight="130" MaxWidth="460"
+                               Stretch="Uniform" HorizontalAlignment="Left" ToolTip.Tip="{Binding Title}">
+                            <Image.Effect>
+                                <DropShadowEffect BlurRadius="18" OffsetX="0" OffsetY="2" Color="Black" Opacity="0.55" />
+                            </Image.Effect>
+                        </Image>
+                        <TextBlock Text="{Binding Title}" IsVisible="{Binding ShowTitleText}" FontSize="40" FontWeight="Bold" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding OriginalTitle}" IsVisible="{Binding OriginalTitle, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                   Classes="subtle" FontSize="15" Margin="0,-8,0,0" />
+
+                        <WrapPanel Orientation="Horizontal" ItemSpacing="14" LineSpacing="6">
+                            <TextBlock Text="{Binding YearsText}" IsVisible="{Binding YearsText, Converter={x:Static ObjectConverters.IsNotNull}}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding EpisodesText}" VerticalAlignment="Center" />
+                            <Border Classes="badge" IsVisible="{Binding Mpaa, Converter={x:Static ObjectConverters.IsNotNull}}" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Mpaa}" FontSize="12" />
+                            </Border>
+                            <Border Classes="badge" IsVisible="{Binding Status, Converter={x:Static ObjectConverters.IsNotNull}}" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Status}" FontSize="12" />
+                            </Border>
+                            <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding RatingText, Converter={x:Static ObjectConverters.IsNotNull}}" VerticalAlignment="Center">
+                                <TextBlock Text="★" Foreground="#F5B83D" />
+                                <TextBlock Text="{Binding RatingText}" FontWeight="SemiBold" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding Networks}" Classes="subtle" VerticalAlignment="Center"
+                                       IsVisible="{Binding Networks, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                        </WrapPanel>
+
+                        <ItemsControl ItemsSource="{Binding Genres}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel ItemSpacing="8" LineSpacing="8" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                    <Border Classes="chip"><TextBlock Text="{Binding}" FontSize="13" /></Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,6,0,4">
+                            <Button Classes="accent" Command="{Binding PlayNextCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Path Data="M7,4.5 L19,12 L7,19.5 Z" Fill="White" Stretch="Uniform" Width="13" Height="14" />
+                                    <TextBlock Text="{Binding PlayNextText}" />
+                                </StackPanel>
+                            </Button>
+                            <Button Classes="pill" Command="{Binding RevealShowCommand}" ToolTip.Tip="Show in folder">
+                                <Path Classes="icon" Data="{x:Static k:Icons.Folder}" Width="16" Height="16" />
+                            </Button>
+                            <DropDownButton Classes="pill" Content="•••" ToolTip.Tip="More" IsVisible="{Binding HasTmdbKey}">
+                                <DropDownButton.Flyout>
+                                    <MenuFlyout>
+                                        <MenuItem Header="Identify…" Command="{Binding IdentifyCommand}" IsVisible="{Binding CanIdentify}" />
+                                        <MenuItem Header="Refresh metadata from TMDB" Command="{Binding RefreshMetadataCommand}" />
+                                    </MenuFlyout>
+                                </DropDownButton.Flyout>
+                            </DropDownButton>
+                        </StackPanel>
+
+                        <Border IsVisible="{Binding NeedsMatch}" Background="{DynamicResource SurfaceBackground}" CornerRadius="10"
+                                Padding="14,10" HorizontalAlignment="Left" MaxWidth="760">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock VerticalAlignment="Center" TextWrapping="Wrap"
+                                           Text="Kinora doesn't know yet which show this is: neither the folder nor TMDB said it for sure." />
+                                <Button Grid.Column="1" Content="Identify…" Margin="12,0,0,0" Command="{Binding IdentifyCommand}"
+                                        IsVisible="{Binding HasTmdbKey}" />
+                            </Grid>
+                        </Border>
+                        <TextBlock Text="This folder is not reachable right now: the episodes play when the NAS is back."
+                                   IsVisible="{Binding IsUnavailable}" Foreground="{DynamicResource AccentBrush}" TextWrapping="Wrap" />
+
+                        <TextBlock Text="{Binding Plot}" TextWrapping="Wrap" FontSize="15" LineHeight="23" MaxWidth="760" HorizontalAlignment="Left" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- Seasons and episodes -->
+                <StackPanel Spacing="12">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <ListBox Classes="seasons" ItemsSource="{Binding Seasons}" SelectedItem="{Binding SelectedSeason}">
+                            <ListBox.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ListBox.ItemsPanel>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:SeasonTab">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="{Binding Label}" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding CountText}" Opacity="0.7" FontSize="12" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <Button Grid.Column="1" Classes="pill" Content="{Binding SeasonWatchedText}" VerticalAlignment="Top"
+                                Command="{Binding ToggleSeasonWatchedCommand}" />
+                    </Grid>
+
+                    <ItemsControl ItemsSource="{Binding Episodes}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Spacing="10" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:EpisodeRow">
+                                <Border Classes="episode" Classes.missing="{Binding IsMissing}">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <Button Classes="episodeButton" Command="{Binding PlayCommand}" IsEnabled="{Binding !IsMissing}"
+                                                ToolTip.Tip="Play">
+                                            <Button.ContextMenu>
+                                                <ContextMenu>
+                                                    <MenuItem Header="Play" Command="{Binding PlayCommand}" />
+                                                    <MenuItem Header="Show in folder" Command="{Binding RevealCommand}" />
+                                                </ContextMenu>
+                                            </Button.ContextMenu>
+                                            <Grid ColumnDefinitions="Auto,Auto,*">
+                                                <TextBlock Text="{Binding NumberText}" Width="44" FontSize="18" FontWeight="SemiBold"
+                                                           VerticalAlignment="Center" TextAlignment="Center" Classes="subtle" />
+                                                <Border Grid.Column="1" Width="200" Height="112" CornerRadius="8" ClipToBounds="True" Margin="4,0,16,0"
+                                                        Background="{DynamicResource PlaceholderBackground}">
+                                                    <Image Source="{Binding Thumb}" Stretch="UniformToFill" />
+                                                </Border>
+                                                <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="4">
+                                                    <TextBlock Classes="episodeTitle" Text="{Binding Title}" FontWeight="SemiBold" FontSize="15"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Text="{Binding Details}" Classes="subtle" FontSize="12" />
+                                                    <TextBlock Text="{Binding Plot}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
+                                                               FontSize="13" Classes="subtle" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Button>
+                                        <ToggleButton Grid.Column="1" Classes="watched" IsChecked="{Binding Watched, Mode=OneWay}" Command="{Binding ToggleWatchedCommand}"
+                                                      IsVisible="{Binding !IsMissing}" Width="40" Height="40" CornerRadius="20" Margin="12,0,6,0"
+                                                      VerticalAlignment="Center" ToolTip.Tip="Watched">
+                                            <Path Classes="icon" Data="{x:Static k:Icons.Check}" Width="15" Height="15" />
+                                        </ToggleButton>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <StackPanel Spacing="14" IsVisible="{Binding HasCast}">
+                    <TextBlock Classes="section" Text="CAST" />
+                    <ItemsControl ItemsSource="{Binding Cast}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel ItemSpacing="12" LineSpacing="12" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="core:CastMember">
+                                <Border Width="210" Padding="14,10" CornerRadius="10" Background="{DynamicResource SurfaceBackground}">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Role}" Classes="subtle" FontSize="12" TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </Panel>
+</UserControl>

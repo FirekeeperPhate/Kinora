@@ -22,22 +22,32 @@ public static partial class MediaFiles
         ".jpg", ".jpeg", ".png", ".webp", ".tbn", ".bmp",
     };
 
-    /// <summary>
-    /// NAS and OS housekeeping folders (Synology's @eaDir, recycle bins…) and the extras folders
-    /// that live inside a movie folder.
-    /// </summary>
-    private static readonly HashSet<string> IgnoredFolders = new(StringComparer.OrdinalIgnoreCase)
+    /// <summary>NAS and OS housekeeping folders: Synology's @eaDir, recycle bins, sync tools…</summary>
+    private static readonly HashSet<string> HousekeepingFolders = new(StringComparer.OrdinalIgnoreCase)
     {
-        "@eaDir", "#recycle", "#snapshot", "$RECYCLE.BIN", "System Volume Information", ".deletedByTMM",
+        "@eaDir", "#recycle", "#snapshot", "_gsdata_", "$RECYCLE.BIN", "System Volume Information", ".deletedByTMM",
+        "lost+found",
+    };
+
+    /// <summary>The extras folders that live inside a movie or show folder.</summary>
+    private static readonly HashSet<string> ExtrasFolders = new(StringComparer.OrdinalIgnoreCase)
+    {
         "extrafanart", "extrathumbs", "extras", "featurettes", "behind the scenes", "deleted scenes",
         "interviews", "scenes", "shorts", "trailers", "samples", "sample", "other", "metadata", ".actors",
-        "lost+found",
     };
 
     public static bool IsVideo(string fileName) => VideoExtensions.Contains(Path.GetExtension(fileName));
 
+    /// <summary>For folders inside a movie or show: housekeeping and extras.</summary>
     public static bool IsIgnoredFolder(string name) =>
-        name.StartsWith('.') || IgnoredFolders.Contains(name);
+        IsHousekeepingFolder(name) || ExtrasFolders.Contains(name);
+
+    /// <summary>
+    /// For the folders right under a root, which are titles: only housekeeping is skipped (a show
+    /// may well be called "Extras").
+    /// </summary>
+    public static bool IsHousekeepingFolder(string name) =>
+        name.StartsWith('.') || HousekeepingFolders.Contains(name);
 
     /// <summary>Trailers and samples that sit next to the movie and must not be taken for it.</summary>
     public static bool IsExtraVideo(string fileName) =>

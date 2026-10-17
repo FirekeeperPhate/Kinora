@@ -86,7 +86,7 @@ public sealed class MovieScanner(LibraryDatabase db, ImageCache posters)
             return;
         }
 
-        var dirs = top.OfType<DirectoryInfo>().Where(d => !MediaFiles.IsIgnoredFolder(d.Name)).ToList();
+        var dirs = top.OfType<DirectoryInfo>().Where(d => !MediaFiles.IsHousekeepingFolder(d.Name)).ToList();
 
         // The times that come with a listing are the parent's copy, and NTFS updates that copy
         // lazily: a folder that just changed can still show its old time. Asking each folder is

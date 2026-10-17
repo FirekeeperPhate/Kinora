@@ -16,6 +16,12 @@ public sealed class NfoData
     public string? Premiered { get; set; }
     public string? ImdbId { get; set; }
     public string? TmdbId { get; set; }
+    public string? TvdbId { get; set; }
+    public string? Status { get; set; }
+
+    /// <summary>Episode nfo only.</summary>
+    public int? Season { get; set; }
+    public int? Episode { get; set; }
     public string? Collection { get; set; }
     public bool? Watched { get; set; }
     public DateTime? DateAdded { get; set; }
@@ -51,6 +57,10 @@ public sealed class NfoData
         Premiered ??= other.Premiered;
         ImdbId ??= other.ImdbId;
         TmdbId ??= other.TmdbId;
+        TvdbId ??= other.TvdbId;
+        Status ??= other.Status;
+        Season ??= other.Season;
+        Episode ??= other.Episode;
         Collection ??= other.Collection;
         Watched ??= other.Watched;
         DateAdded ??= other.DateAdded;

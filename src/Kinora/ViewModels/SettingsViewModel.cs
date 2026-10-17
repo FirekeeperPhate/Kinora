@@ -133,6 +133,13 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     public partial string NewRootName { get; set; } = "";
 
+    /// <summary>0 = movies, 1 = TV shows.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(NewRootIsShows))]
+    public partial int NewRootKindIndex { get; set; }
+
+    public bool NewRootIsShows => NewRootKindIndex == 1;
+
     [ObservableProperty]
     public partial string? AddError { get; private set; }
 
@@ -166,7 +173,7 @@ public partial class SettingsViewModel : ViewModelBase
     [RelayCommand]
     private async Task Browse()
     {
-        var path = await _dialogs.PickFolderAsync("Choose a folder with movies");
+        var path = await _dialogs.PickFolderAsync(NewRootIsShows ? "Choose a folder with TV shows" : "Choose a folder with movies");
         if (path is not null)
             NewRootPath = path;
     }
@@ -192,7 +199,7 @@ public partial class SettingsViewModel : ViewModelBase
             return;
         }
         var name = NewRootName.Trim().Length > 0 ? NewRootName.Trim() : DefaultName(path);
-        var root = _s.Database.AddRoot(LibraryKind.Movies, name, path);
+        var root = _s.Database.AddRoot(NewRootIsShows ? LibraryKind.Series : LibraryKind.Movies, name, path);
         Roots.Add(new RootItem(root));
         RootsChanged = true;
         NewRootPath = "";

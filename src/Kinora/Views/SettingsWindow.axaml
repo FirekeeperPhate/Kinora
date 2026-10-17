@@ -38,7 +38,7 @@
                         <StackPanel Spacing="4">
                             <TextBlock Classes="heading" Text="Library folders" />
                             <TextBlock Classes="subtle" TextWrapping="Wrap"
-                                       Text="The folders Kinora builds the library from. Each movie in its own folder, or loose files." />
+                                       Text="The folders Kinora builds the library from. Movies: each in its own folder, or loose files. TV shows: one folder per show, with season folders inside." />
                         </StackPanel>
 
                         <ItemsControl ItemsSource="{Binding Roots}">
@@ -69,14 +69,18 @@
                         </ItemsControl>
 
                         <StackPanel Spacing="8">
-                            <TextBlock Text="Add a movie folder" FontWeight="SemiBold" />
+                            <TextBlock Text="Add a folder" FontWeight="SemiBold" />
                             <Grid ColumnDefinitions="*,Auto">
                                 <TextBox Text="{Binding NewRootPath}" PlaceholderText="\\nas\movies, M:\Movies, /mnt/nas/movies" />
                                 <Button Grid.Column="1" Content="Browse…" Margin="8,0,0,0" Command="{Binding BrowseCommand}" />
                             </Grid>
-                            <Grid ColumnDefinitions="*,Auto">
+                            <Grid ColumnDefinitions="*,Auto,Auto">
                                 <TextBox Text="{Binding NewRootName}" PlaceholderText="Name shown in the sidebar" />
-                                <Button Grid.Column="1" Content="Add" Classes="accent" Padding="18,6" Margin="8,0,0,0"
+                                <ComboBox Grid.Column="1" SelectedIndex="{Binding NewRootKindIndex}" Margin="8,0,0,0" MinWidth="130">
+                                    <ComboBoxItem Content="Movies" />
+                                    <ComboBoxItem Content="TV shows" />
+                                </ComboBox>
+                                <Button Grid.Column="2" Content="Add" Classes="accent" Padding="18,6" Margin="8,0,0,0"
                                         Command="{Binding AddRootCommand}" />
                             </Grid>
                             <TextBlock Text="{Binding AddError}" Foreground="{DynamicResource AccentBrush}" TextWrapping="Wrap"

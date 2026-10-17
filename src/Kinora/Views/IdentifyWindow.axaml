@@ -12,7 +12,7 @@
 
     <DockPanel Margin="24">
         <StackPanel DockPanel.Dock="Top" Spacing="6">
-            <TextBlock Text="Which movie is this?" FontSize="22" FontWeight="Bold" />
+            <TextBlock Text="{Binding Heading}" FontSize="22" FontWeight="Bold" />
             <TextBlock Text="{Binding FileName}" Classes="subtle" TextTrimming="CharacterEllipsis" />
             <Grid ColumnDefinitions="*,90,Auto" Margin="0,10,0,4">
                 <TextBox x:Name="QueryBox" Text="{Binding Query}" PlaceholderText="Title">
