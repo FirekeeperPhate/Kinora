@@ -41,7 +41,75 @@ public partial class SettingsViewModel : ViewModelBase
         WriteToMediaFolders = _s.Settings.WriteToMediaFolders;
         ScanOnStartup = _s.Settings.ScanOnStartup;
         CardWidth = _s.Settings.CardWidth;
+        TmdbKey = _s.Settings.TmdbKey;
+        _originalKey = TmdbKey;
+        _originalLanguage = _s.Settings.MetadataLanguage;
+        MetadataLanguage = Languages.FirstOrDefault(l => l.Code == _s.Settings.MetadataLanguage)
+                           ?? new MetadataLanguageOption(_s.Settings.MetadataLanguage, _s.Settings.MetadataLanguage);
+        FetchAfterScan = _s.Settings.FetchAfterScan;
     }
+
+    private readonly string _originalKey;
+    private readonly string _originalLanguage;
+
+    /// <summary>A new key or language: worth asking TMDB again when the window closes.</summary>
+    public bool OnlineChanged => TmdbKey.Trim() != _originalKey || MetadataLanguage.Code != _originalLanguage;
+
+    public IReadOnlyList<MetadataLanguageOption> Languages { get; } =
+    [
+        new("en-US", "English"), new("it-IT", "Italian"), new("de-DE", "German"), new("fr-FR", "French"),
+        new("es-ES", "Spanish"), new("pt-BR", "Portuguese (Brazil)"), new("nl-NL", "Dutch"), new("ja-JP", "Japanese"),
+    ];
+
+    [ObservableProperty]
+    public partial string TmdbKey { get; set; } = "";
+
+    [ObservableProperty]
+    public partial MetadataLanguageOption MetadataLanguage { get; set; }
+
+    [ObservableProperty]
+    public partial bool FetchAfterScan { get; set; }
+
+    [ObservableProperty]
+    public partial string? KeyStatus { get; private set; }
+
+    [ObservableProperty]
+    public partial bool KeyOk { get; private set; }
+
+    partial void OnTmdbKeyChanged(string value)
+    {
+        _s.Settings.TmdbKey = value;
+        KeyStatus = null;
+    }
+
+    partial void OnMetadataLanguageChanged(MetadataLanguageOption value) => _s.Settings.MetadataLanguage = value.Code;
+    partial void OnFetchAfterScanChanged(bool value) => _s.Settings.FetchAfterScan = value;
+
+    [RelayCommand]
+    private async Task TestKey()
+    {
+        if (TmdbKey.Trim().Length == 0)
+        {
+            KeyOk = false;
+            KeyStatus = "Paste the key first.";
+            return;
+        }
+        KeyStatus = "Checking…";
+        try
+        {
+            using var client = new Kinora.Core.Online.TmdbClient(TmdbKey, MetadataLanguage.Code);
+            KeyOk = await client.TestAsync(CancellationToken.None);
+            KeyStatus = KeyOk ? "The key works." : "TMDB refused this key.";
+        }
+        catch (Exception e) when (e is HttpRequestException or TaskCanceledException or Kinora.Core.Online.TmdbException)
+        {
+            KeyOk = false;
+            KeyStatus = "Can't reach TMDB: " + e.Message;
+        }
+    }
+
+    [RelayCommand]
+    private void OpenTmdbApiPage() => Launcher.OpenUrl("https://www.themoviedb.org/settings/api");
 
     public ObservableCollection<RootItem> Roots { get; } = [];
     public bool RootsChanged { get; private set; }
@@ -159,4 +227,9 @@ public partial class SettingsViewModel : ViewModelBase
 
     [RelayCommand]
     private void OpenDataFolder() => Launcher.Reveal(AppPaths.DataDir);
+}
+
+public sealed record MetadataLanguageOption(string Code, string Name)
+{
+    public override string ToString() => $"{Name} ({Code})";
 }

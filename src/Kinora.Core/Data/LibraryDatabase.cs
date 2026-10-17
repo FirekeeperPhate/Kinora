@@ -1,5 +1,6 @@
 using Dapper;
 using Kinora.Core.Models;
+using Kinora.Core.Online;
 using Microsoft.Data.Sqlite;
 
 namespace Kinora.Core.Data;
@@ -10,7 +11,7 @@ namespace Kinora.Core.Data;
 /// </summary>
 public sealed class LibraryDatabase
 {
-    private const int SchemaVersion = 1;
+    private const int SchemaVersion = 2;
 
     private readonly string _connectionString;
 
@@ -112,6 +113,35 @@ public sealed class LibraryDatabase
                     key TEXT PRIMARY KEY,
                     watched INTEGER NOT NULL DEFAULT 0,
                     date_added INTEGER
+                );
+                """, transaction: tx);
+        }
+        if (version < 2)
+        {
+            c.Execute("""
+                -- Pictures from TMDB, used only where the folder has none (paths on image.tmdb.org)
+                ALTER TABLE movies ADD COLUMN online_poster TEXT;
+                ALTER TABLE movies ADD COLUMN online_fanart TEXT;
+                ALTER TABLE movies ADD COLUMN online_logo TEXT;
+                -- What TMDB said about a movie, kept apart from the movies: a scan rebuilds the
+                -- movies from the folders and fills their gaps from here.
+                CREATE TABLE tmdb_movies (
+                    tmdb_id TEXT PRIMARY KEY,
+                    imdb_id TEXT,
+                    language TEXT NOT NULL,
+                    data TEXT NOT NULL,
+                    fetched INTEGER NOT NULL
+                );
+                CREATE INDEX ix_tmdb_movies_imdb ON tmdb_movies(imdb_id);
+                -- Which TMDB movie a video without ids is: found by the search (manual = 0), chosen
+                -- by the user (manual = 1), or searched without result (tmdb_id NULL).
+                CREATE TABLE matches (
+                    root_id INTEGER NOT NULL REFERENCES roots(id) ON DELETE CASCADE,
+                    video_file TEXT NOT NULL,
+                    tmdb_id TEXT,
+                    manual INTEGER NOT NULL DEFAULT 0,
+                    tried INTEGER NOT NULL,
+                    PRIMARY KEY (root_id, video_file)
                 );
                 """, transaction: tx);
         }
@@ -248,6 +278,62 @@ public sealed class LibraryDatabase
         }
     }
 
+    // ---- online metadata ----
+
+    public void SaveTmdbMovie(TmdbMovie movie)
+    {
+        using var c = Open();
+        c.Execute("""
+            INSERT INTO tmdb_movies (tmdb_id, imdb_id, language, data, fetched) VALUES (@id, @imdb, @language, @data, @fetched)
+            ON CONFLICT(tmdb_id) DO UPDATE SET imdb_id = excluded.imdb_id, language = excluded.language,
+                                               data = excluded.data, fetched = excluded.fetched
+            """, new
+        {
+            id = movie.Id,
+            imdb = movie.ImdbId,
+            language = movie.Language,
+            data = movie.ToJson(),
+            fetched = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+        });
+    }
+
+    public TmdbMovie? GetTmdbMovie(string tmdbId)
+    {
+        using var c = Open();
+        var json = c.QuerySingleOrDefault<string>("SELECT data FROM tmdb_movies WHERE tmdb_id = @tmdbId", new { tmdbId });
+        return json is null ? null : TmdbMovie.FromJson(json);
+    }
+
+    /// <summary>Every cached TMDB movie, still as JSON: the scanner decodes only the ones it needs.</summary>
+    public List<(string TmdbId, string? ImdbId, string Data)> GetTmdbMoviesRaw()
+    {
+        using var c = Open();
+        return c.Query<(string, string?, string)>("SELECT tmdb_id, imdb_id, data FROM tmdb_movies").ToList();
+    }
+
+    public Dictionary<string, MatchInfo> GetMatches(long rootId)
+    {
+        using var c = Open();
+        return c.Query<MatchInfo>("SELECT video_file, tmdb_id, manual, tried FROM matches WHERE root_id = @rootId", new { rootId })
+                .ToDictionary(m => m.VideoFile, StringComparer.OrdinalIgnoreCase);
+    }
+
+    public MatchInfo? GetMatch(long rootId, string videoFile)
+    {
+        using var c = Open();
+        return c.QuerySingleOrDefault<MatchInfo>("SELECT video_file, tmdb_id, manual, tried FROM matches WHERE root_id = @rootId AND video_file = @videoFile",
+                                                 new { rootId, videoFile });
+    }
+
+    public void SaveMatch(long rootId, string videoFile, string? tmdbId, bool manual)
+    {
+        using var c = Open();
+        c.Execute("""
+            INSERT INTO matches (root_id, video_file, tmdb_id, manual, tried) VALUES (@rootId, @videoFile, @tmdbId, @manual, @tried)
+            ON CONFLICT(root_id, video_file) DO UPDATE SET tmdb_id = excluded.tmdb_id, manual = excluded.manual, tried = excluded.tried
+            """, new { rootId, videoFile, tmdbId, manual, tried = DateTimeOffset.UtcNow.ToUnixTimeSeconds() });
+    }
+
     private sealed class UserStateRow
     {
         public long Watched { get; set; }
@@ -265,7 +351,7 @@ public sealed class LibraryDatabase
         "root_id", "folder", "video_file", "video_size", "stamp", "title", "original_title", "sort_title", "year",
         "plot", "tagline", "runtime", "rating", "critic_rating", "mpaa", "premiered", "imdb_id", "tmdb_id",
         "collection", "genres", "studios", "directors", "countries", "poster_file", "fanart_file", "logo_file",
-        "thumb_key", "resolution", "video_codec", "audio_codec", "audio_channels", "subtitles", "other_videos", "watched", "date_added",
+        "thumb_key", "resolution", "video_codec", "audio_codec", "audio_channels", "subtitles", "other_videos", "watched", "date_added", "online_poster", "online_fanart", "online_logo",
     ];
 
     private static string ToProperty(string column) =>
@@ -274,4 +360,12 @@ public sealed class LibraryDatabase
     private static readonly string Columns = string.Join(", ", MovieColumns);
     private static readonly string Parameters = string.Join(", ", MovieColumns.Select(c => "@" + ToProperty(c)));
     private static readonly string Assignments = string.Join(", ", MovieColumns.Select(c => $"{c} = @{ToProperty(c)}"));
+}
+
+public sealed class MatchInfo
+{
+    public string VideoFile { get; set; } = "";
+    public string? TmdbId { get; set; }
+    public bool Manual { get; set; }
+    public long Tried { get; set; }
 }

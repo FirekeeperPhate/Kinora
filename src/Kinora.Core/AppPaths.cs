@@ -13,6 +13,7 @@ public static class AppPaths
     public static string Settings => Path.Combine(DataDir, "settings.json");
     public static string PosterCache => Path.Combine(DataDir, "cache", "posters");
     public static string BackdropCache => Path.Combine(DataDir, "cache", "backdrops");
+    public static string LogoCache => Path.Combine(DataDir, "cache", "logos");
 
     private static string Resolve()
     {

@@ -93,6 +93,7 @@
                             <SplitButton.Flyout>
                                 <MenuFlyout Placement="BottomEdgeAlignedRight">
                                     <MenuItem Header="Full scan (read every folder again)" Command="{Binding FullScanCommand}" />
+                                    <MenuItem Header="Download missing metadata from TMDB" Command="{Binding FetchMissingCommand}" />
                                 </MenuFlyout>
                             </SplitButton.Flyout>
                         </SplitButton>
@@ -125,6 +126,7 @@
                                                         <MenuItem Header="{Binding WatchedMenuText}" Command="{Binding ToggleWatchedCommand}" />
                                                         <Separator />
                                                         <MenuItem Header="Show in folder" Command="{Binding RevealCommand}" />
+                                                        <MenuItem Header="Identify…" Command="{Binding IdentifyCommand}" />
                                                     </ContextMenu>
                                                 </Button.ContextMenu>
                                                 <StackPanel>

@@ -147,4 +147,7 @@ public partial class MovieCardViewModel : ViewModelBase, IPosterHolder
 
     [RelayCommand]
     private void ToggleWatched() => _owner.SetWatched(this, !Movie.Watched);
+
+    [RelayCommand]
+    private Task Identify() => _owner.IdentifyAsync(this);
 }

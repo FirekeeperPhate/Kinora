@@ -25,6 +25,20 @@ public sealed class ImageCache(string directory, int width, int quality = 88)
         return Convert.ToHexStringLower(bytes, 0, 12);
     }
 
+    /// <summary>The key of a TMDB picture: its path there never changes content.</summary>
+    public static string KeyForOnline(string tmdbPath)
+    {
+        var bytes = SHA1.HashData(Encoding.UTF8.GetBytes("tmdb|" + tmdbPath));
+        return Convert.ToHexStringLower(bytes, 0, 12);
+    }
+
+    /// <summary>Same as <see cref="Ensure"/> for a picture already in memory (a download).</summary>
+    public bool EnsureFromBytes(string key, byte[] data)
+    {
+        var target = PathFor(key);
+        return File.Exists(target) || Write(data, target);
+    }
+
     /// <summary>
     /// Makes the resized copy unless it is already there. The source is read in one go (one
     /// request to the NAS), decoded and written as JPEG. False when the source is not a picture.

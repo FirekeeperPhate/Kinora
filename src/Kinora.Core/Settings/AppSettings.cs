@@ -27,6 +27,25 @@ public sealed class AppSettings
     public bool WriteToMediaFolders { get; set; }
 
     public bool ScanOnStartup { get; set; } = true;
+
+    /// <summary>The TMDB key, as <see cref="SecretText"/> keeps it. Use <see cref="TmdbKey"/>.</summary>
+    public string? TmdbKeyStored { get; set; }
+
+    [JsonIgnore]
+    public string TmdbKey
+    {
+        get => SecretText.Unprotect(TmdbKeyStored);
+        set => TmdbKeyStored = SecretText.Protect(value.Trim());
+    }
+
+    [JsonIgnore]
+    public bool HasTmdbKey => !string.IsNullOrEmpty(TmdbKeyStored) && TmdbKey.Length > 0;
+
+    /// <summary>Language of the plots, titles and pictures asked of TMDB.</summary>
+    public string MetadataLanguage { get; set; } = "en-US";
+
+    /// <summary>After a scan, ask TMDB about what is missing.</summary>
+    public bool FetchAfterScan { get; set; } = true;
     public SortOrder Sort { get; set; } = SortOrder.Title;
     public bool SortDescending { get; set; }
     public double CardWidth { get; set; } = 170;
@@ -58,6 +77,8 @@ public sealed class AppSettings
     {
         var temp = path + ".tmp";
         File.WriteAllText(temp, JsonSerializer.Serialize(this, Json));
+        if (!OperatingSystem.IsWindows())
+            File.SetUnixFileMode(temp, UnixFileMode.UserRead | UnixFileMode.UserWrite);   // the key is in there
         File.Move(temp, path, overwrite: true);
     }
 }

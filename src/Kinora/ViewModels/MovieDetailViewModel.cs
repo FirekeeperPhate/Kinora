@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using Kinora.Core;
 using Kinora.Core.Imaging;
 using Kinora.Core.Models;
+using Kinora.Core.Online;
 using Kinora.Services;
 
 namespace Kinora.ViewModels;
@@ -27,6 +28,7 @@ public partial class MovieDetailViewModel : ViewModelBase, IDisposable
         _rootUnavailable = rootUnavailable;
         Card = card;
         Cast = _s.Database.GetCast(card.Movie.Id);
+        CanIdentify = card.Movie.NeedsMatch || (root is not null && _s.Database.GetMatch(root.Id, card.Movie.VideoFile) is not null);
 
         var m = card.Movie;
         var all = new[] { m.VideoFile }.Concat(m.OtherVideoList).ToList();
@@ -130,6 +132,28 @@ public partial class MovieDetailViewModel : ViewModelBase, IDisposable
             }
         }
 
+        // Pictures the folder lacks, from TMDB (downloaded once, then from the cache)
+        if (Backdrop is null && Movie.OnlineFanart is { } onlineFanart)
+        {
+            var fanartKey = ImageCache.KeyForOnline(onlineFanart);
+            if (!_s.Backdrops.Has(fanartKey) && await TmdbImages.DownloadAsync(onlineFanart, "w1280", CancellationToken.None) is { } bytes)
+                await Task.Run(() => _s.Backdrops.EnsureFromBytes(fanartKey, bytes));
+            Backdrop = await Load(() => _s.Backdrops.Has(fanartKey) ? new Bitmap(_s.Backdrops.PathFor(fanartKey)) : null);
+        }
+        if (Logo is null && Movie.OnlineLogo is { } onlineLogo)
+        {
+            var logoKey = ImageCache.KeyForOnline(onlineLogo);
+            if (!_s.Logos.Has(logoKey) && await TmdbImages.DownloadAsync(onlineLogo, "w500", CancellationToken.None) is { } bytes)
+                _s.Logos.Save(logoKey, bytes);
+            Logo = await Load(() =>
+            {
+                if (!_s.Logos.Has(logoKey))
+                    return null;
+                using var stream = File.OpenRead(_s.Logos.PathFor(logoKey));
+                return Bitmap.DecodeToWidth(stream, 800);
+            });
+        }
+
         if (Backdrop is null && Poster is not null && !_disposed)
         {
             BackdropIsPoster = true;
@@ -176,6 +200,18 @@ public partial class MovieDetailViewModel : ViewModelBase, IDisposable
 
     [RelayCommand]
     private void Reveal() => _owner.Reveal(Card);
+
+    [RelayCommand]
+    private Task Identify() => _owner.IdentifyAsync(Card);
+
+    [RelayCommand]
+    private Task RefreshMetadata() => _owner.RefreshMetadataAsync(Card);
+
+    public bool HasTmdbKey => _owner.HasTmdbKey;
+    public bool NeedsMatch => Movie.NeedsMatch;
+
+    /// <summary>Choosing by hand counts only for a movie the folder doesn't identify.</summary>
+    public bool CanIdentify { get; }
 
     [RelayCommand]
     private void Back() => _owner.CloseDetailCommand.Execute(null);

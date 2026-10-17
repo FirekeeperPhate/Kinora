@@ -43,6 +43,11 @@ public sealed class Movie
     public string? LogoFile { get; set; }
     public string? ThumbKey { get; set; }
 
+    /// <summary>TMDB picture paths, filled only where the folder has no picture of that kind.</summary>
+    public string? OnlinePoster { get; set; }
+    public string? OnlineFanart { get; set; }
+    public string? OnlineLogo { get; set; }
+
     public string? Resolution { get; set; }
     public string? VideoCodec { get; set; }
     public string? AudioCodec { get; set; }

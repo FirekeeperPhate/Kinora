@@ -85,6 +85,38 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Online metadata -->
+                <Border Classes="card">
+                    <StackPanel Spacing="12">
+                        <StackPanel Spacing="4">
+                            <TextBlock Classes="heading" Text="Online metadata (TMDB)" />
+                            <TextBlock Classes="subtle" TextWrapping="Wrap"
+                                       Text="What the movie folders don't say (plot, cast, posters, the movies without an nfo) comes from The Movie Database. What the folders say always wins." />
+                        </StackPanel>
+                        <Grid ColumnDefinitions="140,*,Auto" RowDefinitions="Auto,Auto,Auto">
+                            <TextBlock Text="API key" VerticalAlignment="Center" />
+                            <TextBox Grid.Column="1" Text="{Binding TmdbKey}" PasswordChar="●" RevealPassword="False"
+                                     PlaceholderText="API key or read access token" />
+                            <Button Grid.Column="2" Content="Test" Margin="8,0,0,0" Command="{Binding TestKeyCommand}" />
+                            <StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="12" Margin="0,6,0,0">
+                                <TextBlock Text="{Binding KeyStatus}" VerticalAlignment="Center"
+                                           IsVisible="{Binding KeyStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                <Button Classes="link" Content="Get a key on themoviedb.org" Padding="0" Background="Transparent"
+                                        Foreground="{DynamicResource AccentBrush}" Command="{Binding OpenTmdbApiPageCommand}" />
+                            </StackPanel>
+                            <TextBlock Grid.Row="2" Text="Language" VerticalAlignment="Center" Margin="0,12,0,0" />
+                            <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding Languages}" SelectedItem="{Binding MetadataLanguage}"
+                                      MinWidth="240" Margin="0,12,0,0" />
+                        </Grid>
+                        <CheckBox IsChecked="{Binding FetchAfterScan}" Content="After a scan, download what is missing" />
+                        <StackPanel Spacing="2">
+                            <CheckBox IsChecked="{Binding WriteToMediaFolders}" Content="Save downloaded metadata and pictures in the movie folders" />
+                            <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="28,0,0,0" FontSize="12"
+                                       Text="Off: Kinora only reads the movie folders and keeps what it downloads to itself. On: a movie.nfo and the pictures a folder lacks are written there, where Emby, Jellyfin and Kodi find them too. Files already there are never replaced." />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
                 <!-- Appearance -->
                 <Border Classes="card">
                     <StackPanel Spacing="14">
@@ -108,11 +140,6 @@
                     <StackPanel Spacing="12">
                         <TextBlock Classes="heading" Text="Library" />
                         <CheckBox IsChecked="{Binding ScanOnStartup}" Content="Look for changes when Kinora starts" />
-                        <StackPanel Spacing="2">
-                            <CheckBox IsChecked="{Binding WriteToMediaFolders}" Content="Save downloaded metadata and pictures in the movie folders" />
-                            <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="28,0,0,0" FontSize="12"
-                                       Text="Off: Kinora only reads the movie folders and keeps what it downloads to itself. On: .nfo files and pictures are written next to the movies, where Emby, Jellyfin and Kodi find them too." />
-                        </StackPanel>
                     </StackPanel>
                 </Border>
 

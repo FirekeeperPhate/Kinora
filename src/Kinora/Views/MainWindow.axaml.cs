@@ -96,6 +96,13 @@ public partial class MainWindow : Window, IDialogs
         await window.ShowDialog(this);
     }
 
+    public async Task<string?> ShowIdentifyAsync(IdentifyViewModel identify)
+    {
+        var window = new IdentifyWindow { DataContext = identify };
+        await window.ShowDialog(this);
+        return identify.ChosenId;
+    }
+
     public Task<bool> ConfirmAsync(string title, string message, string confirmText) =>
         ConfirmDialog.ShowAsync(GetTopmostWindow(), title, message, confirmText);
 

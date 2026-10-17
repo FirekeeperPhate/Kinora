@@ -23,14 +23,30 @@ with it. Windows, Linux and macOS (Avalonia 12, .NET 10).
 - Folders that are mounted somewhere else later (another drive letter, another OS): change the
   root's path in Settings, nothing is scanned again. Paths are stored relative to the root.
 
+## Online metadata (TMDB)
+
+With a TMDB API key (Settings), what the folders don't say comes from The Movie Database:
+
+- movies without ids are searched by title and year, and taken only when the match is sure
+  (same title, year within one); the rest wait in **Not identified**, where **Identify…** lets
+  you choose;
+- movies with gaps (no plot, genres, cast, poster or fanart) get them filled; what the folder
+  says always wins, and a rescan keeps what came from TMDB (it is kept apart, in its own table,
+  and merged again whenever a movie is rebuilt from its folder);
+- missing posters are downloaded into Kinora's cache; backdrops and logos when a movie page opens;
+- with **Save downloaded metadata and pictures in the movie folders** on (off by default) a
+  `movie.nfo` and the missing pictures are written next to the movie; existing files are never
+  replaced.
+
+The key is stored encrypted for the Windows user (DPAPI); on Linux and macOS in a settings file
+only the user can read.
+
 ## Planned
 
-1. TMDB: identify what has no ids, fill what's missing, download pictures (optionally written
-   into the movie folders, off by default).
-2. TV shows: series, seasons, episodes.
-3. Subtitles from OpenSubtitles (by file hash first).
-4. Moving movies between library folders.
-5. Packages for Windows (Inno Setup), Linux (AppImage / tar.gz) and macOS (.app).
+1. TV shows: series, seasons, episodes.
+2. Subtitles from OpenSubtitles (by file hash first).
+3. Moving movies between library folders.
+4. Packages for Windows (Inno Setup), Linux (AppImage / tar.gz) and macOS (.app).
 
 ## Building
 

@@ -3,6 +3,7 @@ using System.Diagnostics;
 using Kinora.Core.Data;
 using Kinora.Core.Imaging;
 using Kinora.Core.Models;
+using Kinora.Core.Online;
 
 namespace Kinora.Core.Scanning;
 
@@ -69,6 +70,7 @@ public sealed class MovieScanner(LibraryDatabase db, ImageCache posters)
         var keep = new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
         var found = new ConcurrentBag<(Movie Movie, IReadOnlyList<CastMember> Cast)>();
         var errors = new ConcurrentBag<string>();
+        var online = OnlineData.Load(db, root.Id);
         var unchanged = 0;
 
         progress?.Report(new ScanProgress("Listing folders", 0, 0, root.Path));
@@ -115,7 +117,7 @@ public sealed class MovieScanner(LibraryDatabase db, ImageCache posters)
                 unchanged++;
                 continue;
             }
-            found.Add(Build(root, "", siblings, video, [], ownFolder: false, stamp, byVideo));
+            found.Add(Build(root, "", siblings, video, [], ownFolder: false, stamp, byVideo, online));
         }
 
         var done = 0;
@@ -124,7 +126,7 @@ public sealed class MovieScanner(LibraryDatabase db, ImageCache posters)
         await Parallel.ForEachAsync(toVisit, new ParallelOptions { MaxDegreeOfParallelism = Parallelism, CancellationToken = ct },
             (item, token) =>
             {
-                Visit(root, item.Dir, item.Rel, 1, full, byFolder, byVideo, keep, found, errors, ref unchanged, token);
+                Visit(root, item.Dir, item.Rel, 1, full, byFolder, byVideo, keep, found, errors, online, ref unchanged, token);
                 var n = Interlocked.Increment(ref done);
                 progress?.Report(new ScanProgress("Reading folders", n, total, item.Rel));
                 return ValueTask.CompletedTask;
@@ -166,7 +168,7 @@ public sealed class MovieScanner(LibraryDatabase db, ImageCache posters)
     private void Visit(LibraryRoot root, DirectoryInfo dir, string rel, int depth, bool full,
                        Dictionary<string, List<Movie>> byFolder, Dictionary<string, Movie> byVideo,
                        ConcurrentDictionary<string, byte> keep, ConcurrentBag<(Movie, IReadOnlyList<CastMember>)> found,
-                       ConcurrentBag<string> errors, ref int unchanged, CancellationToken ct)
+                       ConcurrentBag<string> errors, OnlineData online, ref int unchanged, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
         List<FileSystemInfo> entries;
@@ -194,7 +196,7 @@ public sealed class MovieScanner(LibraryDatabase db, ImageCache posters)
             var others = features.Where(f => f != main).Select(f => RelPath.Combine(rel, f.Name)).ToList();
             try
             {
-                found.Add(Build(root, rel, files, main, others, ownFolder: true, dir.LastWriteTimeUtc.Ticks, byVideo));
+                found.Add(Build(root, rel, files, main, others, ownFolder: true, dir.LastWriteTimeUtc.Ticks, byVideo, online));
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             {
@@ -218,7 +220,7 @@ public sealed class MovieScanner(LibraryDatabase db, ImageCache posters)
                 Interlocked.Increment(ref unchanged);
                 continue;
             }
-            Visit(root, sub, subRel, depth + 1, full, byFolder, byVideo, keep, found, errors, ref unchanged, ct);
+            Visit(root, sub, subRel, depth + 1, full, byFolder, byVideo, keep, found, errors, online, ref unchanged, ct);
         }
     }
 
@@ -238,7 +240,7 @@ public sealed class MovieScanner(LibraryDatabase db, ImageCache posters)
 
     private (Movie, IReadOnlyList<CastMember>) Build(LibraryRoot root, string rel, List<FileInfo> files, FileInfo video,
                                                      List<string> otherVideos, bool ownFolder, long stamp,
-                                                     Dictionary<string, Movie> byVideo)
+                                                     Dictionary<string, Movie> byVideo, OnlineData online)
     {
         var videoBase = Path.GetFileNameWithoutExtension(video.Name);
         var folderName = rel.Length > 0 ? RelPath.LastSegment(rel) : "";
@@ -325,7 +327,57 @@ public sealed class MovieScanner(LibraryDatabase db, ImageCache posters)
         var cast = (nfo?.Actors ?? []).Take(40)
                                       .Select(a => new CastMember { Name = a.Name, Role = a.Role })
                                       .ToList();
+        online.Apply(movie, cast, titleIsGuess: nfo?.Title is null, posters);
         return (movie, cast);
+    }
+
+    /// <summary>
+    /// Builds some movies again from their folders, with what is now known online: after a
+    /// download from TMDB, or after the user chose which movie a file is.
+    /// </summary>
+    public async Task<int> RebuildAsync(LibraryRoot root, IReadOnlyCollection<Movie> movies, CancellationToken ct)
+    {
+        var online = OnlineData.Load(db, root.Id);
+        var byVideo = db.GetMovies(root.Id).ToDictionary(m => m.VideoFile, StringComparer.OrdinalIgnoreCase);
+        var found = new ConcurrentBag<(Movie, IReadOnlyList<CastMember>)>();
+        List<FileInfo>? rootFiles = null;
+        if (movies.Any(m => m.Folder.Length == 0))
+            rootFiles = await Task.Run(() => new DirectoryInfo(root.Path).EnumerateFiles().ToList(), ct);
+
+        await Parallel.ForEachAsync(movies, new ParallelOptions { MaxDegreeOfParallelism = Parallelism, CancellationToken = ct },
+            (m, _) =>
+            {
+                try
+                {
+                    if (m.Folder.Length > 0)
+                    {
+                        var dir = new DirectoryInfo(RelPath.ToFull(root.Path, m.Folder));
+                        dir.Refresh();
+                        if (!dir.Exists)
+                            return ValueTask.CompletedTask;
+                        var files = dir.EnumerateFiles().ToList();
+                        var video = files.FirstOrDefault(f => RelPath.Combine(m.Folder, f.Name).Equals(m.VideoFile, StringComparison.OrdinalIgnoreCase));
+                        if (video is null)
+                            return ValueTask.CompletedTask;
+                        var others = files.Where(f => f != video && MediaFiles.IsVideo(f.Name) && !MediaFiles.IsExtraVideo(f.Name))
+                                          .Select(f => RelPath.Combine(m.Folder, f.Name)).ToList();
+                        found.Add(Build(root, m.Folder, files, video, others, ownFolder: true, dir.LastWriteTimeUtc.Ticks, byVideo, online));
+                    }
+                    else if (rootFiles?.FirstOrDefault(f => f.Name.Equals(m.VideoFile, StringComparison.OrdinalIgnoreCase)) is { } video)
+                    {
+                        var baseName = Path.GetFileNameWithoutExtension(video.Name);
+                        var siblings = rootFiles.Where(f => f.Name.StartsWith(baseName, StringComparison.OrdinalIgnoreCase)).ToList();
+                        found.Add(Build(root, "", siblings, video, [], ownFolder: false, siblings.Max(f => f.LastWriteTimeUtc.Ticks), byVideo, online));
+                    }
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                }
+                return ValueTask.CompletedTask;
+            });
+
+        db.SaveMovies(found);
+        return found.Count;
     }
 
     private static DateTime Earliest(DateTime? a, DateTime b) => a is { } x && x < b && x.Year > 1990 ? x : b;

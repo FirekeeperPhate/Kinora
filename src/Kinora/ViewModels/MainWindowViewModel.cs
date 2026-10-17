@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Kinora.Core;
 using Kinora.Core.Models;
+using Kinora.Core.Online;
 using Kinora.Core.Platform;
 using Kinora.Core.Scanning;
 using Kinora.Core.Settings;
@@ -368,7 +369,184 @@ public partial class MainWindowViewModel : ViewModelBase
         if (notes.Count > 0)
             text += " · " + string.Join(" · ", notes);
         ShowStatusFor(text, notes.Count > 0 ? 20 : 8);
+
+        if (!cancelled && _s.Settings.FetchAfterScan && _s.Settings.HasTmdbKey)
+            await RunFetchAsync(retryNotFound: false, asked: false);
     }
+
+    // ---- online metadata ----
+
+    /// <summary>From the Scan menu: also tries again the movies TMDB didn't find last time.</summary>
+    [RelayCommand]
+    private Task FetchMissing() => RunFetchAsync(retryNotFound: true, asked: true);
+
+    private async Task RunFetchAsync(bool retryNotFound, bool asked)
+    {
+        if (IsScanning)
+            return;
+        using var client = _s.CreateTmdbClient();
+        if (client is null)
+        {
+            if (asked)
+                ShowStatusFor("Add a TMDB API key in Settings first.", 12);
+            return;
+        }
+
+        var withCast = _s.Database.GetCastNames().Keys.ToHashSet();
+        var movies = _cards.Select(c => c.Movie).ToList();
+        var work = _roots.Values.Where(r => r.Kind == LibraryKind.Movies && !_unavailable.Contains(r.Id))
+                                .Select(r => (Root: r, Movies: _s.Fetcher.Candidates(r, movies, withCast, retryNotFound)))
+                                .Where(w => w.Movies.Count > 0)
+                                .ToList();
+        var total = work.Sum(w => w.Movies.Count);
+        if (total == 0)
+        {
+            if (asked)
+                ShowStatusFor("Nothing to download: every movie has its metadata.", 8);
+            return;
+        }
+
+        IsScanning = true;
+        _statusVersion++;
+        _scanCts = new CancellationTokenSource();
+        var offset = 0;
+        var progress = new Progress<FetchProgress>(p =>
+        {
+            ScanIndeterminate = false;
+            ScanProgress = 100.0 * (offset + p.Done) / total;
+            ScanStatus = $"Downloading metadata  {offset + p.Done:N0} of {total:N0}";
+        });
+        ScanIndeterminate = true;
+        ScanStatus = "Asking TMDB…";
+
+        var sum = new FetchResult();
+        try
+        {
+            foreach (var (root, list) in work)
+            {
+                var r = await Task.Run(() => _s.Fetcher.FetchAsync(root, list, client, _s.Settings.WriteToMediaFolders,
+                                                                   refresh: false, progress, _scanCts.Token));
+                offset += list.Count;
+                sum.Identified += r.Identified;
+                sum.Completed += r.Completed;
+                sum.NotFound += r.NotFound;
+                sum.Failed += r.Failed;
+                sum.FilesWritten += r.FilesWritten;
+                sum.WriteErrors.AddRange(r.WriteErrors);
+                sum.Error ??= r.Error;
+                sum.Cancelled |= r.Cancelled;
+                Reload();
+                if (r.Error is not null || r.Cancelled)
+                    break;
+            }
+        }
+        finally
+        {
+            IsScanning = false;
+            _scanCts.Dispose();
+            _scanCts = null;
+        }
+
+        ShowStatusFor(FetchSummary(sum), sum.Error is null && sum.NotFound == 0 && sum.WriteErrors.Count == 0 ? 10 : 25);
+    }
+
+    private static string FetchSummary(FetchResult r)
+    {
+        if (r.Error is not null)
+            return r.Error + " Check the key in Settings.";
+        var parts = new List<string>();
+        if (r.Completed > 0) parts.Add(Format.Count(r.Completed, "movie completed", "movies completed"));
+        if (r.Identified > 0) parts.Add($"{r.Identified:N0} identified");
+        if (r.NotFound > 0) parts.Add($"{r.NotFound:N0} to identify by hand (see Not identified)");
+        if (r.Failed > 0) parts.Add($"{r.Failed:N0} failed, TMDB didn't answer");
+        if (r.FilesWritten > 0) parts.Add(Format.Count(r.FilesWritten, "file written in the folders", "files written in the folders"));
+        if (r.WriteErrors.Count > 0) parts.Add($"{r.WriteErrors.Count:N0} folders not writable");
+        var text = "Metadata: " + (parts.Count > 0 ? string.Join(", ", parts) : "nothing new");
+        return r.Cancelled ? "Download cancelled · " + text : text;
+    }
+
+    /// <summary>Asks TMDB again for one movie, ignoring what was kept.</summary>
+    public async Task RefreshMetadataAsync(MovieCardViewModel card)
+    {
+        if (IsScanning || !_roots.TryGetValue(card.Movie.RootId, out var root))
+            return;
+        using var client = _s.CreateTmdbClient();
+        if (client is null)
+        {
+            ShowStatusFor("Add a TMDB API key in Settings first.", 12);
+            return;
+        }
+        IsScanning = true;
+        ScanIndeterminate = true;
+        _statusVersion++;
+        ScanStatus = $"Asking TMDB about {card.Title}…";
+        FetchResult result;
+        try
+        {
+            result = await Task.Run(() => _s.Fetcher.FetchAsync(root, [card.Movie], client, _s.Settings.WriteToMediaFolders,
+                                                                refresh: true, null, CancellationToken.None));
+        }
+        finally
+        {
+            IsScanning = false;
+        }
+        AfterSingleFetch(card, result);
+    }
+
+    /// <summary>The user says which TMDB movie this file is.</summary>
+    public async Task IdentifyAsync(MovieCardViewModel card)
+    {
+        if (IsScanning || Dialogs is null || !_roots.TryGetValue(card.Movie.RootId, out var root))
+            return;
+        using var client = _s.CreateTmdbClient();
+        if (client is null)
+        {
+            ShowStatusFor("Add a TMDB API key in Settings first.", 12);
+            return;
+        }
+        if (!card.Movie.NeedsMatch && _s.Database.GetMatch(root.Id, card.Movie.VideoFile) is null)
+        {
+            // The ids come from the folder (nfo or name): the folder wins, a choice here would not count
+            ShowStatusFor($"“{card.Title}” is identified by its folder (the nfo or the name): change it there.", 14);
+            return;
+        }
+        string? chosen;
+        using (var identify = new IdentifyViewModel(client, card.Movie.VideoFile, card.Movie.Title, card.Movie.Year))
+            chosen = await Dialogs.ShowIdentifyAsync(identify);
+        if (chosen is null)
+            return;
+
+        IsScanning = true;
+        ScanIndeterminate = true;
+        _statusVersion++;
+        ScanStatus = "Getting the movie from TMDB…";
+        FetchResult result;
+        try
+        {
+            result = await Task.Run(() => _s.Fetcher.IdentifyAsync(root, card.Movie, chosen, client, _s.Settings.WriteToMediaFolders,
+                                                                   CancellationToken.None));
+        }
+        catch (Exception e) when (e is HttpRequestException or TmdbException)
+        {
+            result = new FetchResult { Error = e.Message };
+        }
+        finally
+        {
+            IsScanning = false;
+        }
+        AfterSingleFetch(card, result);
+    }
+
+    private void AfterSingleFetch(MovieCardViewModel card, FetchResult result)
+    {
+        var showing = Detail?.Card == card;
+        Reload();
+        if (showing && _cards.Contains(card))
+            OpenDetail(card);
+        ShowStatusFor(FetchSummary(result), 10);
+    }
+
+    public bool HasTmdbKey => _s.Settings.HasTmdbKey;
 
     private async void ShowStatusFor(string text, int seconds)
     {
@@ -472,10 +650,15 @@ public partial class MainWindowViewModel : ViewModelBase
         _s.SaveSettings();
         if (Math.Abs(cardWidth - _s.Settings.CardWidth) > 0.5)
             LayoutRows();
+        OnPropertyChanged(nameof(HasTmdbKey));
         if (settings.RootsChanged)
         {
             Reload();
             await RunScanAsync(full: false);
+        }
+        else if (settings.OnlineChanged && _s.Settings.HasTmdbKey && _s.Settings.FetchAfterScan)
+        {
+            await RunFetchAsync(retryNotFound: true, asked: false);
         }
     }
 }
