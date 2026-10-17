@@ -1,0 +1,132 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Kinora.ViewModels"
+        xmlns:k="using:Kinora"
+        x:Class="Kinora.Views.SettingsWindow"
+        x:DataType="vm:SettingsViewModel"
+        Title="Settings"
+        Icon="/Assets/kinora-256.png"
+        Width="720" Height="680" MinWidth="560" MinHeight="460"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{DynamicResource AppBackground}">
+
+    <Window.Styles>
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="{DynamicResource SurfaceBackground}" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="20" />
+        </Style>
+        <Style Selector="TextBlock.heading">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+    </Window.Styles>
+
+    <DockPanel>
+        <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0" Padding="24,12">
+            <Button Content="Done" Classes="accent" HorizontalAlignment="Right" IsDefault="True" Click="OnDone" />
+        </Border>
+
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="24" Spacing="18">
+                <TextBlock Text="Settings" FontSize="26" FontWeight="Bold" />
+
+                <!-- Library folders -->
+                <Border Classes="card">
+                    <StackPanel Spacing="14">
+                        <StackPanel Spacing="4">
+                            <TextBlock Classes="heading" Text="Library folders" />
+                            <TextBlock Classes="subtle" TextWrapping="Wrap"
+                                       Text="The folders Kinora builds the library from. Each movie in its own folder, or loose files." />
+                        </StackPanel>
+
+                        <ItemsControl ItemsSource="{Binding Roots}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:RootItem">
+                                    <Border BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1" Padding="0,10">
+                                        <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                                            <Path Classes="icon" Data="{x:Static k:Icons.Folder}" Margin="0,0,14,0" VerticalAlignment="Center"
+                                                  Stroke="{DynamicResource SubtleText}" />
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                                    <Border Classes="badge"><TextBlock Text="{Binding KindText}" FontSize="11" /></Border>
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding Path}" Classes="subtle" FontSize="12" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                            <Button Grid.Column="2" Content="Change path" Margin="8,0,0,0" VerticalAlignment="Center"
+                                                    ToolTip.Tip="The share moved (another drive letter, another computer): point Kinora to it without scanning again"
+                                                    Command="{Binding $parent[Window].((vm:SettingsViewModel)DataContext).ChangeRootPathCommand}"
+                                                    CommandParameter="{Binding}" />
+                                            <Button Grid.Column="3" Content="Remove" Margin="8,0,0,0" VerticalAlignment="Center"
+                                                    Command="{Binding $parent[Window].((vm:SettingsViewModel)DataContext).RemoveRootCommand}"
+                                                    CommandParameter="{Binding}" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Add a movie folder" FontWeight="SemiBold" />
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBox Text="{Binding NewRootPath}" PlaceholderText="\\nas\movies, M:\Movies, /mnt/nas/movies" />
+                                <Button Grid.Column="1" Content="Browse…" Margin="8,0,0,0" Command="{Binding BrowseCommand}" />
+                            </Grid>
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBox Text="{Binding NewRootName}" PlaceholderText="Name shown in the sidebar" />
+                                <Button Grid.Column="1" Content="Add" Classes="accent" Padding="18,6" Margin="8,0,0,0"
+                                        Command="{Binding AddRootCommand}" />
+                            </Grid>
+                            <TextBlock Text="{Binding AddError}" Foreground="{DynamicResource AccentBrush}" TextWrapping="Wrap"
+                                       IsVisible="{Binding AddError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Appearance -->
+                <Border Classes="card">
+                    <StackPanel Spacing="14">
+                        <TextBlock Classes="heading" Text="Appearance" />
+                        <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto" >
+                            <TextBlock Text="Theme" VerticalAlignment="Center" />
+                            <ComboBox Grid.Column="1" SelectedIndex="{Binding ThemeIndex}" MinWidth="200">
+                                <ComboBoxItem Content="Same as the system" />
+                                <ComboBoxItem Content="Light" />
+                                <ComboBoxItem Content="Dark" />
+                            </ComboBox>
+                            <TextBlock Grid.Row="1" Text="Poster size" VerticalAlignment="Center" Margin="0,12,0,0" />
+                            <Slider Grid.Row="1" Grid.Column="1" Minimum="120" Maximum="280" Value="{Binding CardWidth}"
+                                    MaxWidth="320" HorizontalAlignment="Left" Width="320" Margin="0,12,0,0" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Behaviour -->
+                <Border Classes="card">
+                    <StackPanel Spacing="12">
+                        <TextBlock Classes="heading" Text="Library" />
+                        <CheckBox IsChecked="{Binding ScanOnStartup}" Content="Look for changes when Kinora starts" />
+                        <StackPanel Spacing="2">
+                            <CheckBox IsChecked="{Binding WriteToMediaFolders}" Content="Save downloaded metadata and pictures in the movie folders" />
+                            <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="28,0,0,0" FontSize="12"
+                                       Text="Off: Kinora only reads the movie folders and keeps what it downloads to itself. On: .nfo files and pictures are written next to the movies, where Emby, Jellyfin and Kodi find them too." />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Classes="card">
+                    <StackPanel Spacing="8">
+                        <TextBlock Classes="heading" Text="Kinora's own data" />
+                        <TextBlock Classes="subtle" TextWrapping="Wrap" Text="Database, settings and picture cache. Always on this computer, never in the movie folders." />
+                        <Grid ColumnDefinitions="*,Auto">
+                            <SelectableTextBlock Text="{Binding DataFolder}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                            <Button Grid.Column="1" Content="Open" Margin="8,0,0,0" Command="{Binding OpenDataFolderCommand}" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

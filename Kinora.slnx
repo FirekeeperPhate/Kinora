@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Kinora.Core/Kinora.Core.csproj" />
+    <Project Path="src/Kinora/Kinora.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Kinora.Tests/Kinora.Tests.csproj" />
+  </Folder>
+</Solution>

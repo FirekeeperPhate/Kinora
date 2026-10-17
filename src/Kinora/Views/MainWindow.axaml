@@ -1,0 +1,201 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Kinora.ViewModels"
+        xmlns:views="using:Kinora.Views"
+        xmlns:k="using:Kinora"
+        x:Class="Kinora.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="Kinora"
+        Icon="/Assets/kinora-256.png"
+        MinWidth="760" MinHeight="500"
+        Background="{DynamicResource AppBackground}">
+
+    <Window.KeyBindings>
+        <KeyBinding Gesture="F5" Command="{Binding ScanCommand}" />
+    </Window.KeyBindings>
+
+    <Panel>
+        <!-- Library -->
+        <Grid ColumnDefinitions="236,*" IsVisible="{Binding Detail, Converter={x:Static ObjectConverters.IsNull}}">
+
+            <!-- Sidebar -->
+            <Border Background="{DynamicResource SidebarBackground}">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="10" Margin="22,22,22,18">
+                        <Image Source="/Assets/kinora-64.png" Width="30" Height="30" />
+                        <TextBlock Text="Kinora" FontSize="21" FontWeight="Bold" VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <Button DockPanel.Dock="Bottom" Classes="nav" Margin="10,8,10,14" Padding="12,9"
+                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                            Background="Transparent" Command="{Binding OpenSettingsCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Path Classes="icon" Data="{x:Static k:Icons.Sliders}" />
+                            <TextBlock Text="Settings" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <ListBox Classes="nav" ItemsSource="{Binding NavItems}" SelectedItem="{Binding SelectedNav}">
+                        <ListBox.Styles>
+                            <Style Selector="ListBoxItem" x:DataType="vm:NavItem">
+                                <Setter Property="IsEnabled" Value="{Binding IsSelectable}" />
+                            </Style>
+                        </ListBox.Styles>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:NavItem">
+                                <Panel>
+                                    <TextBlock Classes="section" Text="{Binding Title}" Margin="0,14,0,2"
+                                               IsVisible="{Binding IsHeader}" />
+                                    <Grid ColumnDefinitions="Auto,*,Auto" IsVisible="{Binding IsSelectable}">
+                                        <Path Classes="icon" Data="{Binding Icon}" Width="17" Height="17" Margin="0,0,12,0" />
+                                        <TextBlock Grid.Column="1" Text="{Binding Title}" VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" Margin="8,0,0,0">
+                                            <Path Classes="icon" Data="{x:Static k:Icons.Offline}" Width="14" Height="14"
+                                                  IsVisible="{Binding IsUnavailable}" ToolTip.Tip="Not reachable right now" />
+                                            <TextBlock Text="{Binding CountText}" Classes="subtle" FontSize="12"
+                                                       VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Panel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <!-- Main area -->
+            <Grid Grid.Column="1" RowDefinitions="Auto,*,Auto">
+
+                <Grid ColumnDefinitions="*,Auto" Margin="32,22,32,14">
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="{Binding ViewTitle}" FontSize="27" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding CountText}" Classes="subtle" Margin="0,2,0,0" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <TextBox x:Name="SearchBox" Width="270" PlaceholderText="Search title, actor, director"
+                                 Text="{Binding SearchText}" Classes="clearButton" VerticalContentAlignment="Center">
+                            <TextBox.InnerLeftContent>
+                                <Path Classes="icon" Data="{x:Static k:Icons.Search}" Width="15" Height="15" Margin="10,0,0,0"
+                                      Stroke="{DynamicResource SubtleText}" />
+                            </TextBox.InnerLeftContent>
+                        </TextBox>
+                        <ComboBox ItemsSource="{Binding SortOptions}" SelectedItem="{Binding SelectedSort}" MinWidth="130"
+                                  ToolTip.Tip="Sort by" />
+                        <ToggleButton IsChecked="{Binding SortDescending}" ToolTip.Tip="Reverse the order" Padding="9">
+                            <Path Classes="icon" Data="{x:Static k:Icons.Sort}" Width="16" Height="16" />
+                        </ToggleButton>
+                        <SplitButton Command="{Binding ScanCommand}" ToolTip.Tip="Look for new, changed and removed movies (F5)">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Path Classes="icon" Data="{x:Static k:Icons.Refresh}" Width="15" Height="15" />
+                                <TextBlock Text="Scan" />
+                            </StackPanel>
+                            <SplitButton.Flyout>
+                                <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                    <MenuItem Header="Full scan (read every folder again)" Command="{Binding FullScanCommand}" />
+                                </MenuFlyout>
+                            </SplitButton.Flyout>
+                        </SplitButton>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Poster grid: a virtualized list of rows -->
+                <ScrollViewer Grid.Row="1" x:Name="GridScroller" HorizontalScrollBarVisibility="Disabled">
+                    <ItemsControl x:Name="GridItems" ItemsSource="{Binding Rows}" Margin="32,6,32,32">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <VirtualizingStackPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:MovieRow">
+                                <ItemsControl ItemsSource="{Binding Items}" Margin="0,0,0,26">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="22" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:MovieCardViewModel">
+                                            <Button Classes="card" Width="{Binding CardWidth}" Command="{Binding OpenCommand}"
+                                                    ToolTip.Tip="{Binding Title}" ToolTip.ShowDelay="900">
+                                                <Button.ContextMenu>
+                                                    <ContextMenu>
+                                                        <MenuItem Header="Play" Command="{Binding PlayCommand}" />
+                                                        <MenuItem Header="{Binding WatchedMenuText}" Command="{Binding ToggleWatchedCommand}" />
+                                                        <Separator />
+                                                        <MenuItem Header="Show in folder" Command="{Binding RevealCommand}" />
+                                                    </ContextMenu>
+                                                </Button.ContextMenu>
+                                                <StackPanel>
+                                                    <Border Classes="poster" Height="{Binding PosterHeight}">
+                                                        <Panel>
+                                                            <TextBlock Text="{Binding Title}" TextWrapping="Wrap" TextAlignment="Center"
+                                                                       VerticalAlignment="Center" Margin="14" Classes="subtle"
+                                                                       IsVisible="{Binding !HasPoster}" />
+                                                            <Image Source="{Binding Poster}" Stretch="UniformToFill" />
+                                                            <Border IsVisible="{Binding Watched}" Width="26" Height="26" CornerRadius="13"
+                                                                    Margin="8" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                                    Background="{DynamicResource AccentBrush}" ToolTip.Tip="Watched">
+                                                                <Path Data="{x:Static k:Icons.Check}" Stroke="White" StrokeThickness="2.6"
+                                                                      StrokeLineCap="Round" StrokeJoin="Round" Stretch="Uniform"
+                                                                      Width="13" Height="13" />
+                                                            </Border>
+                                                            <Border IsVisible="{Binding IsUnavailable}" CornerRadius="6" Padding="7,3"
+                                                                    Margin="8" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                                                                    Background="#B0000000">
+                                                                <TextBlock Text="Offline" Foreground="White" FontSize="11" />
+                                                            </Border>
+                                                        </Panel>
+                                                    </Border>
+                                                    <TextBlock Classes="cardTitle" Text="{Binding Title}" Margin="2,10,2,0"
+                                                               FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Text="{Binding Subtitle}" Margin="2,2,2,0" FontSize="12" Classes="subtle" />
+                                                </StackPanel>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+
+                <!-- Empty library -->
+                <StackPanel Grid.Row="1" IsVisible="{Binding ShowEmptyLibrary}" VerticalAlignment="Center"
+                            HorizontalAlignment="Center" Spacing="14" MaxWidth="420" Margin="0,0,0,80">
+                    <Image Source="/Assets/kinora-128.png" Width="88" Height="88" />
+                    <TextBlock Text="Your library is empty" FontSize="22" FontWeight="Bold" HorizontalAlignment="Center" />
+                    <TextBlock Text="{Binding EmptyLibraryText}" TextWrapping="Wrap" TextAlignment="Center" Classes="subtle" />
+                    <Button Classes="accent" HorizontalAlignment="Center" Content="Add a folder"
+                            Command="{Binding OpenSettingsCommand}" Margin="0,6,0,0" />
+                </StackPanel>
+
+                <!-- Nothing matches -->
+                <StackPanel Grid.Row="1" IsVisible="{Binding HasNoResults}" VerticalAlignment="Center"
+                            HorizontalAlignment="Center" Spacing="8" Margin="0,0,0,80">
+                    <TextBlock Text="Nothing here" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center" />
+                    <TextBlock Text="No movie matches this view or search." Classes="subtle" HorizontalAlignment="Center" />
+                </StackPanel>
+
+                <!-- Scan status -->
+                <Border Grid.Row="2" IsVisible="{Binding ShowStatus}" Background="{DynamicResource SidebarBackground}"
+                        BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0" Padding="32,10">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <ProgressBar Width="160" Minimum="0" Maximum="100" Value="{Binding ScanProgress}"
+                                     IsIndeterminate="{Binding ScanIndeterminate}" IsVisible="{Binding IsScanning}"
+                                     Margin="0,0,14,0" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Text="{Binding ScanStatus}" VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis" />
+                        <Button Grid.Column="2" Content="Cancel" Command="{Binding CancelScanCommand}"
+                                IsVisible="{Binding IsScanning}" Padding="12,4" />
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- Movie page -->
+        <views:MovieDetailView DataContext="{Binding Detail}"
+                               IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).Detail, Converter={x:Static ObjectConverters.IsNotNull}}" />
+    </Panel>
+</Window>

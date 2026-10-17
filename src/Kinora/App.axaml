@@ -1,0 +1,47 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Kinora.App"
+             Name="Kinora"
+             RequestedThemeVariant="Default">
+
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="AppBackground" Color="#FAF9FC" />
+                    <SolidColorBrush x:Key="SidebarBackground" Color="#F1EEF6" />
+                    <SolidColorBrush x:Key="SurfaceBackground" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="PlaceholderBackground" Color="#E4E0EA" />
+                    <SolidColorBrush x:Key="SubtleText" Color="#6B6475" />
+                    <SolidColorBrush x:Key="DividerBrush" Color="#E2DDE8" />
+                    <SolidColorBrush x:Key="ChipBackground" Color="#ECE8F2" />
+                    <Color x:Key="BackdropFade">#FAF9FC</Color>
+                    <Color x:Key="BackdropFadeTransparent">#00FAF9FC</Color>
+                    <x:Double x:Key="BackdropVeil">0.62</x:Double>
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="AppBackground" Color="#15121C" />
+                    <SolidColorBrush x:Key="SidebarBackground" Color="#1C1826" />
+                    <SolidColorBrush x:Key="SurfaceBackground" Color="#211C2C" />
+                    <SolidColorBrush x:Key="PlaceholderBackground" Color="#2A2436" />
+                    <SolidColorBrush x:Key="SubtleText" Color="#A39CB0" />
+                    <SolidColorBrush x:Key="DividerBrush" Color="#2C2638" />
+                    <SolidColorBrush x:Key="ChipBackground" Color="#2C2638" />
+                    <Color x:Key="BackdropFade">#15121C</Color>
+                    <Color x:Key="BackdropFadeTransparent">#0015121C</Color>
+                    <x:Double x:Key="BackdropVeil">0.4</x:Double>
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+
+    <Application.Styles>
+        <FluentTheme>
+            <FluentTheme.Palettes>
+                <ColorPaletteResources x:Key="Light" Accent="#FFE9503F" />
+                <ColorPaletteResources x:Key="Dark" Accent="#FFFF6A5C" />
+            </FluentTheme.Palettes>
+        </FluentTheme>
+        <StyleInclude Source="avares://Kinora/Styles/Kinora.axaml" />
+    </Application.Styles>
+</Application>

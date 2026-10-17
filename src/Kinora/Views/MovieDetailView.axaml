@@ -1,0 +1,195 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Kinora.ViewModels"
+             xmlns:core="using:Kinora.Core.Models"
+             xmlns:k="using:Kinora"
+             x:Class="Kinora.Views.MovieDetailView"
+             x:DataType="vm:MovieDetailViewModel"
+             Background="{DynamicResource AppBackground}">
+
+    <UserControl.Styles>
+        <Style Selector="Image.backdrop.blurred">
+            <Setter Property="Effect" Value="blur(48)" />
+        </Style>
+        <Style Selector="TextBlock.label">
+            <Setter Property="Foreground" Value="{DynamicResource SubtleText}" />
+            <Setter Property="Margin" Value="0,0,24,8" />
+        </Style>
+        <Style Selector="TextBlock.value">
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+        </Style>
+    </UserControl.Styles>
+
+    <Panel>
+        <!-- Backdrop, faded into the page -->
+        <Panel ClipToBounds="True">
+            <Image Classes="backdrop" Classes.blurred="{Binding BackdropIsPoster}" Source="{Binding Backdrop}"
+                   Stretch="UniformToFill" VerticalAlignment="Top" HorizontalAlignment="Center" Opacity="0.9" />
+            <Border>
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                        <GradientStop Offset="0" Color="{DynamicResource BackdropFade}" />
+                        <GradientStop Offset="0.55" Color="{DynamicResource BackdropFadeTransparent}" />
+                    </LinearGradientBrush>
+                </Border.Background>
+            </Border>
+            <Border>
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                        <GradientStop Offset="0" Color="{DynamicResource BackdropFadeTransparent}" />
+                        <GradientStop Offset="0.35" Color="{DynamicResource BackdropFadeTransparent}" />
+                        <GradientStop Offset="0.8" Color="{DynamicResource BackdropFade}" />
+                    </LinearGradientBrush>
+                </Border.Background>
+            </Border>
+            <Border Background="{DynamicResource AppBackground}" Opacity="{DynamicResource BackdropVeil}" />
+        </Panel>
+
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="48,22,48,48" Spacing="30">
+                <Button Classes="pill" Command="{Binding BackCommand}" HorizontalAlignment="Left" ToolTip.Tip="Back (Esc)"
+                        Padding="12,8,16,8">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Path Classes="icon" Data="{x:Static k:Icons.Back}" Width="14" Height="14" />
+                        <TextBlock Text="Library" />
+                    </StackPanel>
+                </Button>
+
+                <Grid ColumnDefinitions="Auto,*" Margin="0,24,0,0">
+                    <Border Width="270" Height="405" CornerRadius="14" ClipToBounds="True" VerticalAlignment="Top"
+                            Background="{DynamicResource PlaceholderBackground}" BoxShadow="0 18 40 0 #60000000">
+                        <Panel>
+                            <TextBlock Text="{Binding Title}" TextWrapping="Wrap" TextAlignment="Center" VerticalAlignment="Center"
+                                       Margin="20" Classes="subtle" IsVisible="{Binding !HasPoster}" />
+                            <Image Source="{Binding Poster}" Stretch="UniformToFill" />
+                        </Panel>
+                    </Border>
+
+                    <StackPanel Grid.Column="1" Margin="44,4,0,0" Spacing="14" MaxWidth="860" HorizontalAlignment="Left">
+                        <!-- Clear logos are mostly white: the shadow keeps them readable on a light page -->
+                        <Image Source="{Binding Logo}" IsVisible="{Binding HasLogo}" MaxHeight="130" MaxWidth="460"
+                               Stretch="Uniform" HorizontalAlignment="Left" ToolTip.Tip="{Binding Title}">
+                            <Image.Effect>
+                                <DropShadowEffect BlurRadius="18" OffsetX="0" OffsetY="2" Color="Black" Opacity="0.55" />
+                            </Image.Effect>
+                        </Image>
+                        <TextBlock Text="{Binding Title}" IsVisible="{Binding ShowTitleText}" FontSize="40" FontWeight="Bold"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding OriginalTitle}" IsVisible="{Binding OriginalTitle, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                   Classes="subtle" FontSize="15" Margin="0,-8,0,0" />
+
+                        <WrapPanel Orientation="Horizontal" ItemSpacing="14" LineSpacing="6">
+                            <TextBlock Text="{Binding YearText}" IsVisible="{Binding YearText, Converter={x:Static ObjectConverters.IsNotNull}}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding RuntimeText}" IsVisible="{Binding RuntimeText, Converter={x:Static ObjectConverters.IsNotNull}}" VerticalAlignment="Center" />
+                            <Border Classes="badge" IsVisible="{Binding Mpaa, Converter={x:Static ObjectConverters.IsNotNull}}" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Mpaa}" FontSize="12" />
+                            </Border>
+                            <Border Classes="badge" IsVisible="{Binding Resolution, Converter={x:Static ObjectConverters.IsNotNull}}" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Resolution}" FontSize="12" />
+                            </Border>
+                            <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding RatingText, Converter={x:Static ObjectConverters.IsNotNull}}" VerticalAlignment="Center">
+                                <TextBlock Text="★" Foreground="#F5B83D" />
+                                <TextBlock Text="{Binding RatingText}" FontWeight="SemiBold" />
+                            </StackPanel>
+                        </WrapPanel>
+
+                        <ItemsControl ItemsSource="{Binding Genres}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel ItemSpacing="8" LineSpacing="8" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                    <Border Classes="chip">
+                                        <TextBlock Text="{Binding}" FontSize="13" />
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Text="{Binding Tagline}" IsVisible="{Binding Tagline, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                   FontStyle="Italic" FontSize="16" TextWrapping="Wrap" Classes="subtle" />
+
+                        <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,6,0,4">
+                            <Button Classes="accent" Command="{Binding PlayCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Path Data="M7,4.5 L19,12 L7,19.5 Z" Fill="White" Stretch="Uniform" Width="13" Height="14" />
+                                    <TextBlock Text="Play" />
+                                </StackPanel>
+                            </Button>
+                            <DropDownButton Classes="pill" Content="Versions" IsVisible="{Binding HasVersions}"
+                                            ToolTip.Tip="There is more than one copy of this movie">
+                                <DropDownButton.Flyout>
+                                    <MenuFlyout ItemsSource="{Binding Versions}">
+                                        <MenuFlyout.ItemContainerTheme>
+                                            <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}" x:DataType="vm:VideoVersion">
+                                                <Setter Property="Header" Value="{Binding Label}" />
+                                                <Setter Property="Command" Value="{Binding $parent[UserControl].((vm:MovieDetailViewModel)DataContext).PlayVersionCommand}" />
+                                                <Setter Property="CommandParameter" Value="{Binding}" />
+                                            </ControlTheme>
+                                        </MenuFlyout.ItemContainerTheme>
+                                    </MenuFlyout>
+                                </DropDownButton.Flyout>
+                            </DropDownButton>
+                            <Button Classes="pill" Command="{Binding ToggleWatchedCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Path Classes="icon" Data="{x:Static k:Icons.Check}" Width="14" Height="14" IsVisible="{Binding Watched}" />
+                                    <TextBlock Text="{Binding WatchedText}" />
+                                </StackPanel>
+                            </Button>
+                            <Button Classes="pill" Command="{Binding RevealCommand}" ToolTip.Tip="Show in folder">
+                                <Path Classes="icon" Data="{x:Static k:Icons.Folder}" Width="16" Height="16" />
+                            </Button>
+                        </StackPanel>
+
+                        <TextBlock Text="This folder is not reachable right now: the movie plays when the NAS is back."
+                                   IsVisible="{Binding IsUnavailable}" Foreground="{DynamicResource AccentBrush}" TextWrapping="Wrap" />
+
+                        <TextBlock Text="{Binding Plot}" TextWrapping="Wrap" FontSize="15" LineHeight="23" MaxWidth="760"
+                                   HorizontalAlignment="Left" />
+
+                        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" Margin="0,8,0,0" MaxWidth="760" HorizontalAlignment="Left">
+                            <TextBlock Grid.Row="0" Classes="label" Text="Director" IsVisible="{Binding Directors, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                            <TextBlock Grid.Row="0" Grid.Column="1" Classes="value" Text="{Binding Directors}" IsVisible="{Binding Directors, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                            <TextBlock Grid.Row="1" Classes="label" Text="Studio" IsVisible="{Binding Studios, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Classes="value" Text="{Binding Studios}" IsVisible="{Binding Studios, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                            <TextBlock Grid.Row="2" Classes="label" Text="Country" IsVisible="{Binding Countries, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" Classes="value" Text="{Binding Countries}" IsVisible="{Binding Countries, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                            <TextBlock Grid.Row="3" Classes="label" Text="Collection" IsVisible="{Binding Collection, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                            <TextBlock Grid.Row="3" Grid.Column="1" Classes="value" Text="{Binding Collection}" IsVisible="{Binding Collection, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                            <TextBlock Grid.Row="4" Classes="label" Text="Subtitles" IsVisible="{Binding Subtitles, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                            <TextBlock Grid.Row="4" Grid.Column="1" Classes="value" Text="{Binding Subtitles}" IsVisible="{Binding Subtitles, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                            <TextBlock Grid.Row="5" Classes="label" Text="Video" />
+                            <TextBlock Grid.Row="5" Grid.Column="1" Classes="value" Text="{Binding TechText}" />
+                            <TextBlock Grid.Row="6" Classes="label" Text="File" />
+                            <SelectableTextBlock Grid.Row="6" Grid.Column="1" Text="{Binding FilePath}" TextWrapping="Wrap" Classes="subtle" />
+                        </Grid>
+                    </StackPanel>
+                </Grid>
+
+                <StackPanel Spacing="14" IsVisible="{Binding HasCast}">
+                    <TextBlock Classes="section" Text="CAST" />
+                    <ItemsControl ItemsSource="{Binding Cast}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel ItemSpacing="12" LineSpacing="12" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="core:CastMember">
+                                <Border Width="210" Padding="14,10" CornerRadius="10" Background="{DynamicResource SurfaceBackground}">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Role}" Classes="subtle" FontSize="12" TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </Panel>
+</UserControl>

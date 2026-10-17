@@ -1,0 +1,26 @@
+<Project>
+
+  <!-- The sources live in a synced folder (Dropbox on a NAS share): bin and obj go to the local
+       disk instead, so builds stay fast and nothing compiled gets synced. -->
+  <PropertyGroup>
+    <KinoraBuildRoot>$(LOCALAPPDATA)</KinoraBuildRoot>
+    <KinoraBuildRoot Condition="'$(KinoraBuildRoot)' == ''">$(HOME)/.cache</KinoraBuildRoot>
+    <KinoraBuildRoot>$(KinoraBuildRoot)/KinoraBuild/$(MSBuildProjectName)/</KinoraBuildRoot>
+    <BaseOutputPath>$(KinoraBuildRoot)bin/</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(KinoraBuildRoot)obj/</BaseIntermediateOutputPath>
+    <DefaultItemExcludes>$(DefaultItemExcludes);bin/**;obj/**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <Version>0.1.0</Version>
+    <Product>Kinora</Product>
+    <Authors>Phate</Authors>
+    <Copyright>Copyright (C) 2026 Phate</Copyright>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+</Project>
