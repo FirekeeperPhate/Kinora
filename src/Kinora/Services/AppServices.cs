@@ -26,6 +26,7 @@ public sealed class AppServices
     public MetadataFetcher Fetcher { get; }
     public SeriesScanner SeriesScanner { get; }
     public SeriesFetcher SeriesFetcher { get; }
+    public Kinora.Core.Moving.LibraryMover Mover { get; }
 
     public AppServices()
     {
@@ -34,6 +35,7 @@ public sealed class AppServices
         Fetcher = new MetadataFetcher(Database, Scanner, Posters);
         SeriesScanner = new SeriesScanner(Database, Posters);
         SeriesFetcher = new SeriesFetcher(Database, SeriesScanner, Posters);
+        Mover = new Kinora.Core.Moving.LibraryMover(Database, Scanner, SeriesScanner);
     }
 
     /// <summary>Null without a key: Kinora then works with the folders alone.</summary>

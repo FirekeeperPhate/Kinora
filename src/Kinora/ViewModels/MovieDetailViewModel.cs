@@ -217,6 +217,7 @@ public partial class MovieDetailViewModel : ViewModelBase, IDisposable
 
     /// <summary>Choosing by hand counts only for a movie the folder doesn't identify.</summary>
     public bool CanIdentify { get; }
+    public bool CanIdentifyOnline => CanIdentify && HasTmdbKey;
 
     [RelayCommand]
     private void Back() => _owner.CloseDetailCommand.Execute(null);

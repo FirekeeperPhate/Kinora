@@ -114,6 +114,12 @@ public abstract partial class CardViewModel : ViewModelBase, IPosterHolder
         return t;
     }
 
+    /// <summary>The other library folders of the same kind, for "Move to"; filled when the menu opens.</summary>
+    public IReadOnlyList<MoveTarget> MoveTargets => MoveTargetsProvider?.Invoke(this) ?? [];
+    public bool CanMove => MoveTargets.Count > 0;
+
+    public static Func<CardViewModel, IReadOnlyList<MoveTarget>>? MoveTargetsProvider { get; set; }
+
     [RelayCommand]
     protected abstract void Open();
 

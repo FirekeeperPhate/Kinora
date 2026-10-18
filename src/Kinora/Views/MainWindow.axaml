@@ -135,6 +135,14 @@
                                                         <Separator />
                                                         <MenuItem Header="Show in folder" Command="{Binding RevealCommand}" />
                                                         <MenuItem Header="Identify…" Command="{Binding IdentifyCommand}" />
+                                                        <MenuItem Header="Move to" ItemsSource="{Binding MoveTargets}" IsVisible="{Binding CanMove}">
+                                                            <MenuItem.ItemContainerTheme>
+                                                                <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}" x:DataType="vm:MoveTarget">
+                                                                    <Setter Property="Header" Value="{Binding Name}" />
+                                                                    <Setter Property="Command" Value="{Binding Command}" />
+                                                                </ControlTheme>
+                                                            </MenuItem.ItemContainerTheme>
+                                                        </MenuItem>
                                                     </ContextMenu>
                                                 </Button.ContextMenu>
                                                 <StackPanel>

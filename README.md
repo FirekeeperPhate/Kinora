@@ -64,10 +64,20 @@ their order. The chosen one is saved next to the video as `<video>.<lang>.srt` (
 when so); one already there with that name is kept as `.old`. Each download counts against the
 account's daily quota, shown in the window. Key and password are stored like the TMDB key.
 
+## Moving between library folders
+
+**Move to** (right click on a poster, or the ••• menu of a page) moves a movie or a show to another
+library folder of the same kind. On the same drive it is a rename. Otherwise everything is copied
+into a hidden `.<name>.kinora-moving` folder next to the destination, every size is checked, the
+folder is renamed into place, and only then is the original deleted; a cancel or an error before
+that removes the partial copy and leaves the original as it was. A name already at the
+destination stops the move before anything is touched. The library keeps the same entry (watched,
+TMDB match). On Windows the copy uses CopyFileEx, which lets a server that supports it copy between
+its own shares; a 1.8 GB movie between two shares of the NAS took 19 s at about 100 MB/s.
+
 ## Planned
 
-1. Moving movies and shows between library folders.
-2. Packages for Windows (Inno Setup), Linux (AppImage / tar.gz) and macOS (.app).
+1. Packages for Windows (Inno Setup), Linux (AppImage / tar.gz) and macOS (.app).
 
 ## Building
 

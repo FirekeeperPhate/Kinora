@@ -164,11 +164,19 @@
                             <Button Classes="pill" Command="{Binding RevealShowCommand}" ToolTip.Tip="Show in folder">
                                 <Path Classes="icon" Data="{x:Static k:Icons.Folder}" Width="16" Height="16" />
                             </Button>
-                            <DropDownButton Classes="pill" Content="•••" ToolTip.Tip="More" IsVisible="{Binding HasTmdbKey}">
+                            <DropDownButton Classes="pill" Content="•••" ToolTip.Tip="More">
                                 <DropDownButton.Flyout>
                                     <MenuFlyout>
-                                        <MenuItem Header="Identify…" Command="{Binding IdentifyCommand}" IsVisible="{Binding CanIdentify}" />
-                                        <MenuItem Header="Refresh metadata from TMDB" Command="{Binding RefreshMetadataCommand}" />
+                                        <MenuItem Header="Identify…" Command="{Binding IdentifyCommand}" IsVisible="{Binding CanIdentifyOnline}" />
+                                        <MenuItem Header="Refresh metadata from TMDB" Command="{Binding RefreshMetadataCommand}" IsVisible="{Binding HasTmdbKey}" />
+                                        <MenuItem Header="Move to" ItemsSource="{Binding Card.MoveTargets}" IsVisible="{Binding Card.CanMove}">
+                                            <MenuItem.ItemContainerTheme>
+                                                <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}" x:DataType="vm:MoveTarget">
+                                                    <Setter Property="Header" Value="{Binding Name}" />
+                                                    <Setter Property="Command" Value="{Binding Command}" />
+                                                </ControlTheme>
+                                            </MenuItem.ItemContainerTheme>
+                                        </MenuItem>
                                     </MenuFlyout>
                                 </DropDownButton.Flyout>
                             </DropDownButton>

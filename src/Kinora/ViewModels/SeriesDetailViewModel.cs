@@ -172,6 +172,7 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
     public bool HasTmdbKey => _owner.HasTmdbKey;
     public bool NeedsMatch => Series.NeedsMatch;
     public bool CanIdentify { get; }
+    public bool CanIdentifyOnline => CanIdentify && HasTmdbKey;
 
     public ObservableCollection<SeasonTab> Seasons { get; } = [];
     public ObservableCollection<EpisodeRow> Episodes { get; } = [];

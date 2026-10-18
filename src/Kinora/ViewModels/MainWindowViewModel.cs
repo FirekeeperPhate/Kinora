@@ -50,6 +50,7 @@ public partial class MainWindowViewModel : ViewModelBase
         SelectedSort = SortOptions.First(o => o.Value == _s.Settings.Sort);
         SortDescending = _s.Settings.SortDescending;
         Mode = _s.Settings.ShowTvShows ? LibraryMode.Shows : LibraryMode.Movies;
+        CardViewModel.MoveTargetsProvider = MoveTargetsFor;
         _suppressFilter = false;
     }
 
@@ -761,6 +762,102 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             ShowStatusFor($"Can't open the folder: {e.Message}", 12);
         }
+    }
+
+    // ---- moving ----
+
+    private IReadOnlyList<MoveTarget> MoveTargetsFor(CardViewModel card)
+    {
+        if (!_roots.TryGetValue(card.RootId, out var from))
+            return [];
+        return _roots.Values.Where(r => r.Kind == from.Kind && r.Id != from.Id && !_unavailable.Contains(r.Id))
+                     .OrderBy(r => r.Name, StringComparer.CurrentCultureIgnoreCase)
+                     .Select(r => new MoveTarget(r.Name, r.Path, new AsyncRelayCommand(() => MoveAsync(card, r))))
+                     .ToList();
+    }
+
+    /// <summary>
+    /// Moves a movie or show to another library folder: asks first (with how much will be
+    /// copied), shows the progress in the status bar, can be cancelled until the copy is checked.
+    /// </summary>
+    public async Task MoveAsync(CardViewModel card, LibraryRoot to)
+    {
+        if (IsScanning || Dialogs is null || !_roots.TryGetValue(card.RootId, out var from))
+            return;
+
+        long size;
+        try
+        {
+            size = await Task.Run(() => card switch
+            {
+                MovieCardViewModel m => Core.Moving.LibraryMover.SizeOf(m.Movie, from),
+                SeriesCardViewModel s => Core.Moving.LibraryMover.SizeOf(s.Series, from),
+                _ => 0L,
+            }).WaitAsync(TimeSpan.FromSeconds(30));
+        }
+        catch (Exception e) when (e is IOException or TimeoutException or UnauthorizedAccessException)
+        {
+            ShowStatusFor($"Can't read “{card.Title}” in {from.Name}: {e.Message}", 14);
+            return;
+        }
+
+        var sameVolume = string.Equals(Path.GetPathRoot(from.Path), Path.GetPathRoot(to.Path), StringComparison.OrdinalIgnoreCase);
+        var how = sameVolume
+            ? "It is on the same drive: the folder is just renamed."
+            : $"{Format.Size(size)} will be copied to {to.Path}. The original is deleted only after the copy has been checked.";
+        if (!await Dialogs.ConfirmAsync("Move", $"Move “{card.Title}” from {from.Name} to {to.Name}?\n\n{how}", "Move"))
+            return;
+
+        IsScanning = true;
+        ScanIndeterminate = false;
+        ScanProgress = 0;
+        _statusVersion++;
+        ScanStatus = $"Moving {card.Title}…";
+        _scanCts = new CancellationTokenSource();
+        var watch = Stopwatch.StartNew();
+        var progress = new Progress<Core.Moving.MoveProgress>(p =>
+        {
+            ScanProgress = p.BytesTotal == 0 ? 0 : 100.0 * p.BytesDone / p.BytesTotal;
+            var speed = watch.Elapsed.TotalSeconds > 1 ? $" · {Format.Size((long)(p.BytesDone / watch.Elapsed.TotalSeconds))}/s" : "";
+            ScanStatus = $"Moving {card.Title}  {Format.Size(p.BytesDone)} of {Format.Size(p.BytesTotal)}{speed}";
+        });
+
+        Core.Moving.MoveResult result;
+        try
+        {
+            result = card switch
+            {
+                MovieCardViewModel m => await _s.Mover.MoveMovieAsync(m.Movie, from, to, progress, _scanCts.Token),
+                SeriesCardViewModel s => await _s.Mover.MoveSeriesAsync(s.Series, from, to, progress, _scanCts.Token),
+                _ => new Core.Moving.MoveResult(Core.Moving.MoveOutcome.Failed),
+            };
+        }
+        finally
+        {
+            IsScanning = false;
+            _scanCts.Dispose();
+            _scanCts = null;
+        }
+
+        var showing = Detail?.Card == card || SeriesDetail?.Card == card;
+        if (result.Outcome is Core.Moving.MoveOutcome.Moved or Core.Moving.MoveOutcome.MovedSourceLeft)
+        {
+            Reload();
+            if (showing && card is MovieCardViewModel movie && _movies.Contains(movie))
+                OpenDetail(movie);
+            else if (showing && card is SeriesCardViewModel show && _shows.Contains(show))
+                OpenSeries(show);
+        }
+
+        var seconds = watch.Elapsed.TotalSeconds;
+        ShowStatusFor(result.Outcome switch
+        {
+            Core.Moving.MoveOutcome.Moved => $"“{card.Title}” moved to {to.Name}" + (result.Renamed ? "" : $" in {seconds:0} s"),
+            Core.Moving.MoveOutcome.MovedSourceLeft => $"“{card.Title}” is in {to.Name}, but some files could not be removed from {from.Name}: {result.Error}",
+            Core.Moving.MoveOutcome.Conflict => $"Not moved: {result.Error}",
+            Core.Moving.MoveOutcome.Cancelled => "Move cancelled: nothing changed.",
+            _ => $"Not moved, nothing changed: {result.Error}",
+        }, result.Outcome == Core.Moving.MoveOutcome.Moved ? 12 : 25);
     }
 
     // ---- subtitles ----
