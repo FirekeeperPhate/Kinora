@@ -19,6 +19,7 @@ foreach (var size in pngSizes)
     File.WriteAllBytes(Path.Combine(output, $"kinora-{size}.png"), pngs[size]);
 }
 WriteIco(Path.Combine(output, "kinora.ico"), icoSizes.Select(s => (s, pngs[s])).ToList());
+WriteIcns(Path.Combine(output, "kinora.icns"), pngs);
 Console.WriteLine($"Icon written to {Path.GetFullPath(output)}");
 
 static byte[] Render(int size)
@@ -90,6 +91,31 @@ static byte[] Render(int size)
     using var image = surface.Snapshot();
     using var data = image.Encode(SKEncodedImageFormat.Png, 100);
     return data.ToArray();
+}
+
+// A macOS .icns whose entries are PNGs (the types macOS 10.7+ reads that way).
+static void WriteIcns(string path, Dictionary<int, byte[]> pngs)
+{
+    (string Type, int Size)[] entries =
+    [
+        ("icp4", 16), ("icp5", 32), ("ic11", 32), ("ic12", 64), ("ic07", 128), ("ic13", 256),
+        ("ic08", 256), ("ic14", 512), ("ic09", 512), ("ic10", 1024),
+    ];
+    using var body = new MemoryStream();
+    foreach (var (type, size) in entries)
+    {
+        var png = pngs[size];
+        body.Write(System.Text.Encoding.ASCII.GetBytes(type));
+        body.Write(BigEndian(png.Length + 8));
+        body.Write(png);
+    }
+    using var file = File.Create(path);
+    file.Write("icns"u8);
+    file.Write(BigEndian((int)body.Length + 8));
+    body.Position = 0;
+    body.CopyTo(file);
+
+    static byte[] BigEndian(int value) => [(byte)(value >> 24), (byte)(value >> 16), (byte)(value >> 8), (byte)value];
 }
 
 // An .ico whose entries are PNGs: understood by Windows Vista and later.

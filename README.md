@@ -75,9 +75,24 @@ destination stops the move before anything is touched. The library keeps the sam
 TMDB match). On Windows the copy uses CopyFileEx, which lets a server that supports it copy between
 its own shares; a 1.8 GB movie between two shares of the NAS took 19 s at about 100 MB/s.
 
-## Planned
+## Installing
 
-1. Packages for Windows (Inno Setup), Linux (AppImage / tar.gz) and macOS (.app).
+Every package has the .NET runtime inside: nothing else to install. `installeruild.ps1` makes
+them all (tests first) and copies them to `Z:DropboxSoftwareKinora`.
+
+- **Windows** (10 1809 or later, x64): `Kinora-Setup-<version>.exe`. Installs for the current user
+  without admin rights, or for everyone. Not signed: SmartScreen may warn the first time. Updates
+  install over the old version; Kinora's data in `%LOCALAPPDATA%\Kinora` is never touched, not
+  even by the uninstaller.
+- **Linux** (x64): `Kinora-<version>-linux-x64.tar.gz`. Unpack and run `./install.sh` (menu entry,
+  `kinora` command, all in the home folder; `install.sh --uninstall` removes it), or run `./Kinora`
+  from the folder. Needs X11 or XWayland.
+- **macOS** (12 or later): `Kinora-<version>-macos-arm64.zip` for Apple silicon, `-x64` for Intel.
+  Unzip and drag `Kinora.app` to Applications. Not signed or notarized: the first time, right-click
+  it → Open (or `xattr -cr /Applications/Kinora.app`).
+
+Only the Windows installer has been tried on a real machine; the Linux and macOS packages are built
+from Windows and have not been run yet.
 
 ## Building
 

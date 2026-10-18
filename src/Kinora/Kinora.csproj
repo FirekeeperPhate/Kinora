@@ -10,7 +10,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <AvaloniaResource Include="Assets\**" />
+    <!-- The big icon files are for the installers and the macOS bundle, not for the app itself -->
+    <AvaloniaResource Include="Assets\**" Exclude="Assets\kinora.icns;Assets\kinora-512.png;Assets\kinora-1024.png" />
   </ItemGroup>
 
   <ItemGroup>
