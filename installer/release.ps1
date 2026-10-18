@@ -20,10 +20,18 @@ $version = ([xml](Get-Content (Join-Path $root 'Directory.Build.props') -Raw)).P
     Where-Object { $_ } | Select-Object -First 1
 $tag = "v$version"
 
+# git writes warnings and push progress on stderr, which Windows PowerShell turns into errors
+# under 'Stop': show them, return only stdout, and fail on the exit code alone.
+function Git {
+    $ErrorActionPreference = 'Continue'
+    & git.exe @args 2>&1 | ForEach-Object { if ($_ -is [System.Management.Automation.ErrorRecord]) { Write-Host $_ } else { $_ } }
+    if ($LASTEXITCODE -ne 0) { throw "git $($args -join ' ') failed." }
+}
+
 Push-Location $root
 try {
-    if (git status --porcelain) { throw 'Commit everything first: the tag must point at what was built.' }
-    if (git tag --list $tag) { throw "$tag already exists: raise <Version> in Directory.Build.props." }
+    if (Git status --porcelain) { throw 'Commit everything first: the tag must point at what was built.' }
+    if (Git tag --list $tag) { throw "$tag already exists: raise <Version> in Directory.Build.props." }
 
     & (Join-Path $PSScriptRoot 'build.ps1') -SkipTests:$SkipTests
     $out = Join-Path $PSScriptRoot 'Output'
@@ -32,9 +40,9 @@ try {
     foreach ($a in $assets) { if (-not (Test-Path $a)) { throw "Missing package: $a" } }
 
     $credential = "credential.helper=!'$($gh -replace '\\', '/')' auth git-credential"
-    git -c credential.helper= -c $credential push
-    git tag -a $tag -m "Kinora $version"
-    git -c credential.helper= -c $credential push origin $tag
+    Git -c credential.helper= -c $credential push
+    Git tag -a $tag -m "Kinora $version"
+    Git -c credential.helper= -c $credential push origin $tag
     & $gh release create $tag --repo FirekeeperPhate/Kinora --title "Kinora $version" --notes-file $Notes --verify-tag @assets
     if ($LASTEXITCODE -ne 0) { throw 'gh release create failed.' }
 }
