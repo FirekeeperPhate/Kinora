@@ -52,6 +52,7 @@ public partial class MovieDetailViewModel : ViewModelBase, IDisposable
     public string? RatingText => Movie.Rating is { } r ? r.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) : null;
     public IReadOnlyList<string> Genres => Movie.GenreList;
     public string? Directors => Join(Movie.DirectorList);
+    public IReadOnlyList<string> DirectorNames => Movie.DirectorList;
     public string? Studios => Join(Movie.StudioList.Take(4));
     public string? Countries => Join(Movie.CountryList);
     public string? Collection => Movie.Collection;
@@ -218,6 +219,18 @@ public partial class MovieDetailViewModel : ViewModelBase, IDisposable
     /// <summary>Choosing by hand counts only for a movie the folder doesn't identify.</summary>
     public bool CanIdentify { get; }
     public bool CanIdentifyOnline => CanIdentify && HasTmdbKey;
+
+    /// <summary>Opened by Random: the page offers another pick.</summary>
+    public bool FromRandom { get; init; }
+
+    [RelayCommand]
+    private void AnotherRandom() => _owner.RandomCommand.Execute(null);
+
+    [RelayCommand]
+    private void OpenPerson(CastMember member) => _owner.OpenPerson(member.Name, member.TmdbId, director: false);
+
+    [RelayCommand]
+    private void OpenDirector(string name) => _owner.OpenPerson(name, null, director: true);
 
     [RelayCommand]
     private void Back() => _owner.CloseDetailCommand.Execute(null);

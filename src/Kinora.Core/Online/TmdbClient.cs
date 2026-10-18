@@ -129,7 +129,7 @@ public sealed class TmdbClient : IDisposable
             {
                 foreach (var c in credits.GetProperty("cast").EnumerateArray().Take(30))
                     if (Str(c, "name") is { } name)
-                        movie.Cast.Add(new TmdbCast(name, Str(c, "character")));
+                        movie.Cast.Add(new TmdbCast(name, Str(c, "character"), c.TryGetProperty("id", out var pid) ? pid.GetRawText() : null));
                 foreach (var c in credits.GetProperty("crew").EnumerateArray())
                     if (Str(c, "job") == "Director" && Str(c, "name") is { } name && !movie.Directors.Contains(name))
                         movie.Directors.Add(name);
@@ -139,6 +139,56 @@ public sealed class TmdbClient : IDisposable
             movie.LogoPath = Logo(r, lang2);
             return movie;
         }
+    }
+
+    // ---- people ----
+
+    public async Task<List<TmdbPersonResult>> SearchPersonAsync(string name, CancellationToken ct)
+    {
+        using var doc = await GetJsonAsync("search/person", [("query", name), ("include_adult", "false"), ("language", Language)], ct);
+        return doc.RootElement.GetProperty("results").EnumerateArray()
+                  .Select(r => new TmdbPersonResult(
+                      r.GetProperty("id").GetRawText(),
+                      Str(r, "name") ?? "",
+                      Str(r, "known_for_department"),
+                      r.TryGetProperty("popularity", out var p) && p.ValueKind == JsonValueKind.Number ? p.GetDouble() : 0,
+                      Str(r, "profile_path")))
+                  .ToList();
+    }
+
+    /// <summary>A person; the biography falls back to English when the metadata language has none.</summary>
+    public async Task<TmdbPerson?> GetPersonAsync(string tmdbId, CancellationToken ct)
+    {
+        TmdbPerson? Read(JsonElement r) => new()
+        {
+            Id = r.GetProperty("id").GetRawText(),
+            Language = Language,
+            Name = Str(r, "name") ?? "",
+            Biography = Str(r, "biography"),
+            Birthday = Str(r, "birthday"),
+            Deathday = Str(r, "deathday"),
+            PlaceOfBirth = Str(r, "place_of_birth"),
+            KnownFor = Str(r, "known_for_department"),
+            ProfilePath = Str(r, "profile_path"),
+            ImdbId = Str(r, "imdb_id"),
+        };
+
+        TmdbPerson? person;
+        try
+        {
+            using var doc = await GetJsonAsync($"person/{Uri.EscapeDataString(tmdbId)}", [("language", Language)], ct);
+            person = Read(doc.RootElement);
+        }
+        catch (TmdbException e) when (e.Status == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+        if (person is { Biography: null } && !Language.StartsWith("en", StringComparison.OrdinalIgnoreCase))
+        {
+            using var english = await GetJsonAsync($"person/{Uri.EscapeDataString(tmdbId)}", [("language", "en-US")], ct);
+            person.Biography = Str(english.RootElement, "biography");
+        }
+        return person;
     }
 
     // ---- TV ----
@@ -219,7 +269,7 @@ public sealed class TmdbClient : IDisposable
                     if (Str(c, "name") is { } name)
                     {
                         var role = c.TryGetProperty("roles", out var roles) && roles.GetArrayLength() > 0 ? Str(roles[0], "character") : null;
-                        series.Cast.Add(new TmdbCast(name, role));
+                        series.Cast.Add(new TmdbCast(name, role, c.TryGetProperty("id", out var pid) ? pid.GetRawText() : null));
                     }
             if (r.TryGetProperty("content_ratings", out var ratings))
             {

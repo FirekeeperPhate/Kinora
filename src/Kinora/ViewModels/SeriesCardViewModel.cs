@@ -73,7 +73,7 @@ public sealed class SeriesCardViewModel : CardViewModel
         SortKey = SortTitle(s.SortTitle ?? s.Title);
     }
 
-    protected override void Open() => _owner.OpenSeries(this);
+    protected override void Open() => _owner.Activate(this);
     protected override void Play() => _owner.PlayNextEpisode(this);
     protected override void Reveal() => _owner.Reveal(this);
     protected override void ToggleWatched() => _owner.SetSeriesWatched(this, !Watched);

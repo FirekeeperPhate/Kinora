@@ -325,7 +325,7 @@ public sealed class MovieScanner(LibraryDatabase db, ImageCache posters)
         }
 
         var cast = (nfo?.Actors ?? []).Take(40)
-                                      .Select(a => new CastMember { Name = a.Name, Role = a.Role })
+                                      .Select(a => new CastMember { Name = a.Name, Role = a.Role, TmdbId = a.TmdbId })
                                       .ToList();
         online.Apply(movie, cast, titleIsGuess: nfo?.Title is null, posters);
         return (movie, cast);

@@ -114,6 +114,24 @@ public abstract partial class CardViewModel : ViewModelBase, IPosterHolder
         return t;
     }
 
+    // ---- selection ----
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowSelector))]
+    public partial bool IsSelected { get; set; }
+
+    /// <summary>Something is selected: every card shows its select dot, a click selects instead of opening.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowSelector))]
+    public partial bool SelectionActive { get; set; }
+
+    public bool ShowSelector => IsSelected || SelectionActive;
+
+    public static Action<CardViewModel>? ToggleSelectHandler { get; set; }
+
+    [RelayCommand]
+    private void ToggleSelect() => ToggleSelectHandler?.Invoke(this);
+
     /// <summary>The other library folders of the same kind, for "Move to"; filled when the menu opens.</summary>
     public IReadOnlyList<MoveTarget> MoveTargets => MoveTargetsProvider?.Invoke(this) ?? [];
     public bool CanMove => MoveTargets.Count > 0;

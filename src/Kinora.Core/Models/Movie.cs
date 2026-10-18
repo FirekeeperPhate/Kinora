@@ -84,4 +84,7 @@ public sealed class CastMember
     public int Ord { get; set; }
     public string Name { get; set; } = "";
     public string? Role { get; set; }
+
+    /// <summary>The person on TMDB, when the nfo or TMDB said it.</summary>
+    public string? TmdbId { get; set; }
 }

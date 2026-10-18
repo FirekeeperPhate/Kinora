@@ -1,0 +1,75 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Kinora.ViewModels"
+             xmlns:k="using:Kinora"
+             x:Class="Kinora.Views.PersonView"
+             x:DataType="vm:PersonViewModel"
+             Background="{DynamicResource AppBackground}">
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="48,22,48,48" Spacing="30">
+            <Button Classes="pill" Command="{Binding BackCommand}" HorizontalAlignment="Left" ToolTip.Tip="Back (Esc)" Padding="12,8,16,8">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Path Classes="icon" Data="{x:Static k:Icons.Back}" Width="14" Height="14" />
+                    <TextBlock Text="Back" />
+                </StackPanel>
+            </Button>
+
+            <Grid ColumnDefinitions="Auto,*">
+                <Border Width="220" Height="330" CornerRadius="14" ClipToBounds="True" VerticalAlignment="Top"
+                        Background="{DynamicResource PlaceholderBackground}" BoxShadow="0 14 34 0 #50000000">
+                    <Panel>
+                        <TextBlock Text="{Binding Name}" TextWrapping="Wrap" TextAlignment="Center" VerticalAlignment="Center"
+                                   Margin="16" Classes="subtle" IsVisible="{Binding !HasPhoto}" />
+                        <Image Source="{Binding Photo}" Stretch="UniformToFill" />
+                    </Panel>
+                </Border>
+                <StackPanel Grid.Column="1" Margin="40,4,0,0" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
+                    <TextBlock Text="{Binding Name}" FontSize="38" FontWeight="Bold" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding Facts}" Classes="subtle" TextWrapping="Wrap"
+                               IsVisible="{Binding Facts, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                    <Button Classes="pill" Command="{Binding OpenTmdbCommand}" IsVisible="{Binding HasTmdbPage}" HorizontalAlignment="Left"
+                            Content="Open on TMDB" Margin="0,4,0,4" />
+                    <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsLoading}" Width="200" HorizontalAlignment="Left" />
+                    <TextBlock Text="{Binding Biography}" TextWrapping="Wrap" FontSize="15" LineHeight="23" MaxWidth="780"
+                               HorizontalAlignment="Left" />
+                </StackPanel>
+            </Grid>
+
+            <StackPanel Spacing="14">
+                <TextBlock Classes="section" Text="{Binding TitlesText}" />
+                <ItemsControl ItemsSource="{Binding Titles}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel ItemSpacing="18" LineSpacing="20" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:PersonTitle">
+                            <Button Classes="card" Width="150" ToolTip.Tip="{Binding Title}"
+                                    Command="{Binding $parent[UserControl].((vm:PersonViewModel)DataContext).OpenTitleCommand}"
+                                    CommandParameter="{Binding}">
+                                <StackPanel>
+                                    <Border Classes="poster" Height="225">
+                                        <Panel>
+                                            <TextBlock Text="{Binding Title}" TextWrapping="Wrap" TextAlignment="Center" VerticalAlignment="Center"
+                                                       Margin="10" Classes="subtle" IsVisible="{Binding !Card.HasPoster}" />
+                                            <Image Source="{Binding Card.Poster}" Stretch="UniformToFill" />
+                                        </Panel>
+                                    </Border>
+                                    <TextBlock Classes="cardTitle" Text="{Binding Title}" Margin="2,8,2,0" FontWeight="SemiBold"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Margin="2,2,2,0" FontSize="12" Classes="subtle" TextTrimming="CharacterEllipsis">
+                                        <Run Text="{Binding YearText}" />
+                                        <Run Text=" · " />
+                                        <Run Text="{Binding Role}" />
+                                    </TextBlock>
+                                </StackPanel>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

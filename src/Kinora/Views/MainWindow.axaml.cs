@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Platform.Storage;
+using Avalonia.VisualTree;
 using Kinora.ViewModels;
 
 namespace Kinora.Views;
@@ -13,6 +14,12 @@ public partial class MainWindow : Window, IDialogs
         InitializeComponent();
         GridScroller.SizeChanged += (_, _) => UpdateViewport();
         AddHandler(KeyDownEvent, OnKeyDownTunnel, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        // A poster's click arrives as a command, without the keys: note them on the way down
+        AddHandler(PointerPressedEvent, (_, e) =>
+        {
+            if (Vm is { } vm)
+                vm.LastModifiers = e.KeyModifiers;
+        }, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
     }
 
     private MainWindowViewModel? Vm => DataContext as MainWindowViewModel;
@@ -70,12 +77,17 @@ public partial class MainWindow : Window, IDialogs
     {
         if (Vm is not { } vm)
             return;
-        if (e.Key == Key.Escape && vm.Detail is not null)
+        if (e.Key == Key.Escape && vm.Person is not null)
+        {
+            vm.ClosePerson();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape && !vm.ShowLibrary)
         {
             vm.CloseDetailCommand.Execute(null);
             e.Handled = true;
         }
-        else if (e.Key == Key.F && e.KeyModifiers.HasFlag(KeyModifiers.Control) && vm.Detail is null)
+        else if (e.Key == Key.F && e.KeyModifiers.HasFlag(KeyModifiers.Control) && vm.ShowLibrary)
         {
             SearchBox.Focus();
             SearchBox.SelectAll();
@@ -86,6 +98,26 @@ public partial class MainWindow : Window, IDialogs
             vm.SearchText = "";
             e.Handled = true;
         }
+        else if (e.Key == Key.Escape && vm.HasSelection)
+        {
+            vm.ClearSelection();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.A && e.KeyModifiers.HasFlag(KeyModifiers.Control) && vm.ShowLibrary && !SearchBox.IsFocused)
+        {
+            vm.SelectAllCommand.Execute(null);
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>The "•••" on a poster opens the same menu as a right click.</summary>
+    private void OnCardMoreClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (sender is not Control control)
+            return;
+        var card = control.GetVisualAncestors().OfType<Button>().FirstOrDefault(b => b.Classes.Contains("card"));
+        card?.ContextMenu?.Open(card);
+        e.Handled = true;
     }
 
     // ---- IDialogs ----

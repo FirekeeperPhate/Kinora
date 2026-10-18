@@ -21,6 +21,9 @@ public sealed class AppServices
 
     /// <summary>Episode pictures and season posters, made when a show page asks for them.</summary>
     public ImageCache Stills { get; } = new(AppPaths.StillCache, 400);
+
+    /// <summary>Photos for the person pages, as TMDB gives them.</summary>
+    public FileCache People { get; } = new(AppPaths.PeopleCache, ".jpg");
     public PosterLoader PosterLoader { get; }
     public MovieScanner Scanner { get; }
     public MetadataFetcher Fetcher { get; }

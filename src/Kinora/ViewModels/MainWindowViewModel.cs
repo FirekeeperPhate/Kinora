@@ -51,6 +51,7 @@ public partial class MainWindowViewModel : ViewModelBase
         SortDescending = _s.Settings.SortDescending;
         Mode = _s.Settings.ShowTvShows ? LibraryMode.Shows : LibraryMode.Movies;
         CardViewModel.MoveTargetsProvider = MoveTargetsFor;
+        CardViewModel.ToggleSelectHandler = ToggleSelection;
         _suppressFilter = false;
     }
 
@@ -120,7 +121,11 @@ public partial class MainWindowViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(ShowLibrary))]
     public partial SeriesDetailViewModel? SeriesDetail { get; private set; }
 
-    public bool ShowLibrary => Detail is null && SeriesDetail is null;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowLibrary))]
+    public partial PersonViewModel? Person { get; private set; }
+
+    public bool ShowLibrary => Detail is null && SeriesDetail is null && Person is null;
 
     [ObservableProperty]
     public partial bool HasNoResults { get; private set; }
@@ -142,6 +147,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     partial void OnModeChanged(LibraryMode value)
     {
+        ClearSelection();
         _s.Settings.ShowTvShows = value == LibraryMode.Shows;
         SearchText = "";
         SelectedNav = null;
@@ -244,6 +250,8 @@ public partial class MainWindowViewModel : ViewModelBase
                 NavItems.Add(new NavItem(NavKind.Root, root.Name, Icons.Folder)
                 {
                     RootId = root.Id,
+                    MarkWatchedCommand = new RelayCommand(() => MarkFolderWatched(root.Id, true)),
+                    MarkUnwatchedCommand = new RelayCommand(() => MarkFolderWatched(root.Id, false)),
                     Count = cards.Count(c => c.RootId == root.Id),
                     IsUnavailable = _unavailable.Contains(root.Id),
                 });
@@ -658,20 +666,22 @@ public partial class MainWindowViewModel : ViewModelBase
 
     // ---- pages ----
 
-    public void OpenDetail(MovieCardViewModel card)
+    public void OpenDetail(MovieCardViewModel card, bool fromRandom = false)
     {
         var old = Detail;
         _roots.TryGetValue(card.RootId, out var root);
-        Detail = new MovieDetailViewModel(this, _s, card, root, _unavailable.Contains(card.RootId));
+        Detail = new MovieDetailViewModel(this, _s, card, root, _unavailable.Contains(card.RootId)) { FromRandom = fromRandom };
         old?.Dispose();
+        CloseOthers(keepMovie: true);
     }
 
-    public void OpenSeries(SeriesCardViewModel card, int? season = null)
+    public void OpenSeries(SeriesCardViewModel card, int? season = null, bool fromRandom = false)
     {
         var old = SeriesDetail;
         _roots.TryGetValue(card.RootId, out var root);
-        SeriesDetail = new SeriesDetailViewModel(this, _s, card, root, _unavailable.Contains(card.RootId), season);
+        SeriesDetail = new SeriesDetailViewModel(this, _s, card, root, _unavailable.Contains(card.RootId), season) { FromRandom = fromRandom };
         old?.Dispose();
+        CloseOthers(keepMovie: false);
     }
 
     [RelayCommand]
@@ -683,6 +693,59 @@ public partial class MainWindowViewModel : ViewModelBase
         SeriesDetail = null;
         oldMovie?.Dispose();
         oldShow?.Dispose();
+    }
+
+    /// <summary>
+    /// The page of an actor or director, over the page it was opened from (Back returns there).
+    /// Lists every movie and show of the library they are in, newest first.
+    /// </summary>
+    public void OpenPerson(string name, string? tmdbId, bool director)
+    {
+        var movies = _movies.ToDictionary(c => c.Movie.Id);
+        var shows = _shows.ToDictionary(c => c.Series.Id);
+        var titles = _s.Database.GetCredits(name, tmdbId)
+            .Select(c => c.IsSeries
+                ? shows.TryGetValue(c.Id, out var s) ? new PersonTitle(s, c.Role) : null
+                : movies.TryGetValue(c.Id, out var m) ? new PersonTitle(m, c.Role) : null)
+            .OfType<PersonTitle>()
+            .OrderByDescending(t => t.Card.Year ?? 0)
+            .ToList();
+        var old = Person;
+        Person = new PersonViewModel(this, _s, name, tmdbId, director, titles);
+        old?.Dispose();
+    }
+
+    public void ClosePerson()
+    {
+        var old = Person;
+        Person = null;
+        old?.Dispose();
+    }
+
+    /// <summary>From a person page: the movie or show page.</summary>
+    public void OpenTitle(CardViewModel card)
+    {
+        switch (card)
+        {
+            case MovieCardViewModel m: OpenDetail(m); break;
+            case SeriesCardViewModel s: OpenSeries(s); break;
+        }
+    }
+
+    /// <summary>One page at a time: opening a movie closes a show page and the person page, and the other way round.</summary>
+    private void CloseOthers(bool keepMovie)
+    {
+        if (keepMovie && SeriesDetail is { } show)
+        {
+            SeriesDetail = null;
+            show.Dispose();
+        }
+        if (!keepMovie && Detail is { } movie)
+        {
+            Detail = null;
+            movie.Dispose();
+        }
+        ClosePerson();
     }
 
     // ---- playing and folders ----
@@ -764,6 +827,157 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
+    // ---- selection ----
+
+    private readonly List<CardViewModel> _selected = [];
+    private CardViewModel? _anchor;
+
+    /// <summary>The keys held at the last click (set by the window): Ctrl adds to the selection, Shift selects a range.</summary>
+    public Avalonia.Input.KeyModifiers LastModifiers { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SelectionText), nameof(CanMoveSelection), nameof(SelectionMoveTargets))]
+    public partial bool HasSelection { get; private set; }
+
+    public string SelectionText => Format.Count(_selected.Count, "selected", "selected");
+
+    /// <summary>A click on a poster: opens it, or selects when Ctrl/Shift is held or a selection is going on.</summary>
+    public void Activate(CardViewModel card)
+    {
+        var mods = LastModifiers;
+        LastModifiers = Avalonia.Input.KeyModifiers.None;
+        if (mods.HasFlag(Avalonia.Input.KeyModifiers.Shift) && _anchor is not null && _filtered.Contains(_anchor))
+        {
+            var a = _filtered.IndexOf(_anchor);
+            var b = _filtered.IndexOf(card);
+            foreach (var c in _filtered.Skip(Math.Min(a, b)).Take(Math.Abs(a - b) + 1))
+                Select(c, true);
+            SelectionChanged();
+            return;
+        }
+        if (mods.HasFlag(Avalonia.Input.KeyModifiers.Control) || HasSelection)
+        {
+            ToggleSelection(card);
+            return;
+        }
+        switch (card)
+        {
+            case MovieCardViewModel m: OpenDetail(m); break;
+            case SeriesCardViewModel s: OpenSeries(s); break;
+        }
+    }
+
+    public void ToggleSelection(CardViewModel card)
+    {
+        Select(card, !card.IsSelected);
+        _anchor = card;
+        SelectionChanged();
+    }
+
+    private void Select(CardViewModel card, bool selected)
+    {
+        card.IsSelected = selected;
+        if (selected && !_selected.Contains(card))
+            _selected.Add(card);
+        else if (!selected)
+            _selected.Remove(card);
+    }
+
+    private void SelectionChanged()
+    {
+        var active = _selected.Count > 0;
+        if (active != HasSelection)
+            foreach (var c in _movies.Cast<CardViewModel>().Concat(_shows))
+                c.SelectionActive = active;
+        HasSelection = active;
+        OnPropertyChanged(nameof(SelectionText));
+        OnPropertyChanged(nameof(SelectionMoveTargets));
+        OnPropertyChanged(nameof(CanMoveSelection));
+    }
+
+    [RelayCommand]
+    private void SelectAll()
+    {
+        foreach (var c in _filtered)
+            Select(c, true);
+        SelectionChanged();
+    }
+
+    [RelayCommand]
+    public void ClearSelection()
+    {
+        foreach (var c in _selected.ToList())
+            Select(c, false);
+        _anchor = null;
+        SelectionChanged();
+    }
+
+    [RelayCommand]
+    private void MarkSelectedWatched() => MarkWatched(_selected.ToList(), true);
+
+    [RelayCommand]
+    private void MarkSelectedUnwatched() => MarkWatched(_selected.ToList(), false);
+
+    private void MarkWatched(IReadOnlyList<CardViewModel> cards, bool watched)
+    {
+        foreach (var card in cards)
+        {
+            switch (card)
+            {
+                case MovieCardViewModel m when m.Movie.Watched != watched:
+                    _s.Database.SetWatched(m.Movie, watched);
+                    m.NotifyWatchedChanged();
+                    break;
+                case SeriesCardViewModel s:
+                    var episodes = _s.Database.GetEpisodes(s.Series.Id).Where(e => e.Watched != watched).ToList();
+                    if (episodes.Count == 0)
+                        break;
+                    _s.Database.SetEpisodesWatched(s.Series, episodes, watched);
+                    s.SetWatchedCount(watched ? s.Series.EpisodeCount : 0);
+                    break;
+            }
+        }
+        Detail?.NotifyWatchedChanged();
+        AfterWatchedChange();
+        ShowStatusFor($"{Format.Count(cards.Count, "title", "titles")} marked as {(watched ? "watched" : "unwatched")}", 6);
+    }
+
+    public bool CanMoveSelection => SelectionMoveTargets.Count > 0;
+
+    /// <summary>Library folders of the current kind the selection could go to.</summary>
+    public IReadOnlyList<MoveTarget> SelectionMoveTargets =>
+        !HasSelection ? []
+        : _roots.Values.Where(r => r.Kind == CurrentKind && !_unavailable.Contains(r.Id) && _selected.Any(c => c.RootId != r.Id))
+                .OrderBy(r => r.Name, StringComparer.CurrentCultureIgnoreCase)
+                .Select(r => new MoveTarget(r.Name, r.Path, new AsyncRelayCommand(() => MoveManyAsync(_selected.ToList(), r))))
+                .ToList();
+
+    /// <summary>Marks everything in a library folder (right click in the sidebar).</summary>
+    public void MarkFolderWatched(long rootId, bool watched) =>
+        MarkWatched(CurrentCards.Where(c => c.RootId == rootId).ToList(), watched);
+
+    // ---- random ----
+
+    private CardViewModel? _lastRandom;
+
+    /// <summary>Opens a title picked at random from the current view; again from its page for another.</summary>
+    [RelayCommand]
+    private void Random()
+    {
+        var pool = _filtered.Where(c => c != _lastRandom).ToList();
+        if (pool.Count == 0)
+            pool = _filtered;
+        if (pool.Count == 0)
+            return;
+        var card = pool[System.Random.Shared.Next(pool.Count)];
+        _lastRandom = card;
+        switch (card)
+        {
+            case MovieCardViewModel m: OpenDetail(m, fromRandom: true); break;
+            case SeriesCardViewModel s: OpenSeries(s, fromRandom: true); break;
+        }
+    }
+
     // ---- moving ----
 
     private IReadOnlyList<MoveTarget> MoveTargetsFor(CardViewModel card)
@@ -776,61 +990,107 @@ public partial class MainWindowViewModel : ViewModelBase
                      .ToList();
     }
 
+    /// <summary>Moves one title (from its menu).</summary>
+    public Task MoveAsync(CardViewModel card, LibraryRoot to) => MoveManyAsync([card], to);
+
     /// <summary>
-    /// Moves a movie or show to another library folder: asks first (with how much will be
-    /// copied), shows the progress in the status bar, can be cancelled until the copy is checked.
+    /// Moves titles to another library folder: asks once (with how much will be copied), then
+    /// one after the other with the progress in the status bar. Cancel stops the one being copied
+    /// (it stays where it was) and the ones after it; a title whose name is already there is
+    /// skipped and the others go on.
     /// </summary>
-    public async Task MoveAsync(CardViewModel card, LibraryRoot to)
+    public async Task MoveManyAsync(IReadOnlyList<CardViewModel> cards, LibraryRoot to)
     {
-        if (IsScanning || Dialogs is null || !_roots.TryGetValue(card.RootId, out var from))
+        if (IsScanning || Dialogs is null)
+            return;
+        var items = cards.Where(c => c.RootId != to.Id && _roots.TryGetValue(c.RootId, out var r) && r.Kind == to.Kind)
+                         .Select(c => (Card: c, From: _roots[c.RootId]))
+                         .ToList();
+        if (items.Count == 0)
             return;
 
         long size;
         try
         {
-            size = await Task.Run(() => card switch
+            size = await Task.Run(() => items.Sum(i => i.Card switch
             {
-                MovieCardViewModel m => Core.Moving.LibraryMover.SizeOf(m.Movie, from),
-                SeriesCardViewModel s => Core.Moving.LibraryMover.SizeOf(s.Series, from),
+                MovieCardViewModel m => Core.Moving.LibraryMover.SizeOf(m.Movie, i.From),
+                SeriesCardViewModel s => Core.Moving.LibraryMover.SizeOf(s.Series, i.From),
                 _ => 0L,
-            }).WaitAsync(TimeSpan.FromSeconds(30));
+            })).WaitAsync(TimeSpan.FromSeconds(60));
         }
         catch (Exception e) when (e is IOException or TimeoutException or UnauthorizedAccessException)
         {
-            ShowStatusFor($"Can't read “{card.Title}” in {from.Name}: {e.Message}", 14);
+            ShowStatusFor($"Can't read the files to move: {e.Message}", 14);
             return;
         }
 
-        var sameVolume = string.Equals(Path.GetPathRoot(from.Path), Path.GetPathRoot(to.Path), StringComparison.OrdinalIgnoreCase);
-        var how = sameVolume
-            ? "It is on the same drive: the folder is just renamed."
-            : $"{Format.Size(size)} will be copied to {to.Path}. The original is deleted only after the copy has been checked.";
-        if (!await Dialogs.ConfirmAsync("Move", $"Move “{card.Title}” from {from.Name} to {to.Name}?\n\n{how}", "Move"))
+        var allSameVolume = items.All(i => string.Equals(Path.GetPathRoot(i.From.Path), Path.GetPathRoot(to.Path), StringComparison.OrdinalIgnoreCase));
+        var how = allSameVolume
+            ? "They are on the same drive: the folders are just renamed."
+            : $"{Format.Size(size)} will be copied to {to.Path}. Each original is deleted only after its copy has been checked.";
+        var what = items.Count == 1 ? $"“{items[0].Card.Title}” from {items[0].From.Name}" : Format.Count(items.Count, "title", "titles");
+        if (!await Dialogs.ConfirmAsync("Move", $"Move {what} to {to.Name}?\n\n{how}", "Move"))
             return;
 
         IsScanning = true;
         ScanIndeterminate = false;
         ScanProgress = 0;
         _statusVersion++;
-        ScanStatus = $"Moving {card.Title}…";
         _scanCts = new CancellationTokenSource();
         var watch = Stopwatch.StartNew();
+        long doneBefore = 0;
+        var current = "";
         var progress = new Progress<Core.Moving.MoveProgress>(p =>
         {
-            ScanProgress = p.BytesTotal == 0 ? 0 : 100.0 * p.BytesDone / p.BytesTotal;
-            var speed = watch.Elapsed.TotalSeconds > 1 ? $" · {Format.Size((long)(p.BytesDone / watch.Elapsed.TotalSeconds))}/s" : "";
-            ScanStatus = $"Moving {card.Title}  {Format.Size(p.BytesDone)} of {Format.Size(p.BytesTotal)}{speed}";
+            var done = doneBefore + p.BytesDone;
+            ScanProgress = size == 0 ? 0 : 100.0 * done / size;
+            var speed = watch.Elapsed.TotalSeconds > 1 ? $" · {Format.Size((long)(done / watch.Elapsed.TotalSeconds))}/s" : "";
+            ScanStatus = $"Moving {current}  {Format.Size(done)} of {Format.Size(size)}{speed}";
         });
 
-        Core.Moving.MoveResult result;
+        int moved = 0;
+        var problems = new List<string>();
+        var cancelled = false;
         try
         {
-            result = card switch
+            for (var n = 0; n < items.Count; n++)
             {
-                MovieCardViewModel m => await _s.Mover.MoveMovieAsync(m.Movie, from, to, progress, _scanCts.Token),
-                SeriesCardViewModel s => await _s.Mover.MoveSeriesAsync(s.Series, from, to, progress, _scanCts.Token),
-                _ => new Core.Moving.MoveResult(Core.Moving.MoveOutcome.Failed),
-            };
+                var (card, from) = items[n];
+                current = items.Count == 1 ? card.Title : $"{card.Title} ({n + 1} of {items.Count})";
+                ScanStatus = $"Moving {current}…";
+                var itemSize = card switch
+                {
+                    MovieCardViewModel m => await Task.Run(() => Core.Moving.LibraryMover.SizeOf(m.Movie, from)),
+                    SeriesCardViewModel s => await Task.Run(() => Core.Moving.LibraryMover.SizeOf(s.Series, from)),
+                    _ => 0L,
+                };
+                var result = card switch
+                {
+                    MovieCardViewModel m => await _s.Mover.MoveMovieAsync(m.Movie, from, to, progress, _scanCts.Token),
+                    SeriesCardViewModel s => await _s.Mover.MoveSeriesAsync(s.Series, from, to, progress, _scanCts.Token),
+                    _ => new Core.Moving.MoveResult(Core.Moving.MoveOutcome.Failed),
+                };
+                doneBefore += itemSize;
+                switch (result.Outcome)
+                {
+                    case Core.Moving.MoveOutcome.Moved:
+                        moved++;
+                        break;
+                    case Core.Moving.MoveOutcome.MovedSourceLeft:
+                        moved++;
+                        problems.Add($"“{card.Title}” moved, but some files stayed in {from.Name}");
+                        break;
+                    case Core.Moving.MoveOutcome.Cancelled:
+                        cancelled = true;
+                        break;
+                    default:
+                        problems.Add($"“{card.Title}” not moved: {result.Error}");
+                        break;
+                }
+                if (cancelled)
+                    break;
+            }
         }
         finally
         {
@@ -839,25 +1099,24 @@ public partial class MainWindowViewModel : ViewModelBase
             _scanCts = null;
         }
 
-        var showing = Detail?.Card == card || SeriesDetail?.Card == card;
-        if (result.Outcome is Core.Moving.MoveOutcome.Moved or Core.Moving.MoveOutcome.MovedSourceLeft)
+        var showingMovie = Detail?.Card;
+        var showingShow = SeriesDetail?.Card;
+        if (moved > 0)
         {
+            ClearSelection();
             Reload();
-            if (showing && card is MovieCardViewModel movie && _movies.Contains(movie))
-                OpenDetail(movie);
-            else if (showing && card is SeriesCardViewModel show && _shows.Contains(show))
-                OpenSeries(show);
+            if (showingMovie is not null && _movies.Contains(showingMovie))
+                OpenDetail(showingMovie);
+            else if (showingShow is not null && _shows.Contains(showingShow))
+                OpenSeries(showingShow);
         }
 
-        var seconds = watch.Elapsed.TotalSeconds;
-        ShowStatusFor(result.Outcome switch
-        {
-            Core.Moving.MoveOutcome.Moved => $"“{card.Title}” moved to {to.Name}" + (result.Renamed ? "" : $" in {seconds:0} s"),
-            Core.Moving.MoveOutcome.MovedSourceLeft => $"“{card.Title}” is in {to.Name}, but some files could not be removed from {from.Name}: {result.Error}",
-            Core.Moving.MoveOutcome.Conflict => $"Not moved: {result.Error}",
-            Core.Moving.MoveOutcome.Cancelled => "Move cancelled: nothing changed.",
-            _ => $"Not moved, nothing changed: {result.Error}",
-        }, result.Outcome == Core.Moving.MoveOutcome.Moved ? 12 : 25);
+        var text = moved == 0 && cancelled ? "Move cancelled: nothing changed."
+            : items.Count == 1 && moved == 1 && problems.Count == 0 ? $"“{items[0].Card.Title}” moved to {to.Name} in {watch.Elapsed.TotalSeconds:0} s"
+            : $"{Format.Count(moved, "title", "titles")} moved to {to.Name} in {watch.Elapsed.TotalSeconds:0} s" + (cancelled ? ", then cancelled" : "");
+        if (problems.Count > 0)
+            text += " · " + string.Join(" · ", problems.Take(3)) + (problems.Count > 3 ? $" · and {problems.Count - 3} more" : "");
+        ShowStatusFor(text, problems.Count == 0 && !cancelled ? 12 : 30);
     }
 
     // ---- subtitles ----

@@ -44,7 +44,7 @@ public sealed partial class LibraryDatabase
     public List<CastMember> GetSeriesCast(long seriesId)
     {
         using var c = Open();
-        return c.Query<CastMember>("SELECT series_id AS movie_id, ord, name, role FROM series_cast WHERE series_id = @seriesId ORDER BY ord",
+        return c.Query<CastMember>("SELECT series_id AS movie_id, ord, name, role, tmdb_id FROM series_cast WHERE series_id = @seriesId ORDER BY ord",
                                    new { seriesId }).ToList();
     }
 
@@ -69,8 +69,8 @@ public sealed partial class LibraryDatabase
             c.Execute($"UPDATE series SET {SeriesAssignments} WHERE id = @Id", series, tx);
 
         c.Execute("DELETE FROM series_cast WHERE series_id = @Id", series, tx);
-        c.Execute("INSERT INTO series_cast (series_id, ord, name, role) VALUES (@SeriesId, @Ord, @Name, @Role)",
-                  cast.Select((m, i) => new { SeriesId = series.Id, Ord = i, m.Name, m.Role }), tx);
+        c.Execute("INSERT INTO series_cast (series_id, ord, name, role, tmdb_id) VALUES (@SeriesId, @Ord, @Name, @Role, @TmdbId)",
+                  cast.Select((m, i) => new { SeriesId = series.Id, Ord = i, m.Name, m.Role, m.TmdbId }), tx);
 
         c.Execute("DELETE FROM seasons WHERE series_id = @Id", series, tx);
         foreach (var s in seasons)

@@ -99,7 +99,7 @@ public static partial class NfoReader
             var name = Str(actor, "name");
             if (name is null)
                 continue;
-            data.Actors.Add(new NfoActor(name, Str(actor, "role"), Int(Str(actor, "order")) ?? order));
+            data.Actors.Add(new NfoActor(name, Str(actor, "role"), Int(Str(actor, "order")) ?? order, Digits(Str(actor, "tmdbid"))));
             order++;
         }
         data.Actors.Sort((a, b) => a.Order.CompareTo(b.Order));

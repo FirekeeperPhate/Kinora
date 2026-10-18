@@ -65,6 +65,15 @@
                                                        VerticalAlignment="Center" />
                                         </StackPanel>
                                     </Grid>
+                                    <!-- Over the row, only for library folders: the right-click menu -->
+                                    <Border Background="Transparent" IsVisible="{Binding IsRoot}">
+                                        <Border.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Mark all as watched" Command="{Binding MarkWatchedCommand}" />
+                                                <MenuItem Header="Mark all as unwatched" Command="{Binding MarkUnwatchedCommand}" />
+                                            </ContextMenu>
+                                        </Border.ContextMenu>
+                                    </Border>
                                 </Panel>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
@@ -73,24 +82,37 @@
             </Border>
 
             <!-- Main area -->
-            <Grid Grid.Column="1" RowDefinitions="Auto,*,Auto">
+            <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*,Auto">
 
                 <Grid ColumnDefinitions="*,Auto" Margin="32,22,32,14">
                     <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="{Binding ViewTitle}" FontSize="27" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
                         <TextBlock Text="{Binding CountText}" Classes="subtle" Margin="0,2,0,0" />
                     </StackPanel>
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <StackPanel Grid.Column="1" Classes="toolbar" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <StackPanel.Styles>
+                            <Style Selector="StackPanel.toolbar > TextBox, StackPanel.toolbar > ComboBox, StackPanel.toolbar > Button, StackPanel.toolbar > ToggleButton, StackPanel.toolbar > SplitButton">
+                                <Setter Property="Height" Value="38" />
+                                <Setter Property="MinHeight" Value="38" />
+                                <Setter Property="VerticalAlignment" Value="Center" />
+                            </Style>
+                        </StackPanel.Styles>
+                        <Button Command="{Binding RandomCommand}" ToolTip.Tip="Open a title picked at random from this view" Padding="12,0">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Path Classes="icon" Data="{x:Static k:Icons.Dice}" Width="16" Height="16" />
+                                <TextBlock Text="Random" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
                         <TextBox x:Name="SearchBox" Width="270" PlaceholderText="Search title, actor, director"
-                                 Text="{Binding SearchText}" Classes="clearButton" VerticalContentAlignment="Center">
+                                 Text="{Binding SearchText}" Classes="clearButton" Padding="6,0" VerticalContentAlignment="Center">
                             <TextBox.InnerLeftContent>
-                                <Path Classes="icon" Data="{x:Static k:Icons.Search}" Width="15" Height="15" Margin="10,0,0,0"
+                                <Path Classes="icon" Data="{x:Static k:Icons.Search}" Width="15" Height="15" Margin="12,0,2,0"
                                       Stroke="{DynamicResource SubtleText}" />
                             </TextBox.InnerLeftContent>
                         </TextBox>
-                        <ComboBox ItemsSource="{Binding SortOptions}" SelectedItem="{Binding SelectedSort}" MinWidth="130"
+                        <ComboBox ItemsSource="{Binding SortOptions}" SelectedItem="{Binding SelectedSort}" MinWidth="130" VerticalContentAlignment="Center"
                                   ToolTip.Tip="Sort by" />
-                        <ToggleButton IsChecked="{Binding SortDescending}" ToolTip.Tip="Reverse the order" Padding="9">
+                        <ToggleButton IsChecked="{Binding SortDescending}" ToolTip.Tip="Reverse the order" Padding="10,0">
                             <Path Classes="icon" Data="{x:Static k:Icons.Sort}" Width="16" Height="16" />
                         </ToggleButton>
                         <SplitButton Command="{Binding ScanCommand}" ToolTip.Tip="Look for new, changed and removed movies (F5)">
@@ -108,8 +130,34 @@
                     </StackPanel>
                 </Grid>
 
+                <!-- What to do with the selected titles -->
+                <Border Grid.Row="1" IsVisible="{Binding HasSelection}" Margin="32,0,32,12" Padding="16,8" CornerRadius="12"
+                        Background="{DynamicResource SurfaceBackground}" BoxShadow="0 4 14 0 #22000000">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="{Binding SelectionText}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                            <Button Content="Mark watched" Command="{Binding MarkSelectedWatchedCommand}" />
+                            <Button Content="Mark unwatched" Command="{Binding MarkSelectedUnwatchedCommand}" />
+                            <DropDownButton Content="Move to" IsVisible="{Binding CanMoveSelection}">
+                                <DropDownButton.Flyout>
+                                    <MenuFlyout ItemsSource="{Binding SelectionMoveTargets}">
+                                        <MenuFlyout.ItemContainerTheme>
+                                            <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}" x:DataType="vm:MoveTarget">
+                                                <Setter Property="Header" Value="{Binding Name}" />
+                                                <Setter Property="Command" Value="{Binding Command}" />
+                                            </ControlTheme>
+                                        </MenuFlyout.ItemContainerTheme>
+                                    </MenuFlyout>
+                                </DropDownButton.Flyout>
+                            </DropDownButton>
+                            <Button Content="Select all" Command="{Binding SelectAllCommand}" ToolTip.Tip="Everything in this view (Ctrl+A)" />
+                            <Button Content="Clear" Command="{Binding ClearSelectionCommand}" ToolTip.Tip="Esc" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
                 <!-- Poster grid: a virtualized list of rows -->
-                <ScrollViewer Grid.Row="1" x:Name="GridScroller" HorizontalScrollBarVisibility="Disabled">
+                <ScrollViewer Grid.Row="2" x:Name="GridScroller" HorizontalScrollBarVisibility="Disabled">
                     <ItemsControl x:Name="GridItems" ItemsSource="{Binding Rows}" Margin="32,6,32,32">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
@@ -146,7 +194,7 @@
                                                     </ContextMenu>
                                                 </Button.ContextMenu>
                                                 <StackPanel>
-                                                    <Border Classes="poster" Height="{Binding PosterHeight}">
+                                                    <Border Classes="poster" Classes.selected="{Binding IsSelected}" Height="{Binding PosterHeight}">
                                                         <Panel>
                                                             <TextBlock Text="{Binding Title}" TextWrapping="Wrap" TextAlignment="Center"
                                                                        VerticalAlignment="Center" Margin="14" Classes="subtle"
@@ -170,6 +218,25 @@
                                                                     Background="#B0000000">
                                                                 <TextBlock Text="Offline" Foreground="White" FontSize="11" />
                                                             </Border>
+                                                            <!-- Select (top left) and quick actions (bottom right), shown on hover -->
+                                                            <Button Classes="selectDot" Classes.show="{Binding ShowSelector}" Classes.selected="{Binding IsSelected}"
+                                                                    Command="{Binding ToggleSelectCommand}" ToolTip.Tip="Select (Ctrl+click)"
+                                                                    HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8">
+                                                                <Path Data="{x:Static k:Icons.Check}" StrokeThickness="2.6" StrokeLineCap="Round" StrokeJoin="Round"
+                                                                      Stretch="Uniform" Width="12" Height="12" Stroke="White" />
+                                                            </Button>
+                                                            <StackPanel Classes="cardActions" Orientation="Horizontal" Spacing="6"
+                                                                        HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="8">
+                                                                <Button Classes="cardAction" Classes.on="{Binding Watched}" Command="{Binding ToggleWatchedCommand}"
+                                                                        ToolTip.Tip="{Binding WatchedMenuText}">
+                                                                    <Path Data="{x:Static k:Icons.Check}" StrokeThickness="2.4" StrokeLineCap="Round" StrokeJoin="Round"
+                                                                          Stretch="Uniform" Width="13" Height="13" Stroke="White" />
+                                                                </Button>
+                                                                <Button Classes="cardAction" Click="OnCardMoreClick" ToolTip.Tip="More">
+                                                                    <Path Data="{x:Static k:Icons.More}" StrokeThickness="3" StrokeLineCap="Round"
+                                                                          Stretch="Uniform" Width="14" Height="4" Stroke="White" />
+                                                                </Button>
+                                                            </StackPanel>
                                                         </Panel>
                                                     </Border>
                                                     <TextBlock Classes="cardTitle" Text="{Binding Title}" Margin="2,10,2,0"
@@ -186,7 +253,7 @@
                 </ScrollViewer>
 
                 <!-- Empty library -->
-                <StackPanel Grid.Row="1" IsVisible="{Binding ShowEmptyLibrary}" VerticalAlignment="Center"
+                <StackPanel Grid.Row="2" IsVisible="{Binding ShowEmptyLibrary}" VerticalAlignment="Center"
                             HorizontalAlignment="Center" Spacing="14" MaxWidth="420" Margin="0,0,0,80">
                     <Image Source="/Assets/kinora-128.png" Width="88" Height="88" />
                     <TextBlock Text="{Binding EmptyLibraryTitle}" FontSize="22" FontWeight="Bold" HorizontalAlignment="Center" />
@@ -196,14 +263,14 @@
                 </StackPanel>
 
                 <!-- Nothing matches -->
-                <StackPanel Grid.Row="1" IsVisible="{Binding HasNoResults}" VerticalAlignment="Center"
+                <StackPanel Grid.Row="2" IsVisible="{Binding HasNoResults}" VerticalAlignment="Center"
                             HorizontalAlignment="Center" Spacing="8" Margin="0,0,0,80">
                     <TextBlock Text="Nothing here" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center" />
                     <TextBlock Text="No movie matches this view or search." Classes="subtle" HorizontalAlignment="Center" />
                 </StackPanel>
 
                 <!-- Scan status -->
-                <Border Grid.Row="2" IsVisible="{Binding ShowStatus}" Background="{DynamicResource SidebarBackground}"
+                <Border Grid.Row="3" IsVisible="{Binding ShowStatus}" Background="{DynamicResource SidebarBackground}"
                         BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0" Padding="32,10">
                     <Grid ColumnDefinitions="Auto,*,Auto">
                         <ProgressBar Width="160" Minimum="0" Maximum="100" Value="{Binding ScanProgress}"
@@ -223,5 +290,7 @@
                                IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).Detail, Converter={x:Static ObjectConverters.IsNotNull}}" />
         <views:SeriesDetailView DataContext="{Binding SeriesDetail}"
                                 IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).SeriesDetail, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <views:PersonView DataContext="{Binding Person}"
+                          IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).Person, Converter={x:Static ObjectConverters.IsNotNull}}" />
     </Panel>
 </Window>

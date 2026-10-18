@@ -31,7 +31,7 @@ public static class MetadataMerger
         if (m.Countries.Length == 0) m.Countries = Movie.Join(t.Countries);
         if (m.Directors.Length == 0) m.Directors = Movie.Join(t.Directors);
         if (cast.Count == 0)
-            cast.AddRange(t.Cast.Select(c => new CastMember { Name = c.Name, Role = c.Character }));
+            cast.AddRange(t.Cast.Select(c => new CastMember { Name = c.Name, Role = c.Character, TmdbId = c.Id }));
         if (m.PosterFile is null) m.OnlinePoster = t.PosterPath;
         if (m.FanartFile is null) m.OnlineFanart = t.BackdropPath;
         if (m.LogoFile is null) m.OnlineLogo = t.LogoPath;

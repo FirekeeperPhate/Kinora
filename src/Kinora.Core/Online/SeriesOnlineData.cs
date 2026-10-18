@@ -73,7 +73,7 @@ public sealed class SeriesOnlineData
         if (s.Genres.Length == 0) s.Genres = Movie.Join(t.Genres);
         if (s.Studios.Length == 0) s.Studios = Movie.Join(t.Networks);
         if (cast.Count == 0)
-            cast.AddRange(t.Cast.Select(c => new CastMember { Name = c.Name, Role = c.Character }));
+            cast.AddRange(t.Cast.Select(c => new CastMember { Name = c.Name, Role = c.Character, TmdbId = c.Id }));
         if (s.PosterFile is null) s.OnlinePoster = t.PosterPath;
         if (s.FanartFile is null) s.OnlineFanart = t.BackdropPath;
         if (s.LogoFile is null) s.OnlineLogo = t.LogoPath;

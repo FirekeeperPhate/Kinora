@@ -11,7 +11,7 @@ namespace Kinora.Core.Data;
 /// </summary>
 public sealed partial class LibraryDatabase
 {
-    private const int SchemaVersion = 3;
+    private const int SchemaVersion = 4;
 
     private readonly string _connectionString;
 
@@ -238,6 +238,25 @@ public sealed partial class LibraryDatabase
                 );
                 """, transaction: tx);
         }
+        if (version < 4)
+        {
+            c.Execute("""
+                ALTER TABLE cast_members ADD COLUMN tmdb_id TEXT;
+                ALTER TABLE series_cast ADD COLUMN tmdb_id TEXT;
+                CREATE INDEX ix_cast_members_name ON cast_members(name COLLATE NOCASE);
+                CREATE INDEX ix_series_cast_name ON series_cast(name COLLATE NOCASE);
+                -- People pages: what TMDB says about a person, asked once
+                CREATE TABLE tmdb_people (
+                    tmdb_id TEXT PRIMARY KEY,
+                    language TEXT NOT NULL,
+                    data TEXT NOT NULL,
+                    fetched INTEGER NOT NULL
+                );
+                -- Read every folder again once, to pick up the actors' TMDB ids from the nfo files
+                UPDATE movies SET stamp = 0;
+                UPDATE series SET stamp = 0;
+                """, transaction: tx);
+        }
         c.Execute($"PRAGMA user_version = {SchemaVersion};", transaction: tx);
         tx.Commit();
     }
@@ -325,7 +344,7 @@ public sealed partial class LibraryDatabase
                 cast[i].MovieId = movie.Id;
                 cast[i].Ord = i;
             }
-            c.Execute("INSERT INTO cast_members (movie_id, ord, name, role) VALUES (@MovieId, @Ord, @Name, @Role)", cast, tx);
+            c.Execute("INSERT INTO cast_members (movie_id, ord, name, role, tmdb_id) VALUES (@MovieId, @Ord, @Name, @Role, @TmdbId)", cast, tx);
         }
         tx.Commit();
     }

@@ -83,4 +83,4 @@ public sealed class NfoData
     }
 }
 
-public sealed record NfoActor(string Name, string? Role, int Order);
+public sealed record NfoActor(string Name, string? Role, int Order, string? TmdbId = null);

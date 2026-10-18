@@ -6,6 +6,8 @@ namespace Kinora;
 public static class Icons
 {
     public static Geometry Tv { get; } = Geometry.Parse("M3.5,6.5 H20.5 V17.5 H3.5 Z M8.5,21 H15.5 M9,3 L12,6.5 L15,3");
+    public static Geometry Dice { get; } = Geometry.Parse("M5.5,3.5 H18.5 A2,2 0 0 1 20.5,5.5 V18.5 A2,2 0 0 1 18.5,20.5 H5.5 A2,2 0 0 1 3.5,18.5 V5.5 A2,2 0 0 1 5.5,3.5 Z M8.5,8.5 V8.6 M15.5,8.5 V8.6 M12,12 V12.1 M8.5,15.5 V15.6 M15.5,15.5 V15.6");
+    public static Geometry More { get; } = Geometry.Parse("M6,12 V12.1 M12,12 V12.1 M18,12 V12.1");
     public static Geometry Film { get; } = Geometry.Parse("M4,5 H20 V19 H4 Z M8,5 V19 M16,5 V19 M4,9.5 H8 M4,14.5 H8 M16,9.5 H20 M16,14.5 H20");
     public static Geometry Eye { get; } = Geometry.Parse("M2.5,12 C4.5,8 8,6 12,6 C16,6 19.5,8 21.5,12 C19.5,16 16,18 12,18 C8,18 4.5,16 2.5,12 Z M12,9.5 A2.5,2.5 0 1 0 12.01,9.5 Z");
     public static Geometry Clock { get; } = Geometry.Parse("M12,3 A9,9 0 1 0 12.01,3 Z M12,7.5 V12 L15,14");

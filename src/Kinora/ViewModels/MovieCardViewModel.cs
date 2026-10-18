@@ -64,7 +64,7 @@ public sealed class MovieCardViewModel : CardViewModel
         SortKey = SortTitle(m.SortTitle ?? m.Title);
     }
 
-    protected override void Open() => _owner.OpenDetail(this);
+    protected override void Open() => _owner.Activate(this);
     protected override void Play() => _owner.Play(this, null);
     protected override void Reveal() => _owner.Reveal(this);
     protected override void ToggleWatched() => _owner.SetWatched(this, !Movie.Watched);

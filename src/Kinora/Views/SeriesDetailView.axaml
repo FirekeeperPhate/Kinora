@@ -96,12 +96,21 @@
 
         <ScrollViewer HorizontalScrollBarVisibility="Disabled">
             <StackPanel Margin="48,22,48,48" Spacing="28">
+                <StackPanel Orientation="Horizontal" Spacing="10">
                 <Button Classes="pill" Command="{Binding BackCommand}" HorizontalAlignment="Left" ToolTip.Tip="Back (Esc)" Padding="12,8,16,8">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <Path Classes="icon" Data="{x:Static k:Icons.Back}" Width="14" Height="14" />
                         <TextBlock Text="Library" />
                     </StackPanel>
                 </Button>
+                    <Button Classes="pill" Command="{Binding AnotherRandomCommand}" IsVisible="{Binding FromRandom}" Padding="12,8,16,8"
+                            ToolTip.Tip="Another title picked at random">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Path Classes="icon" Data="{x:Static k:Icons.Dice}" Width="15" Height="15" StrokeThickness="2.2" />
+                            <TextBlock Text="Another one" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
 
                 <Grid ColumnDefinitions="Auto,*" Margin="0,16,0,0">
                     <Border Width="250" Height="375" CornerRadius="14" ClipToBounds="True" VerticalAlignment="Top"
@@ -280,12 +289,13 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="core:CastMember">
-                                <Border Width="210" Padding="14,10" CornerRadius="10" Background="{DynamicResource SurfaceBackground}">
+                                <Button Classes="person" Width="210" ToolTip.Tip="See this actor's page"
+                                        Command="{Binding $parent[UserControl].((vm:SeriesDetailViewModel)DataContext).OpenPersonCommand}" CommandParameter="{Binding}">
                                     <StackPanel Spacing="2">
-                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Classes="personName" Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                                         <TextBlock Text="{Binding Role}" Classes="subtle" FontSize="12" TextTrimming="CharacterEllipsis" />
                                     </StackPanel>
-                                </Border>
+                                </Button>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>

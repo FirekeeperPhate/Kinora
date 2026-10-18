@@ -23,8 +23,13 @@ public partial class NavItem(NavKind kind, string title, Geometry? icon = null) 
     public long RootId { get; init; }
     public string? Genre { get; init; }
 
+    /// <summary>Right click on a library folder.</summary>
+    public System.Windows.Input.ICommand? MarkWatchedCommand { get; init; }
+    public System.Windows.Input.ICommand? MarkUnwatchedCommand { get; init; }
+
     public bool IsHeader => Kind == NavKind.Header;
     public bool IsSelectable => !IsHeader;
+    public bool IsRoot => Kind == NavKind.Root;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CountText))]

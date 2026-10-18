@@ -50,7 +50,7 @@ public sealed class TmdbMovie
     }
 }
 
-public sealed record TmdbCast(string Name, string? Character);
+public sealed record TmdbCast(string Name, string? Character, string? Id = null);
 
 public sealed record TmdbSearchResult(string Id, string Title, string? OriginalTitle, int? Year, string? Overview,
                                       string? PosterPath, double Popularity)
