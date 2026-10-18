@@ -1,5 +1,9 @@
 # Kinora
 
+[![Release](https://img.shields.io/github/v/release/FirekeeperPhate/Kinora?label=release&color=blue)](https://github.com/FirekeeperPhate/Kinora/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/FirekeeperPhate/Kinora/total?label=downloads&color=yellowgreen)](https://github.com/FirekeeperPhate/Kinora/releases)
+[![License: MIT](https://img.shields.io/github/license/FirekeeperPhate/Kinora?label=license&color=green)](LICENSE)
+
 A desktop library for movies and TV shows kept in folders on a disk or a NAS.
 Covers, metadata, light and dark theme; Play opens the file with the player the OS associates
 with it. Windows, Linux and macOS (Avalonia 12, .NET 10).
