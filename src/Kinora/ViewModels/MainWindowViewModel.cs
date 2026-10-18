@@ -1114,7 +1114,7 @@ public partial class MainWindowViewModel : ViewModelBase
     /// </summary>
     public async Task MoveManyAsync(IReadOnlyList<CardViewModel> cards, LibraryRoot to)
     {
-        if (IsScanning || Dialogs is null)
+        if (Dialogs is null || IsBusy("move"))
             return;
         var items = cards.Where(c => c.RootId != to.Id && _roots.TryGetValue(c.RootId, out var r) && r.Kind == to.Kind)
                          .Select(c => (Card: c, From: _roots[c.RootId]))
@@ -1122,7 +1122,13 @@ public partial class MainWindowViewModel : ViewModelBase
         if (items.Count == 0)
             return;
 
-        long size;
+        // Busy already while sizing and asking: no scan reads the folders in the meantime
+        IsScanning = true;
+        ScanIndeterminate = true;
+        _statusVersion++;
+        ScanStatus = "Looking at what would be moved…";
+        long size = 0;
+        var go = false;
         try
         {
             size = await Task.Run(() => items.Sum(i => i.Card switch
@@ -1131,19 +1137,27 @@ public partial class MainWindowViewModel : ViewModelBase
                 SeriesCardViewModel s => Core.Moving.LibraryMover.SizeOf(s.Series, i.From),
                 _ => 0L,
             })).WaitAsync(TimeSpan.FromSeconds(60));
+
+            var allSameVolume = items.All(i => string.Equals(Path.GetPathRoot(i.From.Path), Path.GetPathRoot(to.Path), StringComparison.OrdinalIgnoreCase));
+            var how = allSameVolume
+                ? "They are on the same drive: the folders are just renamed."
+                : $"{Format.Size(size)} will be copied to {to.Path}. Each original is deleted only after its copy has been checked.";
+            var what = items.Count == 1 ? $"“{items[0].Card.Title}” from {items[0].From.Name}" : Format.Count(items.Count, "title", "titles");
+            ScanStatus = "Move: waiting for your answer";
+            go = await Dialogs.ConfirmAsync("Move", $"Move {what} to {to.Name}?\n\n{how}", "Move");
         }
-        catch (Exception e) when (e is IOException or TimeoutException or UnauthorizedAccessException)
+        catch (Exception e)
         {
+            NotBusy();
             ShowStatusFor($"Can't read the files to move: {e.Message}", 14);
             return;
         }
-
-        var allSameVolume = items.All(i => string.Equals(Path.GetPathRoot(i.From.Path), Path.GetPathRoot(to.Path), StringComparison.OrdinalIgnoreCase));
-        var how = allSameVolume
-            ? "They are on the same drive: the folders are just renamed."
-            : $"{Format.Size(size)} will be copied to {to.Path}. Each original is deleted only after its copy has been checked.";
-        var what = items.Count == 1 ? $"“{items[0].Card.Title}” from {items[0].From.Name}" : Format.Count(items.Count, "title", "titles");
-        if (!await Dialogs.ConfirmAsync("Move", $"Move {what} to {to.Name}?\n\n{how}", "Move"))
+        finally
+        {
+            if (!go && IsScanning)
+                NotBusy();
+        }
+        if (!go)
             return;
 
         IsScanning = true;
@@ -1240,23 +1254,73 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private Task DeleteSelected() => DeleteManyAsync(_selected.ToList());
 
+    private void NotBusy()
+    {
+        IsScanning = false;
+        ScanIndeterminate = false;
+        ScanStatus = "";
+    }
+
+    /// <summary>A scan, a move or a delete is going on: said, rather than a click that does nothing.</summary>
+    private bool IsBusy(string what)
+    {
+        if (!IsScanning)
+            return false;
+        ShowStatusFor($"Wait for the scan (or the move or delete) to finish, then {what} again.", 8);
+        return true;
+    }
+
     /// <summary>
     /// Deletes titles from the disk and the library, after one question that says what goes and
     /// how much. Titles that can't be deleted (folder with other titles in it, folder offline)
-    /// are left out and said; the others go.
+    /// are left out and said; the others go. Busy from the first moment, so no scan reads the
+    /// folders while they are being looked at or deleted.
     /// </summary>
     public async Task DeleteManyAsync(IReadOnlyList<CardViewModel> cards)
     {
-        if (IsScanning || Dialogs is null)
+        if (Dialogs is null || IsBusy("delete"))
             return;
+        IsScanning = true;
+        ScanIndeterminate = true;
+        _statusVersion++;
+        string? status;
+        bool touched;
+        var gone = new HashSet<CardViewModel>();
+        try
+        {
+            (status, touched) = await DeleteManyCoreAsync(cards, gone);
+        }
+        catch (Exception e)
+        {
+            status = $"Delete stopped: {e.Message}";
+            touched = true;   // can't tell what went: read the library again
+        }
+        finally
+        {
+            IsScanning = false;
+            ScanIndeterminate = false;
+            ScanStatus = "";
+        }
+
+        if (touched)
+        {
+            ClearSelection();
+            if (Detail?.Card is { } m0 && gone.Contains(m0) || SeriesDetail?.Card is { } s0 && gone.Contains(s0))
+                CloseDetail();
+            Reload();
+        }
+        if (status is not null)
+            ShowStatusFor(status, status.EndsWith(" deleted", StringComparison.Ordinal) ? 10 : 30);
+    }
+
+    private async Task<(string? Status, bool Touched)> DeleteManyCoreAsync(IReadOnlyList<CardViewModel> cards, HashSet<CardViewModel> gone)
+    {
         var offline = cards.Count(c => _unavailable.Contains(c.RootId) || !_roots.ContainsKey(c.RootId));
         var candidates = cards.Where(c => !_unavailable.Contains(c.RootId) && _roots.ContainsKey(c.RootId)).ToList();
         if (candidates.Count == 0)
-        {
-            ShowStatusFor("The library folder is offline: nothing can be deleted.", 12);
-            return;
-        }
+            return ("The library folder is offline: nothing can be deleted.", false);
 
+        ScanStatus = "Looking at what would be deleted…";
         List<(CardViewModel Card, Core.Moving.DeletePlan Plan)> plans;
         try
         {
@@ -1269,8 +1333,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         catch (Exception e) when (e is IOException or TimeoutException or UnauthorizedAccessException)
         {
-            ShowStatusFor($"Can't read the files to delete: {e.Message}", 14);
-            return;
+            return ($"Can't read the files to delete: {e.Message}", false);
         }
 
         var ok = plans.Where(p => p.Plan.CanDelete).ToList();
@@ -1278,10 +1341,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (offline > 0)
             refused.Add($"{Format.Count(offline, "title is", "titles are")} in an offline folder");
         if (ok.Count == 0)
-        {
-            ShowStatusFor("Nothing deleted · " + string.Join(" · ", refused), 20);
-            return;
-        }
+            return ("Nothing deleted · " + string.Join(" · ", refused), false);
 
         string message;
         if (ok.Count == 1)
@@ -1290,12 +1350,16 @@ public partial class MainWindowViewModel : ViewModelBase
             message = plan.Folder is not null
                 ? $"Delete “{card.Title}”?\n\nThe folder and everything in it go from the disk: "
                   + $"{Format.Count(plan.FileCount, "file", "files")}, {Format.Size(plan.Size)}.\n{plan.Where}"
-                : $"Delete “{card.Title}”?\n\n{Format.Count(plan.FileCount, "file goes", "files go")} from the disk "
-                  + $"(the video and the files named like it), {Format.Size(plan.Size)}.\n{plan.Where}";
+                : $"Delete “{card.Title}”?\n\n{Format.Count(plan.FileCount, "file goes", "files go")} from the disk, {Format.Size(plan.Size)}:\n"
+                  + FileList(plan.Files);
         }
         else
         {
-            message = $"Delete {Format.Count(ok.Count, "title", "titles")}?\n\nTheir folders and everything in them go from the disk: "
+            var folders = ok.Count(p => p.Plan.Folder is not null);
+            var what = folders == ok.Count ? "Their folders and everything in them go"
+                : folders == 0 ? "Their videos and the files named like them go"
+                : "Their folders (or, for loose files, the video and the files named like it) go";
+            message = $"Delete {Format.Count(ok.Count, "title", "titles")}?\n\n{what} from the disk: "
                       + $"{Format.Count(ok.Sum(p => p.Plan.FileCount), "file", "files")}, {Format.Size(ok.Sum(p => p.Plan.Size))}.";
         }
         var unknown = ok.SelectMany(p => (p.Plan.UnknownVideos ?? []).Select(v => ok.Count == 1 ? v : $"{p.Card.Title}: {v}")).ToList();
@@ -1305,102 +1369,123 @@ public partial class MainWindowViewModel : ViewModelBase
         message += "\n\nThis can't be undone: the files don't go to the Recycle Bin.";
         if (refused.Count > 0)
             message += "\n\nLeft out: " + string.Join("; ", refused.Take(3)) + (refused.Count > 3 ? $"; and {refused.Count - 3} more" : "") + ".";
-        if (!await Dialogs.ConfirmAsync("Delete", message, "Delete", destructive: true))
-            return;
+        ScanStatus = "Delete: waiting for your answer";
+        if (!await Dialogs!.ConfirmAsync("Delete", message, "Delete", destructive: true))
+            return (null, false);
 
-        IsScanning = true;
-        ScanIndeterminate = true;
-        _statusVersion++;
         int deleted = 0;
+        var touched = false;
         var problems = new List<string>(refused);
-        try
+        for (var n = 0; n < ok.Count; n++)
         {
-            for (var n = 0; n < ok.Count; n++)
+            var card = ok[n].Card;
+            ScanStatus = ok.Count == 1 ? $"Deleting {card.Title}…" : $"Deleting {card.Title} ({n + 1} of {ok.Count})…";
+            var root = _roots[card.RootId];
+            Core.Moving.DeleteResult result;
+            try
             {
-                var card = ok[n].Card;
-                ScanStatus = ok.Count == 1 ? $"Deleting {card.Title}…" : $"Deleting {card.Title} ({n + 1} of {ok.Count})…";
-                var root = _roots[card.RootId];
-                var result = card switch
+                result = card switch
                 {
                     MovieCardViewModel m => await _s.Deleter.DeleteMovieAsync(m.Movie, root),
                     SeriesCardViewModel s => await _s.Deleter.DeleteSeriesAsync(s.Series, root),
                     _ => new Core.Moving.DeleteResult(false),
                 };
-                if (result.Deleted)
-                    deleted++;
-                else
-                    problems.Add($"“{card.Title}” not deleted: {result.Error}");
             }
+            catch (Exception e)
+            {
+                result = new Core.Moving.DeleteResult(false, e.Message, Partly: true);
+            }
+            if (result.Deleted)
+            {
+                deleted++;
+                gone.Add(card);
+            }
+            else
+            {
+                problems.Add(result.Partly ? $"“{card.Title}” only partly deleted: {result.Error}" : $"“{card.Title}” not deleted: {result.Error}");
+            }
+            touched |= result.Deleted || result.Partly;
         }
-        finally
-        {
-            IsScanning = false;
-            ScanIndeterminate = false;
-        }
-
-        ClearSelection();
-        var gone = ok.Select(p => p.Card).ToHashSet();
-        if (Detail?.Card is { } m0 && gone.Contains(m0) || SeriesDetail?.Card is { } s0 && gone.Contains(s0))
-            CloseDetail();
-        Reload();
 
         var text = ok.Count == 1 && deleted == 1 ? $"“{ok[0].Card.Title}” deleted" : $"{Format.Count(deleted, "title", "titles")} deleted";
         if (problems.Count > 0)
             text += " · " + string.Join(" · ", problems.Take(3)) + (problems.Count > 3 ? $" · and {problems.Count - 3} more" : "");
-        ShowStatusFor(text, problems.Count == 0 ? 10 : 30);
+        return (text, touched);
     }
+
+    private static string FileList(IReadOnlyList<string> files) =>
+        string.Join("\n", files.Take(8).Select(Path.GetFileName)) + (files.Count > 8 ? $"\nand {files.Count - 8} more" : "");
 
     /// <summary>Deletes one episode's video and the files named like it; the show is read again.</summary>
     public async Task DeleteEpisodeAsync(SeriesCardViewModel card, Episode episode)
     {
-        if (IsScanning || Dialogs is null)
+        if (Dialogs is null || IsBusy("delete"))
             return;
         if (_unavailable.Contains(card.RootId) || !_roots.TryGetValue(card.RootId, out var root))
         {
             ShowStatusFor("The library folder is offline: nothing can be deleted.", 12);
             return;
         }
-        Core.Moving.DeletePlan plan;
-        try
-        {
-            plan = await Task.Run(() => _s.Deleter.PlanEpisode(episode, root)).WaitAsync(TimeSpan.FromSeconds(30));
-        }
-        catch (Exception e) when (e is IOException or TimeoutException or UnauthorizedAccessException)
-        {
-            ShowStatusFor($"Can't read the files to delete: {e.Message}", 14);
-            return;
-        }
         var name = $"{card.Title} {episode.Code}".Trim() + (episode.Title.Length > 0 ? $" · {episode.Title}" : "");
-        if (!plan.CanDelete)
-        {
-            ShowStatusFor($"“{name}” not deleted: {plan.Refusal}", 14);
-            return;
-        }
-        var files = string.Join("\n", plan.Files.Select(Path.GetFileName));
-        if (!await Dialogs.ConfirmAsync("Delete episode",
-                $"Delete “{name}”?\n\n{Format.Count(plan.FileCount, "file goes", "files go")} from the disk, {Format.Size(plan.Size)}:\n{files}"
-                + "\n\nThis can't be undone: the files don't go to the Recycle Bin.", "Delete", destructive: true))
-            return;
-
         IsScanning = true;
         ScanIndeterminate = true;
         _statusVersion++;
-        ScanStatus = $"Deleting {name}…";
-        Core.Moving.DeleteResult result;
+        string? status = null;
+        var touched = false;
         try
         {
-            result = await _s.Deleter.DeleteEpisodeAsync(card.Series, episode, root);
+            ScanStatus = "Looking at what would be deleted…";
+            Core.Moving.DeletePlan plan;
+            try
+            {
+                plan = await Task.Run(() => _s.Deleter.PlanEpisode(episode, root)).WaitAsync(TimeSpan.FromSeconds(30));
+            }
+            catch (Exception e) when (e is IOException or TimeoutException or UnauthorizedAccessException)
+            {
+                status = $"Can't read the files to delete: {e.Message}";
+                return;
+            }
+            if (!plan.CanDelete)
+            {
+                status = $"“{name}” not deleted: {plan.Refusal}";
+                return;
+            }
+            ScanStatus = "Delete: waiting for your answer";
+            if (!await Dialogs.ConfirmAsync("Delete episode",
+                    $"Delete “{name}”?\n\n{Format.Count(plan.FileCount, "file goes", "files go")} from the disk, {Format.Size(plan.Size)}:\n{FileList(plan.Files)}"
+                    + "\n\nThis can't be undone: the files don't go to the Recycle Bin.", "Delete", destructive: true))
+                return;
+
+            ScanStatus = $"Deleting {name}…";
+            Core.Moving.DeleteResult result;
+            try
+            {
+                result = await _s.Deleter.DeleteEpisodeAsync(card.Series, episode, root);
+            }
+            catch (Exception e)
+            {
+                result = new Core.Moving.DeleteResult(false, e.Message, Partly: true);
+            }
+            touched = result.Deleted || result.Partly;
+            status = result.Deleted ? $"“{name}” deleted"
+                : result.Partly ? $"“{name}” only partly deleted: {result.Error}"
+                : $"“{name}” not deleted: {result.Error}";
         }
         finally
         {
             IsScanning = false;
             ScanIndeterminate = false;
+            ScanStatus = "";
+            if (touched)
+            {
+                var showing = SeriesDetail?.Card == card;
+                Reload();
+                if (showing && _shows.Contains(card))
+                    OpenSeries(card, episode.Season);
+            }
+            if (status is not null)
+                ShowStatusFor(status, status.EndsWith(" deleted", StringComparison.Ordinal) ? 10 : 30);
         }
-        var showing = SeriesDetail?.Card == card;
-        Reload();
-        if (showing && _shows.Contains(card))
-            OpenSeries(card, episode.Season);
-        ShowStatusFor(result.Deleted ? $"“{name}” deleted" : $"“{name}” not deleted: {result.Error}", result.Deleted ? 10 : 30);
     }
 
     // ---- subtitles ----

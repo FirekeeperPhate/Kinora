@@ -28,7 +28,7 @@ public sealed class DeleteTests : IDisposable
         var posters = new ImageCache(Path.Combine(_dir, "posters"), 320);
         _movies = new MovieScanner(_db, posters);
         _series = new SeriesScanner(_db, posters);
-        _deleter = new LibraryDeleter(_db, _series);
+        _deleter = new LibraryDeleter(_db, _movies, _series);
         _movieRoot = _db.AddRoot(LibraryKind.Movies, "Movies", _movieDir);
         _tvRoot = _db.AddRoot(LibraryKind.Series, "TV", _tvDir);
     }
@@ -185,5 +185,210 @@ public sealed class DeleteTests : IDisposable
         Assert.False(_deleter.PlanMovie(movie, _movieRoot).CanDelete);
         var show = new Series { Id = 1, RootId = _tvRoot.Id, Folder = "", Title = "x" };
         Assert.False(_deleter.PlanSeries(show, _tvRoot).CanDelete);
+    }
+
+    // ---- from the review ----
+
+    private static string Io(string path) => OperatingSystem.IsWindows() ? @"\\?\" + path : path;
+
+    [Fact]
+    public async Task A_name_ending_with_a_dot_deletes_that_folder_not_its_twin()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows drops the final dot");
+        // "S.W.A.T." and "S.W.A.T" side by side: Windows would take the first for the second
+        var dotted = Path.Combine(_tvDir, "S.W.A.T.");
+        var plain = Path.Combine(_tvDir, "S.W.A.T");
+        Directory.CreateDirectory(Io(Path.Combine(dotted, "Season 01")));
+        File.WriteAllBytes(Io(Path.Combine(dotted, "Season 01", "SWAT 2017 S01E01.mkv")), new byte[100]);
+        Write(Path.Combine(plain, "Season 01", "SWAT 1975 S01E01.mkv"));
+        var show = new Series { RootId = _tvRoot.Id, Folder = "S.W.A.T.", Title = "S.W.A.T." };
+        _db.SaveSeries(show, [], [], []);
+
+        var plan = _deleter.PlanSeries(show, _tvRoot);
+        Assert.True(plan.CanDelete, plan.Refusal);
+        Assert.Equal(1, plan.FileCount);
+        var result = await _deleter.DeleteSeriesAsync(show, _tvRoot);
+        Assert.True(result.Deleted, result.Error);
+        Assert.False(Directory.Exists(Io(dotted)));
+        Assert.True(File.Exists(Path.Combine(plain, "Season 01", "SWAT 1975 S01E01.mkv")));
+    }
+
+    [Fact]
+    public async Task A_folder_gone_offline_leaves_the_library_as_it_was()
+    {
+        Write(Path.Combine(_movieDir, "Heat (1995)", "Heat.mkv"));
+        await _movies.ScanAsync(_movieRoot, true, null, TestContext.Current.CancellationToken);
+        var heat = MovieNamed("Heat");
+        // The NAS goes to sleep between the question and the delete
+        Directory.Move(_movieDir, _movieDir + "-asleep");
+
+        var result = await _deleter.DeleteMovieAsync(heat, _movieRoot);
+        Assert.False(result.Deleted);
+        Assert.False(result.Partly);
+        Assert.Single(_db.GetMovies(_movieRoot.Id));
+        Assert.True(File.Exists(Path.Combine(_movieDir + "-asleep", "Heat (1995)", "Heat.mkv")));
+    }
+
+    [Fact]
+    public async Task A_video_in_use_stops_the_delete_before_anything_goes()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "An open file can't be deleted only on Windows");
+        var heat = Path.Combine(_movieDir, "Heat (1995)");
+        Write(Path.Combine(heat, "Heat.mkv"));
+        Write(Path.Combine(heat, "movie.nfo"));
+        Write(Path.Combine(heat, "poster.jpg"));
+        await _movies.ScanAsync(_movieRoot, true, null, TestContext.Current.CancellationToken);
+
+        DeleteResult result;
+        using (File.Open(Path.Combine(heat, "Heat.mkv"), FileMode.Open, FileAccess.Read, FileShare.None))   // playing
+            result = await _deleter.DeleteMovieAsync(MovieNamed("Heat"), _movieRoot);
+        Assert.False(result.Deleted);
+        Assert.False(result.Partly);
+        Assert.Equal(3, Directory.GetFiles(heat).Length);
+        Assert.Single(_db.GetMovies(_movieRoot.Id));
+    }
+
+    [Fact]
+    public async Task A_show_deleted_only_in_part_is_read_again()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "An open file can't be deleted only on Windows");
+        var season = Path.Combine(_tvDir, "Andor", "Season 01");
+        foreach (var e in new[] { "01", "02", "03" })
+            Write(Path.Combine(season, $"Andor S01E{e}.mkv"));
+        Write(Path.Combine(season, "Andor S01E03.en.srt"));
+        await _series.ScanAsync(_tvRoot, true, null, TestContext.Current.CancellationToken);
+        var andor = _db.GetSeries(_tvRoot.Id).Single();
+
+        DeleteResult result;
+        using (File.Open(Path.Combine(season, "Andor S01E03.en.srt"), FileMode.Open, FileAccess.Read, FileShare.None))
+            result = await _deleter.DeleteSeriesAsync(andor, _tvRoot);
+        Assert.False(result.Deleted);
+        Assert.True(result.Partly);
+        // The videos went first; the library now says what is there: a show with no episodes
+        Assert.Empty(_db.GetEpisodes(andor.Id));
+    }
+
+    [Fact]
+    public async Task The_last_episode_of_a_show_can_go()
+    {
+        Write(Path.Combine(_tvDir, "Andor", "Season 01", "Andor S01E01.mkv"));
+        await _series.ScanAsync(_tvRoot, true, null, TestContext.Current.CancellationToken);
+        var andor = _db.GetSeries(_tvRoot.Id).Single();
+        var only = _db.GetEpisodes(andor.Id).Single();
+
+        var result = await _deleter.DeleteEpisodeAsync(andor, only, _tvRoot);
+        Assert.True(result.Deleted, result.Error);
+        Assert.Empty(_db.GetEpisodes(andor.Id));
+    }
+
+    [Fact]
+    public async Task A_folder_with_another_library_folder_inside_is_not_deleted()
+    {
+        // A series library folder set up inside the movie one: "TV" scans as a movie of the movie library
+        var tv = Path.Combine(_movieDir, "TV");
+        Write(Path.Combine(tv, "Andor S01E01.mkv"));
+        _db.AddRoot(LibraryKind.Series, "TV inside", tv);
+        await _movies.ScanAsync(_movieRoot, true, null, TestContext.Current.CancellationToken);
+        var movie = _db.GetMovies(_movieRoot.Id).Single(m => m.Folder == "TV");
+
+        var plan = _deleter.PlanMovie(movie, _movieRoot);
+        Assert.False(plan.CanDelete);
+        Assert.Contains("library folder", plan.Refusal);
+        Assert.True(File.Exists(Path.Combine(tv, "Andor S01E01.mkv")));
+    }
+
+    [Fact]
+    public async Task A_big_file_next_to_a_loose_movie_is_another_video()
+    {
+        Write(Path.Combine(_movieDir, "Heat.avi"));
+        Write(Path.Combine(_movieDir, "Heat.nfo"));
+        Write(Path.Combine(_movieDir, "Heat.rmvb"), 21 * 1024 * 1024);   // an extension Kinora doesn't know
+        await _movies.ScanAsync(_movieRoot, true, null, TestContext.Current.CancellationToken);
+
+        var result = await _deleter.DeleteMovieAsync(_db.GetMovies(_movieRoot.Id).Single(), _movieRoot);
+        Assert.True(result.Deleted, result.Error);
+        Assert.Equal(["Heat.rmvb"], Directory.EnumerateFiles(_movieDir).Select(Path.GetFileName));
+    }
+
+    [Fact]
+    public async Task A_junction_in_the_folder_is_not_followed()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Junctions are a Windows thing");
+        var outside = Path.Combine(_dir, "Outside");
+        Write(Path.Combine(outside, "keep.mkv"));
+        File.SetAttributes(Path.Combine(outside, "keep.mkv"), FileAttributes.ReadOnly);
+        var heat = Path.Combine(_movieDir, "Heat (1995)");
+        Write(Path.Combine(heat, "Heat.mkv"));
+        var link = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe", $"/c mklink /J \"{Path.Combine(heat, "link")}\" \"{outside}\"")
+        {
+            CreateNoWindow = true,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+        })!;
+        await link.WaitForExitAsync(TestContext.Current.CancellationToken);
+        Assert.SkipUnless(Directory.Exists(Path.Combine(heat, "link")), "mklink /J failed");
+        await _movies.ScanAsync(_movieRoot, true, null, TestContext.Current.CancellationToken);
+
+        var plan = _deleter.PlanMovie(MovieNamed("Heat"), _movieRoot);
+        Assert.Equal(1, plan.FileCount);
+        Assert.Empty(plan.UnknownVideos!);
+        var result = await _deleter.DeleteMovieAsync(MovieNamed("Heat"), _movieRoot);
+        Assert.True(result.Deleted, result.Error);
+        Assert.False(Directory.Exists(heat));
+        Assert.True(File.Exists(Path.Combine(outside, "keep.mkv")));
+        Assert.True(File.GetAttributes(Path.Combine(outside, "keep.mkv")).HasFlag(FileAttributes.ReadOnly));
+    }
+
+    [Theory]
+    [InlineData("Alien Collection/Alien (1979)", true)]
+    [InlineData("S.W.A.T.", true)]
+    [InlineData("", false)]
+    [InlineData("../Elsewhere", false)]
+    [InlineData("a/../b", false)]
+    [InlineData("a//b", false)]
+    [InlineData("./a", false)]
+    [InlineData("C:/x", false)]
+    [InlineData("/x", false)]
+    public void Relative_paths_that_stay_inside(string rel, bool safe) => Assert.Equal(safe, LibraryDeleter.IsSafeRelative(rel));
+
+    [Fact]
+    public async Task A_title_inside_another_library_folder_is_not_deleted()
+    {
+        // The series library sits inside the movie one; a season folder scans as a movie there
+        var tv = Path.Combine(_movieDir, "TV");
+        Write(Path.Combine(tv, "Andor", "Season 01", "Andor S01E01.mkv"));
+        _db.AddRoot(LibraryKind.Series, "TV inside", tv);
+        await _movies.ScanAsync(_movieRoot, true, null, TestContext.Current.CancellationToken);
+        var movie = _db.GetMovies(_movieRoot.Id).Single();
+        Assert.StartsWith("TV/", movie.Folder);
+
+        var plan = _deleter.PlanMovie(movie, _movieRoot);
+        Assert.False(plan.CanDelete);
+        Assert.Contains("TV inside", plan.Refusal);
+    }
+
+    [Fact]
+    public async Task A_title_folder_that_is_a_junction_is_not_deleted()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Junctions are a Windows thing");
+        var target = Path.Combine(_dir, "Elsewhere", "Heat (1995)");
+        Write(Path.Combine(target, "Heat.mkv"));
+        Write(Path.Combine(target, "movie.nfo"));
+        var link = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe", $"/c mklink /J \"{Path.Combine(_movieDir, "Heat (1995)")}\" \"{target}\"")
+        {
+            CreateNoWindow = true,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+        })!;
+        await link.WaitForExitAsync(TestContext.Current.CancellationToken);
+        Assert.SkipUnless(Directory.Exists(Path.Combine(_movieDir, "Heat (1995)")), "mklink /J failed");
+        await _movies.ScanAsync(_movieRoot, true, null, TestContext.Current.CancellationToken);
+
+        var result = await _deleter.DeleteMovieAsync(MovieNamed("Heat"), _movieRoot);
+        Assert.False(result.Deleted);
+        Assert.Contains("link", result.Error);
+        Assert.Equal(2, Directory.GetFiles(target).Length);
+        Assert.Single(_db.GetMovies(_movieRoot.Id));
+        Directory.Delete(Path.Combine(_movieDir, "Heat (1995)"));   // the link, for the cleanup
     }
 }

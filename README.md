@@ -101,12 +101,18 @@ Cancel; only a click on Delete deletes. Files are deleted for good: network shar
 Recycle Bin.
 
 - A movie or a show in its own folder goes with the whole folder (subtitles, nfo, pictures,
-  extras). A loose movie, or an episode, goes with the files named like its video
-  (`Heat.nfo`, `Heat.en.srt`, `Heat-poster.jpg`), never with another video: deleting
-  `S01E01.mkv` leaves `S01E01-E02.mkv` and its files alone.
-- Never the library folder itself, and never a folder with other titles of the library inside.
+  extras), videos first: a video that is playing stops the delete before anything else goes.
+  A loose movie, or an episode, goes with the small files named like its video (`Heat.nfo`,
+  `Heat.en.srt`, `Heat-poster.jpg`, all listed in the question), never with another video:
+  deleting `S01E01.mkv` leaves `S01E01-E02.mkv` and its files alone.
+- Never a library folder, never a folder with other titles or another library folder inside,
+  never a title inside another library folder, never through a link (a junction inside a title
+  folder goes as a link; what it points to is not touched). Names ending with a dot, like
+  `S.W.A.T.`, are taken as they are.
 - Videos in the folder that the library doesn't count as part of the title (a movie folder put
   inside another one, which a scan doesn't read) are named in the question.
+- The library changes only for what really went: if the NAS drops out, nothing is removed from
+  it; if a delete stops halfway, the title is read again from the disk.
 
 ## Installing
 

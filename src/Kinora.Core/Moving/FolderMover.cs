@@ -267,14 +267,38 @@ public static class FolderMover
 
     // ---- deleting ----
 
-    /// <summary>Deletes a folder even with read-only files in it (Desktop.ini).</summary>
+    /// <summary>Inside the folder only: a junction in it is deleted as a link, and what it points to isn't touched.</summary>
+    private static readonly EnumerationOptions InsideOnly = new()
+    {
+        RecurseSubdirectories = true,
+        AttributesToSkip = FileAttributes.ReparsePoint,
+        IgnoreInaccessible = false,
+    };
+
+    /// <summary>Deletes a folder even with read-only files in it (Desktop.ini), and junctions as links.</summary>
     internal static void DeleteTree(string folder)
     {
-        foreach (var file in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories))
+        RemoveLinks(folder);
+        foreach (var file in Directory.EnumerateFiles(folder, "*", InsideOnly))
             File.SetAttributes(file, FileAttributes.Normal);
-        foreach (var dir in Directory.EnumerateDirectories(folder, "*", SearchOption.AllDirectories).Prepend(folder))
+        foreach (var dir in Directory.EnumerateDirectories(folder, "*", InsideOnly).Prepend(folder))
             new DirectoryInfo(dir).Attributes = FileAttributes.Directory;
         Directory.Delete(folder, recursive: true);
+    }
+
+    /// <summary>
+    /// Junctions and folder links go first, one by one and not recursively: a recursive delete
+    /// refuses them, and what they point to must not be touched.
+    /// </summary>
+    private static void RemoveLinks(string folder)
+    {
+        foreach (var sub in new DirectoryInfo(folder).EnumerateDirectories())
+        {
+            if (sub.Attributes.HasFlag(FileAttributes.ReparsePoint))
+                sub.Delete();
+            else
+                RemoveLinks(sub.FullName);
+        }
     }
 
     private static void TryDeleteTree(string folder)
