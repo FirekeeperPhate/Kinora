@@ -4,6 +4,19 @@ A desktop library for movies and TV shows kept in folders on a disk or a NAS.
 Covers, metadata, light and dark theme; Play opens the file with the player the OS associates
 with it. Windows, Linux and macOS (Avalonia 12, .NET 10).
 
+**[Download the latest release](https://github.com/FirekeeperPhate/Kinora/releases/latest)**
+
+![The library: a folder of movies, with the watched and menu buttons on the poster under the mouse](docs/screenshots/library.jpg)
+
+| | |
+|---|---|
+| ![A movie page: poster, backdrop, details and cast](docs/screenshots/movie.jpg) | ![A TV show page: seasons and episodes](docs/screenshots/show.jpg) |
+| A movie page: Play, watched, subtitles, the folder, Move to | A show: seasons, episodes, the next one to play |
+| ![A person page: photo, biography and their titles in the library](docs/screenshots/person.jpg) | ![The library in the light theme](docs/screenshots/light.jpg) |
+| Click a name in the cast: biography and their titles in the library | Light theme |
+
+<sub>Posters, pictures and texts in the screenshots come from TMDB and belong to their owners.</sub>
+
 ## What it does now
 
 - **Library folders**: as many as you like. Each movie in its own folder, collection folders
@@ -100,7 +113,6 @@ Kinora looks at the latest release of `FirekeeperPhate/Kinora` on GitHub once a 
 Updates: on by default, "Check now"). On Windows, installed with the setup, it downloads the new
 setup, checks its size and SHA-256 against the release, runs it silently and closes; the setup
 waits for it, updates and starts Kinora again. On Linux and macOS it opens the release page.
-While the repository is private GitHub answers "not found" and nothing is shown.
 
 To publish a version: raise `<Version>` in `Directory.Build.props`, commit, write the notes, then
 `installer/release.ps1 -Notes notes.md` (packages, `v<version>` tag, GitHub release with the

@@ -1,7 +1,7 @@
 # Publishes a new Kinora version on GitHub: the packages, the v<version> tag and the release.
 # Before: set <Version> in Directory.Build.props, commit, and write the notes in a Markdown file.
 #   .\release.ps1 -Notes notes.md
-# Installed copies on Windows find it within a day (once the repository is public) and update
+# Installed copies on Windows find it within a day and update
 # themselves; the asset names are the ones UpdateService looks for, so keep build.ps1's names.
 
 param(
@@ -32,7 +32,7 @@ try {
     foreach ($a in $assets) { if (-not (Test-Path $a)) { throw "Missing package: $a" } }
 
     $credential = "credential.helper=!'$($gh -replace '\\', '/')' auth git-credential"
-    git push
+    git -c credential.helper= -c $credential push
     git tag -a $tag -m "Kinora $version"
     git -c credential.helper= -c $credential push origin $tag
     & $gh release create $tag --repo FirekeeperPhate/Kinora --title "Kinora $version" --notes-file $Notes --verify-tag @assets
