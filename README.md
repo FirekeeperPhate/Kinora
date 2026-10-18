@@ -55,11 +55,19 @@ With a TMDB API key (Settings), what the folders don't say comes from The Movie 
 The key is stored encrypted for the Windows user (DPAPI); on Linux and macOS in a settings file
 only the user can read.
 
+## Subtitles (OpenSubtitles)
+
+With an OpenSubtitles API key and account (Settings), **Subtitles…** on a movie page, or **CC** on an
+episode, searches by the file's OpenSubtitles hash (two 64 KB reads, even on the NAS) together with
+the IMDb/TMDB ids; subtitles made for that exact file come first, then the preferred languages in
+their order. The chosen one is saved next to the video as `<video>.<lang>.srt` (`.sdh`, `.forced`
+when so); one already there with that name is kept as `.old`. Each download counts against the
+account's daily quota, shown in the window. Key and password are stored like the TMDB key.
+
 ## Planned
 
-1. Subtitles from OpenSubtitles (by file hash first).
-2. Moving movies and shows between library folders.
-3. Packages for Windows (Inno Setup), Linux (AppImage / tar.gz) and macOS (.app).
+1. Moving movies and shows between library folders.
+2. Packages for Windows (Inno Setup), Linux (AppImage / tar.gz) and macOS (.app).
 
 ## Building
 

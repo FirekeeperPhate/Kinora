@@ -64,6 +64,8 @@ public sealed class SubtitleFilesTests : IDisposable
         var path = SubtitleFiles.TargetPath(video, R("it", 1, hi: true), "whatever.SRT");
         Assert.Equal(Path.Combine(_dir, "Heat.it.sdh.srt"), path);
         Assert.Equal("it sdh", MediaFiles.SubtitleTag(Path.GetFileName(path), "Heat"));
+        Assert.Equal(Path.Combine(_dir, "Heat.en.srt"), SubtitleFiles.TargetPath(video, R("en", 1), "ENHANCED.VERSION.1995.BluRay.eng"));
+        Assert.Equal(Path.Combine(_dir, "Heat.en.ass"), SubtitleFiles.TargetPath(video, R("en", 1), "heat.ass"));
     }
 
     [Fact]

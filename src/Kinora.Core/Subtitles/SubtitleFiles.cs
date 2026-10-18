@@ -30,7 +30,10 @@ public static class SubtitleFiles
     {
         var folder = Path.GetDirectoryName(videoPath)!;
         var baseName = Path.GetFileNameWithoutExtension(videoPath);
-        var extension = Path.GetExtension(downloadedName) is { Length: > 1 } e ? e.ToLowerInvariant() : ".srt";
+        // Names on OpenSubtitles often end in a language ("….eng"): only a real subtitle
+        // extension counts, otherwise it is SubRip
+        var extension = Path.GetExtension(downloadedName).ToLowerInvariant() is var e
+                        && Scanning.MediaFiles.SubtitleExtensions.Contains(e) ? e : ".srt";
         var tag = result.Language.ToLowerInvariant();
         if (result.HearingImpaired) tag += ".sdh";
         if (result.Forced) tag += ".forced";

@@ -150,6 +150,10 @@ public partial class SubtitlesViewModel : ViewModelBase, IDisposable
                 return;
 
             var file = await _client.DownloadAsync(row.Result.FileId, CancellationToken.None);
+            // The download may name the real format (.ass, .vtt) better than the search did
+            var named = SubtitleFiles.TargetPath(_videoPath, row.Result, file.FileName);
+            if (!string.Equals(Path.GetExtension(named), ".srt", StringComparison.OrdinalIgnoreCase))
+                target = named;
             await Task.Run(() => SubtitleFiles.Save(target, file.Content));
             if (file.Remaining >= 0)
                 AccountText = $"{file.Remaining:N0} downloads left today";
