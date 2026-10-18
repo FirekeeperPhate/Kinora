@@ -159,7 +159,7 @@
                 <Border Classes="card">
                     <StackPanel Spacing="14">
                         <TextBlock Classes="heading" Text="Appearance" />
-                        <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto" >
+                        <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto" >
                             <TextBlock Text="Theme" VerticalAlignment="Center" />
                             <ComboBox Grid.Column="1" SelectedIndex="{Binding ThemeIndex}" MinWidth="200">
                                 <ComboBoxItem Content="Same as the system" />
@@ -168,6 +168,10 @@
                             </ComboBox>
                             <TextBlock Grid.Row="1" Text="Poster size" VerticalAlignment="Center" Margin="0,12,0,0" />
                             <Slider Grid.Row="1" Grid.Column="1" Minimum="120" Maximum="280" Value="{Binding CardWidth}"
+                                    MaxWidth="320" HorizontalAlignment="Left" Width="320" Margin="0,12,0,0" />
+                            <TextBlock Grid.Row="2" Text="Scroll speed" VerticalAlignment="Center" Margin="0,12,0,0" />
+                            <Slider Grid.Row="2" Grid.Column="1" Minimum="1" Maximum="6" TickFrequency="0.5" IsSnapToTickEnabled="True"
+                                    Value="{Binding ScrollSpeed}" ToolTip.Tip="How far one notch of the mouse wheel scrolls"
                                     MaxWidth="320" HorizontalAlignment="Left" Width="320" Margin="0,12,0,0" />
                         </Grid>
                     </StackPanel>

@@ -41,6 +41,7 @@ public partial class SettingsViewModel : ViewModelBase
         WriteToMediaFolders = _s.Settings.WriteToMediaFolders;
         ScanOnStartup = _s.Settings.ScanOnStartup;
         CardWidth = _s.Settings.CardWidth;
+        ScrollSpeed = _s.Settings.ScrollSpeed;
         TmdbKey = _s.Settings.TmdbKey;
         _originalKey = TmdbKey;
         _originalLanguage = _s.Settings.MetadataLanguage;
@@ -221,6 +222,11 @@ public partial class SettingsViewModel : ViewModelBase
     partial void OnWriteToMediaFoldersChanged(bool value) => _s.Settings.WriteToMediaFolders = value;
     partial void OnScanOnStartupChanged(bool value) => _s.Settings.ScanOnStartup = value;
     partial void OnCardWidthChanged(double value) => _s.Settings.CardWidth = Math.Round(value);
+
+    [ObservableProperty]
+    public partial double ScrollSpeed { get; set; }
+
+    partial void OnScrollSpeedChanged(double value) => _s.Settings.ScrollSpeed = Math.Round(value * 2) / 2;
 
     partial void OnNewRootPathChanged(string value)
     {

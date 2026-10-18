@@ -78,6 +78,9 @@ public sealed class AppSettings
     public bool SortDescending { get; set; }
     public double CardWidth { get; set; } = 170;
 
+    /// <summary>How far one notch of the mouse wheel scrolls: 1 = Avalonia's own step (50 px), 3 = three times that.</summary>
+    public double ScrollSpeed { get; set; } = 3;
+
     /// <summary>The library opens on TV shows rather than movies.</summary>
     public bool ShowTvShows { get; set; }
 

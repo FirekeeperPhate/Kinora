@@ -14,6 +14,7 @@ public partial class MainWindow : Window, IDialogs
         InitializeComponent();
         GridScroller.SizeChanged += (_, _) => UpdateViewport();
         AddHandler(KeyDownEvent, OnKeyDownTunnel, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        new WheelScroller(() => Vm?.Services.Settings.ScrollSpeed ?? 3).Attach(this);
         // A poster's click arrives as a command, without the keys: note them on the way down
         AddHandler(PointerPressedEvent, (_, e) =>
         {
