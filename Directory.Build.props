@@ -16,7 +16,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
-    <Version>0.1.1</Version>
+    <Version>0.1.2</Version>
     <Product>Kinora</Product>
     <Authors>Phate</Authors>
     <Copyright>Copyright (C) 2026 Phate</Copyright>
