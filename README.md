@@ -77,8 +77,8 @@ its own shares; a 1.8 GB movie between two shares of the NAS took 19 s at about 
 
 ## Installing
 
-Every package has the .NET runtime inside: nothing else to install. `installeruild.ps1` makes
-them all (tests first) and copies them to `Z:DropboxSoftwareKinora`.
+Every package has the .NET runtime inside: nothing else to install. `installer\build.ps1` makes
+them all (tests first) and copies them to `Z:\Dropbox\Software\Kinora`.
 
 - **Windows** (10 1809 or later, x64): `Kinora-Setup-<version>.exe`. Installs for the current user
   without admin rights, or for everyone. Not signed: SmartScreen may warn the first time. Updates
