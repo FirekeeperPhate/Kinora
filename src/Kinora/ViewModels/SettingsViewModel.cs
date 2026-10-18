@@ -31,10 +31,14 @@ public partial class SettingsViewModel : ViewModelBase
     private readonly AppServices _s;
     private readonly IDialogs _dialogs;
 
-    public SettingsViewModel(AppServices services, IDialogs dialogs)
+    private readonly Func<Task<string>>? _checkUpdates;
+
+    public SettingsViewModel(AppServices services, IDialogs dialogs, Func<Task<string>>? checkUpdates = null)
     {
         _s = services;
         _dialogs = dialogs;
+        _checkUpdates = checkUpdates;
+        CheckForUpdates = _s.Settings.CheckForUpdates;
         foreach (var root in _s.Database.GetRoots())
             Roots.Add(new RootItem(root));
         ThemeIndex = (int)_s.Settings.Theme;
@@ -109,6 +113,30 @@ public partial class SettingsViewModel : ViewModelBase
             KeyStatus = "Can't reach TMDB: " + e.Message;
         }
     }
+
+    // ---- updates ----
+
+    public string VersionText => $"Kinora {MainWindowViewModel.CurrentVersion.ToString(3)}";
+
+    [ObservableProperty]
+    public partial bool CheckForUpdates { get; set; }
+
+    [ObservableProperty]
+    public partial string? UpdateStatus { get; private set; }
+
+    partial void OnCheckForUpdatesChanged(bool value) => _s.Settings.CheckForUpdates = value;
+
+    [RelayCommand]
+    private async Task CheckUpdatesNow()
+    {
+        if (_checkUpdates is null)
+            return;
+        UpdateStatus = "Checking…";
+        UpdateStatus = await _checkUpdates();
+    }
+
+    [RelayCommand]
+    private void OpenReleasesPage() => Launcher.OpenUrl(Kinora.Core.Updates.UpdateService.ReleasesPage);
 
     [RelayCommand]
     private void OpenTmdbApiPage() => Launcher.OpenUrl("https://www.themoviedb.org/settings/api");

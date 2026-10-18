@@ -81,6 +81,11 @@ public sealed class AppSettings
     /// <summary>How far one notch of the mouse wheel scrolls: 1 = Avalonia's own step (50 px), 3 = three times that.</summary>
     public double ScrollSpeed { get; set; } = 3;
 
+    /// <summary>Look for a newer Kinora on GitHub when it starts (at most once a day).</summary>
+    public bool CheckForUpdates { get; set; } = true;
+
+    public DateTime? LastUpdateCheck { get; set; }
+
     /// <summary>The library opens on TV shows rather than movies.</summary>
     public bool ShowTvShows { get; set; }
 

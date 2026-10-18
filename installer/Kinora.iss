@@ -57,6 +57,9 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopico
 
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
+; Update started by Kinora itself (/SILENT /RELAUNCH=1): start it again when done, as the user who
+; ran it (not elevated, also for an all-users install)
+Filename: "{app}\{#AppExe}"; Flags: nowait runasoriginaluser; Check: ShouldRelaunch
 
 [Code]
 { On an update, remove the previous program files first, so no library left over from an older
@@ -88,6 +91,29 @@ begin
       FindClose(FindRec);
     end;
   end;
+end;
+
+function ShouldRelaunch: Boolean;
+begin
+  Result := WizardSilent and (ExpandConstant('{param:RELAUNCH|0}') = '1');
+end;
+
+{ Started by Kinora to update itself: Kinora is closing right now. Wait for it (up to 15 s)
+  before the AppMutex check, which would otherwise find it still running. }
+function InitializeSetup: Boolean;
+var
+  Waited: Integer;
+begin
+  if ExpandConstant('{param:RELAUNCH|0}') = '1' then
+  begin
+    Waited := 0;
+    while CheckForMutexes('Kinora.Running') and (Waited < 15000) do
+    begin
+      Sleep(250);
+      Waited := Waited + 250;
+    end;
+  end;
+  Result := True;
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);

@@ -185,6 +185,25 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Updates -->
+                <Border Classes="card">
+                    <StackPanel Spacing="10">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Spacing="2">
+                                <TextBlock Classes="heading" Text="Updates" />
+                                <TextBlock Classes="subtle" Text="{Binding VersionText}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <Button Content="Check now" Command="{Binding CheckUpdatesNowCommand}" />
+                                <Button Content="Releases" Command="{Binding OpenReleasesPageCommand}" ToolTip.Tip="All versions on GitHub" />
+                            </StackPanel>
+                        </Grid>
+                        <CheckBox IsChecked="{Binding CheckForUpdates}" Content="Look for a new version when Kinora starts (once a day)" />
+                        <TextBlock Text="{Binding UpdateStatus}" TextWrapping="Wrap"
+                                   IsVisible="{Binding UpdateStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                    </StackPanel>
+                </Border>
+
                 <Border Classes="card">
                     <StackPanel Spacing="8">
                         <TextBlock Classes="heading" Text="Kinora's own data" />

@@ -186,6 +186,7 @@ public partial class MainWindowViewModel : ViewModelBase
         Reload();
         if (_s.Settings.ScanOnStartup && _roots.Count > 0)
             _ = RunScanAsync(full: false);
+        _ = CheckForUpdatesOnStartupAsync();
     }
 
     private void Reload()
@@ -827,6 +828,118 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
+    // ---- updates ----
+
+    public static Version CurrentVersion { get; } =
+        typeof(MainWindowViewModel).Assembly.GetName().Version is { } v ? new Version(v.Major, v.Minor, Math.Max(0, v.Build)) : new Version(0, 0, 0);
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasUpdate), nameof(UpdateText), nameof(UpdateButtonText))]
+    public partial Core.Updates.UpdateInfo? AvailableUpdate { get; private set; }
+
+    public bool HasUpdate => AvailableUpdate is not null;
+    public string UpdateText => AvailableUpdate is { } u ? $"Kinora {u.Version.ToString(3)} is available (you have {CurrentVersion.ToString(3)})." : "";
+    public string UpdateButtonText => Core.Updates.UpdateService.CanInstallItself ? "Update now" : "Download";
+
+    /// <summary>At startup, at most once a day, quietly: only a newer version shows anything.</summary>
+    private async Task CheckForUpdatesOnStartupAsync()
+    {
+        Core.Updates.UpdateService.CleanUp();
+        var settings = _s.Settings;
+        if (!settings.CheckForUpdates
+            || (settings.LastUpdateCheck is { } last && DateTime.UtcNow - last < Core.Updates.UpdateService.CheckInterval))
+            return;
+        await Task.Delay(TimeSpan.FromSeconds(10));   // let the first scan go first
+        await CheckForUpdatesAsync();
+    }
+
+    /// <summary>Asks GitHub; returns what to tell the user when they asked.</summary>
+    public async Task<string> CheckForUpdatesAsync()
+    {
+        try
+        {
+            var update = await new Core.Updates.UpdateService(CurrentVersion).CheckAsync();
+            _s.Settings.LastUpdateCheck = DateTime.UtcNow;
+            _s.SaveSettings();
+            AvailableUpdate = update;
+            return update is null ? $"Kinora {CurrentVersion.ToString(3)} is the latest version." : UpdateText;
+        }
+        catch (Exception e) when (e is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+        {
+            return $"Can't reach GitHub: {e.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private void DismissUpdate() => AvailableUpdate = null;
+
+    [RelayCommand]
+    private void OpenUpdatePage() => Launcher.OpenUrl(AvailableUpdate?.PageUrl ?? Core.Updates.UpdateService.ReleasesPage);
+
+    /// <summary>
+    /// Windows, installed with the setup: downloads the new setup, checks it, runs it and closes;
+    /// the setup starts Kinora again when it's done. Elsewhere: the release page.
+    /// </summary>
+    [RelayCommand]
+    private async Task InstallUpdate()
+    {
+        if (AvailableUpdate is not { } update)
+            return;
+        if (!Core.Updates.UpdateService.CanInstallItself)
+        {
+            OpenUpdatePage();
+            return;
+        }
+        if (IsScanning)
+        {
+            ShowStatusFor("Wait for the current work to finish, then update.", 10);
+            return;
+        }
+
+        IsScanning = true;
+        ScanIndeterminate = false;
+        ScanProgress = 0;
+        _statusVersion++;
+        ScanStatus = $"Downloading Kinora {update.Version.ToString(3)}…";
+        string path;
+        try
+        {
+            var progress = new Progress<double>(p =>
+            {
+                ScanProgress = p * 100;
+                ScanStatus = $"Downloading Kinora {update.Version.ToString(3)}  {Format.Size((long)(p * update.AssetSize))} of {Format.Size(update.AssetSize)}";
+            });
+            path = await new Core.Updates.UpdateService(CurrentVersion).DownloadAsync(update, progress);
+        }
+        catch (Exception e) when (e is HttpRequestException or IOException or InvalidDataException or TaskCanceledException or UnauthorizedAccessException)
+        {
+            IsScanning = false;
+            ShowStatusFor($"Update not downloaded: {e.Message}", 20);
+            return;
+        }
+
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path)
+            {
+                Arguments = "/SILENT /SUPPRESSMSGBOXES /NORESTART /RELAUNCH=1",
+                UseShellExecute = true,
+            })?.Dispose();
+        }
+        catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            // Refused at the UAC prompt (an all-users install), or the file was blocked
+            IsScanning = false;
+            ShowStatusFor($"The update did not start: {e.Message}", 20);
+            return;
+        }
+        _s.SaveSettings();
+        ShutdownRequested?.Invoke();
+    }
+
+    /// <summary>The window closes Kinora: the update's setup is waiting for it.</summary>
+    public event Action? ShutdownRequested;
+
     // ---- selection ----
 
     private readonly List<CardViewModel> _selected = [];
@@ -1225,7 +1338,7 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         if (Dialogs is null)
             return;
-        var settings = new SettingsViewModel(_s, Dialogs);
+        var settings = new SettingsViewModel(_s, Dialogs, CheckForUpdatesAsync);
         var cardWidth = _s.Settings.CardWidth;
         await Dialogs.ShowSettingsAsync(settings);
         _s.SaveSettings();

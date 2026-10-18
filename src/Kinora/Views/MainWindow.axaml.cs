@@ -46,6 +46,7 @@ public partial class MainWindow : Window, IDialogs
             return;
         vm.Dialogs = this;
         vm.ScrollToTopRequested += () => GridScroller.Offset = new Vector(0, 0);
+        vm.ShutdownRequested += Close;
         UpdateViewport();
         vm.Initialize();
     }
