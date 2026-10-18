@@ -94,6 +94,18 @@ them all (tests first) and copies them to `Z:\Dropbox\Software\Kinora`.
 Only the Windows installer has been tried on a real machine; the Linux and macOS packages are built
 from Windows and have not been run yet.
 
+## Updates and releases
+
+Kinora looks at the latest release of `FirekeeperPhate/Kinora` on GitHub once a day (Settings →
+Updates: on by default, "Check now"). On Windows, installed with the setup, it downloads the new
+setup, checks its size and SHA-256 against the release, runs it silently and closes; the setup
+waits for it, updates and starts Kinora again. On Linux and macOS it opens the release page.
+While the repository is private GitHub answers "not found" and nothing is shown.
+
+To publish a version: raise `<Version>` in `Directory.Build.props`, commit, write the notes, then
+`installer/release.ps1 -Notes notes.md` (packages, `v<version>` tag, GitHub release with the
+packages; their names are the ones the updater looks for).
+
 ## Building
 
 ```
