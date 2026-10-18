@@ -315,16 +315,7 @@ public sealed class LibraryDeleter(LibraryDatabase db, MovieScanner movieScanner
         rel.Length > 0 && !Path.IsPathRooted(rel) && !rel.Contains(':') && !rel.Contains('\\')
         && rel.Split('/').All(s => s.Length > 0 && s != "." && s != "..");
 
-    /// <summary>
-    /// The same path for the file functions, untouched: "\\?\H:\S.W.A.T." keeps its dot,
-    /// "\\?\UNC\nas\video\…" for shares. Elsewhere than Windows paths are taken as they are.
-    /// </summary>
-    internal static string ForIo(string path)
-    {
-        if (!OperatingSystem.IsWindows() || path.StartsWith(@"\\?\", StringComparison.Ordinal))
-            return path;
-        return path.StartsWith(@"\\", StringComparison.Ordinal) ? @"\\?\UNC\" + path[2..] : @"\\?\" + path;
-    }
+    private static string ForIo(string path) => ExactPath.ForIo(path);
 
     /// <summary>@"H:\Heat (1995)" is inside @"H:\"; @"H:\" itself, @"H:\Movies\..\x" and @"H:\Movies2" for @"H:\Movies" are not.</summary>
     public static bool IsStrictlyInside(string fullPath, string rootPath)

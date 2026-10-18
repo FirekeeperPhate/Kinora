@@ -275,7 +275,7 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
         string? key = null;
         if (row.Episode?.ThumbFile is { } local && _root is not null && !_rootUnavailable)
         {
-            var info = new FileInfo(RelPath.ToFull(_root.Path, local));
+            var info = new FileInfo(RelPath.ToIo(_root.Path, local));
             if (info.Exists)
             {
                 key = ImageCache.KeyFor(info.FullName, info.Length, info.LastWriteTimeUtc);
@@ -307,7 +307,7 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
         {
             if (Series.FanartFile is { } fanart)
             {
-                var full = RelPath.ToFull(_root.Path, fanart);
+                var full = RelPath.ToIo(_root.Path, fanart);
                 Backdrop = await Load(() =>
                 {
                     var info = new FileInfo(full);
@@ -319,7 +319,7 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
             }
             if (Series.LogoFile is { } logo)
             {
-                var full = RelPath.ToFull(_root.Path, logo);
+                var full = RelPath.ToIo(_root.Path, logo);
                 Logo = await Load(() =>
                 {
                     if (!File.Exists(full))

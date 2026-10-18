@@ -77,7 +77,7 @@ public sealed class MovieScanner(LibraryDatabase db, ImageCache posters)
         List<FileSystemInfo> top;
         try
         {
-            top = await Task.Run(() => new DirectoryInfo(root.Path).EnumerateFileSystemInfos().ToList(), ct);
+            top = await Task.Run(() => new DirectoryInfo(ExactPath.ForIo(root.Path)).EnumerateFileSystemInfos().ToList(), ct);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
@@ -342,7 +342,7 @@ public sealed class MovieScanner(LibraryDatabase db, ImageCache posters)
         var found = new ConcurrentBag<(Movie, IReadOnlyList<CastMember>)>();
         List<FileInfo>? rootFiles = null;
         if (movies.Any(m => m.Folder.Length == 0))
-            rootFiles = await Task.Run(() => new DirectoryInfo(root.Path).EnumerateFiles().ToList(), ct);
+            rootFiles = await Task.Run(() => new DirectoryInfo(ExactPath.ForIo(root.Path)).EnumerateFiles().ToList(), ct);
 
         await Parallel.ForEachAsync(movies, new ParallelOptions { MaxDegreeOfParallelism = Parallelism, CancellationToken = ct },
             (m, _) =>
@@ -351,7 +351,7 @@ public sealed class MovieScanner(LibraryDatabase db, ImageCache posters)
                 {
                     if (m.Folder.Length > 0)
                     {
-                        var dir = new DirectoryInfo(RelPath.ToFull(root.Path, m.Folder));
+                        var dir = new DirectoryInfo(RelPath.ToIo(root.Path, m.Folder));
                         dir.Refresh();
                         if (!dir.Exists)
                             return ValueTask.CompletedTask;

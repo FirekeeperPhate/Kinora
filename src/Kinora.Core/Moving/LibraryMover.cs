@@ -55,7 +55,7 @@ public sealed class LibraryMover(LibraryDatabase db, MovieScanner movieScanner, 
     {
         if (movie.Folder.Length > 0)
         {
-            var dir = new DirectoryInfo(RelPath.ToFull(root.Path, movie.Folder));
+            var dir = new DirectoryInfo(RelPath.ToIo(root.Path, movie.Folder));
             return dir.Exists ? dir.EnumerateFiles("*", SearchOption.AllDirectories).Sum(f => f.Length) : 0;
         }
         return CompanionFiles(root.Path, movie.VideoFile).Sum(f => new FileInfo(f).Length);
@@ -63,7 +63,7 @@ public sealed class LibraryMover(LibraryDatabase db, MovieScanner movieScanner, 
 
     public static long SizeOf(Series series, LibraryRoot root)
     {
-        var dir = new DirectoryInfo(RelPath.ToFull(root.Path, series.Folder));
+        var dir = new DirectoryInfo(RelPath.ToIo(root.Path, series.Folder));
         return dir.Exists ? dir.EnumerateFiles("*", SearchOption.AllDirectories).Sum(f => f.Length) : 0;
     }
 
@@ -71,7 +71,7 @@ public sealed class LibraryMover(LibraryDatabase db, MovieScanner movieScanner, 
     public static List<string> CompanionFiles(string folder, string videoFile)
     {
         var baseName = Path.GetFileNameWithoutExtension(videoFile);
-        return Directory.EnumerateFiles(folder)
+        return Directory.EnumerateFiles(ExactPath.ForIo(folder))
                         .Where(f =>
                         {
                             var name = Path.GetFileName(f);

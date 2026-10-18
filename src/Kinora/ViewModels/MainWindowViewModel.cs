@@ -1579,7 +1579,7 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         try
         {
-            return await Task.Run(() => File.Exists(path)).WaitAsync(TimeSpan.FromSeconds(15));
+            return await Task.Run(() => File.Exists(ExactPath.ForIo(path))).WaitAsync(TimeSpan.FromSeconds(15));
         }
         catch (TimeoutException)
         {

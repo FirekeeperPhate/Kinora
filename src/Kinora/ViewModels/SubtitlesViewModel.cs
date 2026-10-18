@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Kinora.Core;
 using Kinora.Core.Subtitles;
 using Kinora.Services;
 
@@ -98,7 +99,7 @@ public partial class SubtitlesViewModel : ViewModelBase, IDisposable
         try
         {
             // Two small reads of the file give the hash; a NAS that sleeps gets a deadline
-            if (_hash is null && File.Exists(_videoPath))
+            if (_hash is null && File.Exists(ExactPath.ForIo(_videoPath)))
             {
                 try
                 {
@@ -144,7 +145,7 @@ public partial class SubtitlesViewModel : ViewModelBase, IDisposable
                 AccountText = $"{account.RemainingDownloads:N0} downloads left today";
             }
             var target = SubtitleFiles.TargetPath(_videoPath, row.Result, row.Result.FileName);
-            if (File.Exists(target)
+            if (File.Exists(ExactPath.ForIo(target))
                 && !await _dialogs.ConfirmAsync("Subtitle already there",
                     $"{Path.GetFileName(target)} already exists.\n\nThe one there is kept as “.old” and the new one takes its name.", "Save"))
                 return;

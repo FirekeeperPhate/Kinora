@@ -110,7 +110,7 @@ public partial class MovieDetailViewModel : ViewModelBase, IDisposable
         {
             if (Movie.FanartFile is { } fanart)
             {
-                var full = RelPath.ToFull(_root.Path, fanart);
+                var full = RelPath.ToIo(_root.Path, fanart);
                 Backdrop = await Load(() =>
                 {
                     var info = new FileInfo(full);
@@ -122,7 +122,7 @@ public partial class MovieDetailViewModel : ViewModelBase, IDisposable
             }
             if (Movie.LogoFile is { } logo)
             {
-                var full = RelPath.ToFull(_root.Path, logo);
+                var full = RelPath.ToIo(_root.Path, logo);
                 Logo = await Load(() =>
                 {
                     if (!File.Exists(full))

@@ -11,7 +11,7 @@ public static class MovieHash
 
     public static string Compute(string path)
     {
-        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 4096, FileOptions.RandomAccess);
+        using var stream = new FileStream(ExactPath.ForIo(path), FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 4096, FileOptions.RandomAccess);
         return Compute(stream);
     }
 

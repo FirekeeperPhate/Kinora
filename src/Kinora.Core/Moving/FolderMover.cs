@@ -44,13 +44,15 @@ public static class FolderMover
 
     private static MoveResult MoveFolder(string source, string destinationParent, IProgress<MoveProgress>? progress, CancellationToken ct)
     {
-        source = Path.TrimEndingDirectorySeparator(source);
+        // Exact paths from here on: "S.W.A.T." must not land on "S.W.A.T"
+        source = ExactPath.ForIo(Path.TrimEndingDirectorySeparator(source));
+        destinationParent = ExactPath.ForIo(destinationParent);
         var name = Path.GetFileName(source);
         var target = Path.Combine(destinationParent, name);
         if (Directory.Exists(target) || File.Exists(target))
-            return new MoveResult(MoveOutcome.Conflict, $"“{name}” already exists in {destinationParent}.");
+            return new MoveResult(MoveOutcome.Conflict, $"“{name}” already exists in {ExactPath.Display(destinationParent)}.");
         if (!Directory.Exists(source))
-            return new MoveResult(MoveOutcome.Failed, $"{source} is not there any more.");
+            return new MoveResult(MoveOutcome.Failed, $"{ExactPath.Display(source)} is not there any more.");
 
         if (SameVolume(source, destinationParent))
         {
@@ -78,7 +80,7 @@ public static class FolderMover
             foreach (var file in files)
             {
                 ct.ThrowIfCancellationRequested();
-                var relative = Path.GetRelativePath(source, file.FullName);
+                var relative = Inside(source, file.FullName);
                 var copy = Path.Combine(work, relative);
                 Directory.CreateDirectory(Path.GetDirectoryName(copy)!);
                 var before = done;
@@ -86,15 +88,15 @@ public static class FolderMover
                 done += file.Length;
             }
             foreach (var dir in Directory.EnumerateDirectories(source, "*", SearchOption.AllDirectories))
-                Directory.CreateDirectory(Path.Combine(work, Path.GetRelativePath(source, dir)));
+                Directory.CreateDirectory(Path.Combine(work, Inside(source, dir)));
             // Folder attributes too: a read-only or system flag is what lets Desktop.ini set an icon
             foreach (var dir in Directory.EnumerateDirectories(source, "*", SearchOption.AllDirectories).Prepend(source))
-                new DirectoryInfo(Path.Combine(work, Path.GetRelativePath(source, dir))).Attributes = new DirectoryInfo(dir).Attributes;
+                new DirectoryInfo(Path.Combine(work, Inside(source, dir))).Attributes = new DirectoryInfo(dir).Attributes;
 
             // Every byte there before anything is deleted
             foreach (var file in files)
             {
-                var copy = new FileInfo(Path.Combine(work, Path.GetRelativePath(source, file.FullName)));
+                var copy = new FileInfo(Path.Combine(work, Inside(source, file.FullName)));
                 if (!copy.Exists || copy.Length != file.Length)
                     throw new IOException($"The copy of {file.Name} is incomplete.");
             }
@@ -124,9 +126,11 @@ public static class FolderMover
 
     private static MoveResult MoveFiles(IReadOnlyList<string> files, string destination, IProgress<MoveProgress>? progress, CancellationToken ct)
     {
+        files = files.Select(ExactPath.ForIo).ToList();
+        destination = ExactPath.ForIo(destination);
         var conflicts = files.Select(f => Path.Combine(destination, Path.GetFileName(f))).Where(File.Exists).ToList();
         if (conflicts.Count > 0)
-            return new MoveResult(MoveOutcome.Conflict, $"“{Path.GetFileName(conflicts[0])}” already exists in {destination}.");
+            return new MoveResult(MoveOutcome.Conflict, $"“{Path.GetFileName(conflicts[0])}” already exists in {ExactPath.Display(destination)}.");
 
         if (SameVolume(files[0], destination))
         {
@@ -203,6 +207,10 @@ public static class FolderMover
 
     private static bool SameVolume(string a, string b) => !ForceCopy &&
         string.Equals(Path.GetPathRoot(Path.GetFullPath(a)), Path.GetPathRoot(Path.GetFullPath(b)), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>A path found inside <paramref name="folder"/>, relative to it; cut from the string, never normalized.</summary>
+    private static string Inside(string folder, string path) =>
+        path.Length == folder.Length ? "" : path[(folder.Length + 1)..];
 
     // ---- copying ----
 

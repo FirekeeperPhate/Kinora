@@ -12,7 +12,7 @@ public static class MediaFolderWriter
     public static async Task<int> WriteMissingAsync(LibraryRoot root, Movie m, TmdbMovie t, CancellationToken ct)
     {
         var ownFolder = m.Folder.Length > 0;
-        var folder = RelPath.ToFull(root.Path, m.Folder);
+        var folder = RelPath.ToIo(root.Path, m.Folder);
         var baseName = Path.GetFileNameWithoutExtension(RelPath.LastSegment(m.VideoFile));
         var existing = new HashSet<string>(Directory.EnumerateFiles(folder).Select(Path.GetFileName)!, StringComparer.OrdinalIgnoreCase);
         var written = 0;

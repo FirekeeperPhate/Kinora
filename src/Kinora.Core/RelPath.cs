@@ -14,6 +14,10 @@ public static class RelPath
         return i < 0 ? rel : rel[(i + 1)..];
     }
 
+    /// <summary>The path to show or launch.</summary>
     public static string ToFull(string rootPath, string rel) =>
         rel.Length == 0 ? rootPath : Path.Combine(rootPath, rel.Replace('/', Path.DirectorySeparatorChar));
+
+    /// <summary>The path for the file functions: a name like "S.W.A.T." is kept as it is (see <see cref="ExactPath"/>).</summary>
+    public static string ToIo(string rootPath, string rel) => ExactPath.ForIo(ToFull(rootPath, rel));
 }

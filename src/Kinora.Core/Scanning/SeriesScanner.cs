@@ -48,7 +48,7 @@ public sealed class SeriesScanner(LibraryDatabase db, ImageCache posters)
         List<DirectoryInfo> shows;
         try
         {
-            shows = await Task.Run(() => new DirectoryInfo(root.Path).EnumerateDirectories()
+            shows = await Task.Run(() => new DirectoryInfo(ExactPath.ForIo(root.Path)).EnumerateDirectories()
                                                                       .Where(d => !MediaFiles.IsHousekeepingFolder(d.Name)).ToList(), ct);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
@@ -115,7 +115,7 @@ public sealed class SeriesScanner(LibraryDatabase db, ImageCache posters)
             {
                 try
                 {
-                    var dir = new DirectoryInfo(RelPath.ToFull(root.Path, s.Folder));
+                    var dir = new DirectoryInfo(RelPath.ToIo(root.Path, s.Folder));
                     if (dir.Exists && Visit(root, dir, full: true, db.GetSeriesById(s.Id), online) is { } b)
                         built.Add(b);
                 }

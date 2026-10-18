@@ -39,6 +39,8 @@ with it. Windows, Linux and macOS (Avalonia 12, .NET 10).
   punctuation don't matter. Sort by title (articles ignored), year, date added, rating.
 - Folders that are mounted somewhere else later (another drive letter, another OS): change the
   root's path in Settings, nothing is scanned again. Paths are stored relative to the root.
+- Names that Windows normally tidies up, ending with a dot or a space (`S.W.A.T.`), are read,
+  moved and deleted as they are: a show `S.W.A.T.` next to a `S.W.A.T` keeps its own episodes.
 
 ## TV shows
 

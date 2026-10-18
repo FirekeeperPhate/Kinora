@@ -196,7 +196,7 @@ public sealed class SeriesFetcher(LibraryDatabase db, SeriesScanner scanner, Ima
     /// <summary>tvshow.nfo, poster, fanart, logo and season posters the show folder lacks. Never replaces.</summary>
     private static async Task<int> WriteMissingAsync(LibraryRoot root, Series s, TmdbSeries t, List<Season> seasons, CancellationToken ct)
     {
-        var folder = RelPath.ToFull(root.Path, s.Folder);
+        var folder = RelPath.ToIo(root.Path, s.Folder);
         var existing = new HashSet<string>(Directory.EnumerateFiles(folder).Select(Path.GetFileName)!, StringComparer.OrdinalIgnoreCase);
         var written = 0;
 

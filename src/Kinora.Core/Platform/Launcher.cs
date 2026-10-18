@@ -20,7 +20,7 @@ public static class Launcher
         if (OperatingSystem.IsWindows())
         {
             var psi = new ProcessStartInfo("explorer.exe") { UseShellExecute = false };
-            if (File.Exists(path))
+            if (File.Exists(ExactPath.ForIo(path)))
                 psi.Arguments = $"/select,\"{path}\"";
             else
                 psi.ArgumentList.Add(path);
@@ -28,14 +28,14 @@ public static class Launcher
         }
         else if (OperatingSystem.IsMacOS())
         {
-            if (File.Exists(path))
+            if (File.Exists(ExactPath.ForIo(path)))
                 Run("open", "-R", path);
             else
                 Run("open", path);
         }
         else
         {
-            Run("xdg-open", File.Exists(path) ? Path.GetDirectoryName(path)! : path);
+            Run("xdg-open", File.Exists(ExactPath.ForIo(path)) ? Path.GetDirectoryName(path)! : path);
         }
     }
 

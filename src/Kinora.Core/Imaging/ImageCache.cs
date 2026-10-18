@@ -18,10 +18,14 @@ public sealed class ImageCache(string directory, int width, int quality = 88)
 
     public bool Has(string key) => File.Exists(PathFor(key));
 
-    /// <summary>A key that changes whenever the source file changes.</summary>
+    /// <summary>
+    /// A key that changes whenever the source file changes. The path counts in its usual
+    /// spelling: reached through "\\?\" or not, the same picture has the same key.
+    /// </summary>
     public static string KeyFor(string sourcePath, long length, DateTime lastWriteUtc)
     {
-        var bytes = SHA1.HashData(Encoding.UTF8.GetBytes($"{sourcePath.ToLowerInvariant()}|{length}|{lastWriteUtc.Ticks}"));
+        var path = ExactPath.Display(sourcePath);
+        var bytes = SHA1.HashData(Encoding.UTF8.GetBytes($"{path.ToLowerInvariant()}|{length}|{lastWriteUtc.Ticks}"));
         return Convert.ToHexStringLower(bytes, 0, 12);
     }
 

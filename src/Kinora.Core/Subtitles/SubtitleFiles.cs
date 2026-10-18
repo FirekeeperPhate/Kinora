@@ -46,6 +46,7 @@ public static class SubtitleFiles
     /// </summary>
     public static void Save(string target, byte[] content)
     {
+        target = ExactPath.ForIo(target);
         var temp = target + ".kinora.tmp";
         File.WriteAllBytes(temp, content);
         if (File.Exists(target))
