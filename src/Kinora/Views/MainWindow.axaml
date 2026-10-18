@@ -164,6 +164,7 @@
                                     </MenuFlyout>
                                 </DropDownButton.Flyout>
                             </DropDownButton>
+                            <Button Content="Delete…" Command="{Binding DeleteSelectedCommand}" />
                             <Button Content="Select all" Command="{Binding SelectAllCommand}" ToolTip.Tip="Everything in this view (Ctrl+A)" />
                             <Button Content="Clear" Command="{Binding ClearSelectionCommand}" ToolTip.Tip="Esc" />
                         </StackPanel>
@@ -206,6 +207,8 @@
                                                                 </ControlTheme>
                                                             </MenuItem.ItemContainerTheme>
                                                         </MenuItem>
+                                                        <Separator />
+                                                        <MenuItem Header="Delete…" Command="{Binding DeleteCommand}" />
                                                     </ContextMenu>
                                                 </Button.ContextMenu>
                                                 <StackPanel>

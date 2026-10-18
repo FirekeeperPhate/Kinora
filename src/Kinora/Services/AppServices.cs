@@ -30,6 +30,7 @@ public sealed class AppServices
     public SeriesScanner SeriesScanner { get; }
     public SeriesFetcher SeriesFetcher { get; }
     public Kinora.Core.Moving.LibraryMover Mover { get; }
+    public Kinora.Core.Moving.LibraryDeleter Deleter { get; }
 
     public AppServices()
     {
@@ -39,6 +40,7 @@ public sealed class AppServices
         SeriesScanner = new SeriesScanner(Database, Posters);
         SeriesFetcher = new SeriesFetcher(Database, SeriesScanner, Posters);
         Mover = new Kinora.Core.Moving.LibraryMover(Database, Scanner, SeriesScanner);
+        Deleter = new Kinora.Core.Moving.LibraryDeleter(Database, SeriesScanner);
     }
 
     /// <summary>Null without a key: Kinora then works with the folders alone.</summary>

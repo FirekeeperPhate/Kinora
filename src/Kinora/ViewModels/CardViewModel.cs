@@ -152,4 +152,7 @@ public abstract partial class CardViewModel : ViewModelBase, IPosterHolder
 
     [RelayCommand]
     protected abstract Task Identify();
+
+    [RelayCommand]
+    protected abstract Task Delete();
 }

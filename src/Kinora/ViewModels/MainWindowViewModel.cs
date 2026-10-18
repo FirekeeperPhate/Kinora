@@ -1232,6 +1232,177 @@ public partial class MainWindowViewModel : ViewModelBase
         ShowStatusFor(text, problems.Count == 0 && !cancelled ? 12 : 30);
     }
 
+    // ---- deleting ----
+
+    /// <summary>Deletes one title (from its menu or its page).</summary>
+    public Task DeleteAsync(CardViewModel card) => DeleteManyAsync([card]);
+
+    [RelayCommand]
+    private Task DeleteSelected() => DeleteManyAsync(_selected.ToList());
+
+    /// <summary>
+    /// Deletes titles from the disk and the library, after one question that says what goes and
+    /// how much. Titles that can't be deleted (folder with other titles in it, folder offline)
+    /// are left out and said; the others go.
+    /// </summary>
+    public async Task DeleteManyAsync(IReadOnlyList<CardViewModel> cards)
+    {
+        if (IsScanning || Dialogs is null)
+            return;
+        var offline = cards.Count(c => _unavailable.Contains(c.RootId) || !_roots.ContainsKey(c.RootId));
+        var candidates = cards.Where(c => !_unavailable.Contains(c.RootId) && _roots.ContainsKey(c.RootId)).ToList();
+        if (candidates.Count == 0)
+        {
+            ShowStatusFor("The library folder is offline: nothing can be deleted.", 12);
+            return;
+        }
+
+        List<(CardViewModel Card, Core.Moving.DeletePlan Plan)> plans;
+        try
+        {
+            plans = await Task.Run(() => candidates.Select(c => (Card: c, Plan: c switch
+            {
+                MovieCardViewModel m => _s.Deleter.PlanMovie(m.Movie, _roots[c.RootId]),
+                SeriesCardViewModel s => _s.Deleter.PlanSeries(s.Series, _roots[c.RootId]),
+                _ => throw new InvalidOperationException(),
+            })).ToList()).WaitAsync(TimeSpan.FromSeconds(60));
+        }
+        catch (Exception e) when (e is IOException or TimeoutException or UnauthorizedAccessException)
+        {
+            ShowStatusFor($"Can't read the files to delete: {e.Message}", 14);
+            return;
+        }
+
+        var ok = plans.Where(p => p.Plan.CanDelete).ToList();
+        var refused = plans.Where(p => !p.Plan.CanDelete).Select(p => $"“{p.Card.Title}”: {p.Plan.Refusal}").ToList();
+        if (offline > 0)
+            refused.Add($"{Format.Count(offline, "title is", "titles are")} in an offline folder");
+        if (ok.Count == 0)
+        {
+            ShowStatusFor("Nothing deleted · " + string.Join(" · ", refused), 20);
+            return;
+        }
+
+        string message;
+        if (ok.Count == 1)
+        {
+            var (card, plan) = ok[0];
+            message = plan.Folder is not null
+                ? $"Delete “{card.Title}”?\n\nThe folder and everything in it go from the disk: "
+                  + $"{Format.Count(plan.FileCount, "file", "files")}, {Format.Size(plan.Size)}.\n{plan.Where}"
+                : $"Delete “{card.Title}”?\n\n{Format.Count(plan.FileCount, "file goes", "files go")} from the disk "
+                  + $"(the video and the files named like it), {Format.Size(plan.Size)}.\n{plan.Where}";
+        }
+        else
+        {
+            message = $"Delete {Format.Count(ok.Count, "title", "titles")}?\n\nTheir folders and everything in them go from the disk: "
+                      + $"{Format.Count(ok.Sum(p => p.Plan.FileCount), "file", "files")}, {Format.Size(ok.Sum(p => p.Plan.Size))}.";
+        }
+        var unknown = ok.SelectMany(p => (p.Plan.UnknownVideos ?? []).Select(v => ok.Count == 1 ? v : $"{p.Card.Title}: {v}")).ToList();
+        if (unknown.Count > 0)
+            message += $"\n\nWatch out: {Format.Count(unknown.Count, "video that isn't part of it goes", "videos that aren't part of it go")} too:\n"
+                       + string.Join("\n", unknown.Take(6)) + (unknown.Count > 6 ? $"\nand {unknown.Count - 6} more" : "");
+        message += "\n\nThis can't be undone: the files don't go to the Recycle Bin.";
+        if (refused.Count > 0)
+            message += "\n\nLeft out: " + string.Join("; ", refused.Take(3)) + (refused.Count > 3 ? $"; and {refused.Count - 3} more" : "") + ".";
+        if (!await Dialogs.ConfirmAsync("Delete", message, "Delete", destructive: true))
+            return;
+
+        IsScanning = true;
+        ScanIndeterminate = true;
+        _statusVersion++;
+        int deleted = 0;
+        var problems = new List<string>(refused);
+        try
+        {
+            for (var n = 0; n < ok.Count; n++)
+            {
+                var card = ok[n].Card;
+                ScanStatus = ok.Count == 1 ? $"Deleting {card.Title}…" : $"Deleting {card.Title} ({n + 1} of {ok.Count})…";
+                var root = _roots[card.RootId];
+                var result = card switch
+                {
+                    MovieCardViewModel m => await _s.Deleter.DeleteMovieAsync(m.Movie, root),
+                    SeriesCardViewModel s => await _s.Deleter.DeleteSeriesAsync(s.Series, root),
+                    _ => new Core.Moving.DeleteResult(false),
+                };
+                if (result.Deleted)
+                    deleted++;
+                else
+                    problems.Add($"“{card.Title}” not deleted: {result.Error}");
+            }
+        }
+        finally
+        {
+            IsScanning = false;
+            ScanIndeterminate = false;
+        }
+
+        ClearSelection();
+        var gone = ok.Select(p => p.Card).ToHashSet();
+        if (Detail?.Card is { } m0 && gone.Contains(m0) || SeriesDetail?.Card is { } s0 && gone.Contains(s0))
+            CloseDetail();
+        Reload();
+
+        var text = ok.Count == 1 && deleted == 1 ? $"“{ok[0].Card.Title}” deleted" : $"{Format.Count(deleted, "title", "titles")} deleted";
+        if (problems.Count > 0)
+            text += " · " + string.Join(" · ", problems.Take(3)) + (problems.Count > 3 ? $" · and {problems.Count - 3} more" : "");
+        ShowStatusFor(text, problems.Count == 0 ? 10 : 30);
+    }
+
+    /// <summary>Deletes one episode's video and the files named like it; the show is read again.</summary>
+    public async Task DeleteEpisodeAsync(SeriesCardViewModel card, Episode episode)
+    {
+        if (IsScanning || Dialogs is null)
+            return;
+        if (_unavailable.Contains(card.RootId) || !_roots.TryGetValue(card.RootId, out var root))
+        {
+            ShowStatusFor("The library folder is offline: nothing can be deleted.", 12);
+            return;
+        }
+        Core.Moving.DeletePlan plan;
+        try
+        {
+            plan = await Task.Run(() => _s.Deleter.PlanEpisode(episode, root)).WaitAsync(TimeSpan.FromSeconds(30));
+        }
+        catch (Exception e) when (e is IOException or TimeoutException or UnauthorizedAccessException)
+        {
+            ShowStatusFor($"Can't read the files to delete: {e.Message}", 14);
+            return;
+        }
+        var name = $"{card.Title} {episode.Code}".Trim() + (episode.Title.Length > 0 ? $" · {episode.Title}" : "");
+        if (!plan.CanDelete)
+        {
+            ShowStatusFor($"“{name}” not deleted: {plan.Refusal}", 14);
+            return;
+        }
+        var files = string.Join("\n", plan.Files.Select(Path.GetFileName));
+        if (!await Dialogs.ConfirmAsync("Delete episode",
+                $"Delete “{name}”?\n\n{Format.Count(plan.FileCount, "file goes", "files go")} from the disk, {Format.Size(plan.Size)}:\n{files}"
+                + "\n\nThis can't be undone: the files don't go to the Recycle Bin.", "Delete", destructive: true))
+            return;
+
+        IsScanning = true;
+        ScanIndeterminate = true;
+        _statusVersion++;
+        ScanStatus = $"Deleting {name}…";
+        Core.Moving.DeleteResult result;
+        try
+        {
+            result = await _s.Deleter.DeleteEpisodeAsync(card.Series, episode, root);
+        }
+        finally
+        {
+            IsScanning = false;
+            ScanIndeterminate = false;
+        }
+        var showing = SeriesDetail?.Card == card;
+        Reload();
+        if (showing && _shows.Contains(card))
+            OpenSeries(card, episode.Season);
+        ShowStatusFor(result.Deleted ? $"“{name}” deleted" : $"“{name}” not deleted: {result.Error}", result.Deleted ? 10 : 30);
+    }
+
     // ---- subtitles ----
 
     public bool HasOpenSubtitlesKey => _s.Settings.HasOpenSubtitlesKey;

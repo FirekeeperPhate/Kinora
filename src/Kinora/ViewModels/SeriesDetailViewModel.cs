@@ -107,6 +107,9 @@ public partial class EpisodeRow : ObservableObject
     private Task FindSubtitles() => Episode is null ? Task.CompletedTask : _page.FindSubtitles(Episode);
 
     public bool CanFindSubtitles => Episode is not null && _page.HasOpenSubtitlesKey;
+
+    [RelayCommand]
+    private Task Delete() => Episode is null ? Task.CompletedTask : _page.DeleteEpisode(Episode);
 }
 
 /// <summary>The page of a show: what it is, its seasons, and the episodes of the chosen season.</summary>
@@ -379,6 +382,7 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
     public void Play(Episode e) => _owner.PlayEpisode(Card, e);
     public void Reveal(Episode e) => _owner.RevealEpisode(Card, e);
     public Task FindSubtitles(Episode e) => _owner.FindSubtitlesAsync(Card, e);
+    public Task DeleteEpisode(Episode e) => _owner.DeleteEpisodeAsync(Card, e);
     public bool HasOpenSubtitlesKey => _owner.HasOpenSubtitlesKey;
     public void SetWatched(IReadOnlyCollection<Episode> episodes, bool watched) => _owner.SetEpisodesWatched(Card, episodes, watched);
 
@@ -415,6 +419,9 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
 
     [RelayCommand]
     private Task Identify() => _owner.IdentifyAsync(Card);
+
+    [RelayCommand]
+    private Task Delete() => _owner.DeleteAsync(Card);
 
     [RelayCommand]
     private Task RefreshMetadata() => _owner.RefreshMetadataAsync(Card);

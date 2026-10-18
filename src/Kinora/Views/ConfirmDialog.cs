@@ -8,7 +8,8 @@ namespace Kinora.Views;
 /// <summary>A small yes/no window (Avalonia has no message box of its own).</summary>
 public static class ConfirmDialog
 {
-    public static async Task<bool> ShowAsync(Window owner, string title, string message, string confirmText)
+    /// <param name="destructive">Enter and the first focus go to Cancel: deleting takes a click.</param>
+    public static async Task<bool> ShowAsync(Window owner, string title, string message, string confirmText, bool destructive = false)
     {
         var result = false;
         var window = new Window
@@ -22,8 +23,10 @@ public static class ConfirmDialog
             Background = owner.Background,
             Icon = owner.Icon,
         };
-        var confirm = new Button { Content = confirmText, Classes = { "accent" }, IsDefault = true, MinWidth = 90, HorizontalContentAlignment = HorizontalAlignment.Center };
-        var cancel = new Button { Content = "Cancel", IsCancel = true, MinWidth = 90, HorizontalContentAlignment = HorizontalAlignment.Center };
+        var confirm = new Button { Content = confirmText, Classes = { "accent" }, IsDefault = !destructive, MinWidth = 90, HorizontalContentAlignment = HorizontalAlignment.Center };
+        var cancel = new Button { Content = "Cancel", IsCancel = true, IsDefault = destructive, MinWidth = 90, HorizontalContentAlignment = HorizontalAlignment.Center };
+        if (destructive)
+            window.Opened += (_, _) => cancel.Focus();
         confirm.Click += (_, _) => { result = true; window.Close(); };
         cancel.Click += (_, _) => window.Close();
         window.Content = new StackPanel

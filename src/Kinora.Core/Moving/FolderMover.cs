@@ -268,7 +268,7 @@ public static class FolderMover
     // ---- deleting ----
 
     /// <summary>Deletes a folder even with read-only files in it (Desktop.ini).</summary>
-    private static void DeleteTree(string folder)
+    internal static void DeleteTree(string folder)
     {
         foreach (var file in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories))
             File.SetAttributes(file, FileAttributes.Normal);

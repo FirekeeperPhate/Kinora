@@ -166,6 +166,8 @@
                                                 </ControlTheme>
                                             </MenuItem.ItemContainerTheme>
                                         </MenuItem>
+                                        <Separator />
+                                        <MenuItem Header="Delete…" Command="{Binding DeleteCommand}" />
                                     </MenuFlyout>
                                 </DropDownButton.Flyout>
                             </DropDownButton>

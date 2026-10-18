@@ -92,6 +92,22 @@ destination stops the move before anything is touched. The library keeps the sam
 TMDB match). On Windows the copy uses CopyFileEx, which lets a server that supports it copy between
 its own shares; a 1.8 GB movie between two shares of the NAS took 19 s at about 100 MB/s.
 
+## Deleting
+
+**Delete…** (right click on a poster, the ••• menu of a page, or the selection bar) deletes a movie
+or a show from the disk and from the library; **Delete episode…** (right click on an episode) one
+episode. First a question says what goes: the folder, how many files and how big. Enter answers
+Cancel; only a click on Delete deletes. Files are deleted for good: network shares have no
+Recycle Bin.
+
+- A movie or a show in its own folder goes with the whole folder (subtitles, nfo, pictures,
+  extras). A loose movie, or an episode, goes with the files named like its video
+  (`Heat.nfo`, `Heat.en.srt`, `Heat-poster.jpg`), never with another video: deleting
+  `S01E01.mkv` leaves `S01E01-E02.mkv` and its files alone.
+- Never the library folder itself, and never a folder with other titles of the library inside.
+- Videos in the folder that the library doesn't count as part of the title (a movie folder put
+  inside another one, which a scan doesn't read) are named in the question.
+
 ## Installing
 
 Every package has the .NET runtime inside: nothing else to install. `installer\build.ps1` makes

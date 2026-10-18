@@ -143,8 +143,8 @@ public partial class MainWindow : Window, IDialogs
         await window.ShowDialog(this);
     }
 
-    public Task<bool> ConfirmAsync(string title, string message, string confirmText) =>
-        ConfirmDialog.ShowAsync(GetTopmostWindow(), title, message, confirmText);
+    public Task<bool> ConfirmAsync(string title, string message, string confirmText, bool destructive = false) =>
+        ConfirmDialog.ShowAsync(GetTopmostWindow(), title, message, confirmText, destructive);
 
     public async Task<string?> PickFolderAsync(string title)
     {

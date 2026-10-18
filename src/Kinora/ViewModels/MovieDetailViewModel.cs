@@ -211,6 +211,9 @@ public partial class MovieDetailViewModel : ViewModelBase, IDisposable
     private Task Identify() => _owner.IdentifyAsync(Card);
 
     [RelayCommand]
+    private Task Delete() => _owner.DeleteAsync(Card);
+
+    [RelayCommand]
     private Task RefreshMetadata() => _owner.RefreshMetadataAsync(Card);
 
     public bool HasTmdbKey => _owner.HasTmdbKey;

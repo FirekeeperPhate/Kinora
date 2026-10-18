@@ -69,4 +69,6 @@ public sealed class MovieCardViewModel : CardViewModel
     protected override void Reveal() => _owner.Reveal(this);
     protected override void ToggleWatched() => _owner.SetWatched(this, !Movie.Watched);
     protected override Task Identify() => _owner.IdentifyAsync(this);
+
+    protected override Task Delete() => _owner.DeleteAsync(this);
 }

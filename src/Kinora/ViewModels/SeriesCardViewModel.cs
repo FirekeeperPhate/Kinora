@@ -78,4 +78,6 @@ public sealed class SeriesCardViewModel : CardViewModel
     protected override void Reveal() => _owner.Reveal(this);
     protected override void ToggleWatched() => _owner.SetSeriesWatched(this, !Watched);
     protected override Task Identify() => _owner.IdentifyAsync(this);
+
+    protected override Task Delete() => _owner.DeleteAsync(this);
 }

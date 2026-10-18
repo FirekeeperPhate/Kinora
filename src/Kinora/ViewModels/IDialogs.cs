@@ -4,7 +4,8 @@ namespace Kinora.ViewModels;
 public interface IDialogs
 {
     Task ShowSettingsAsync(SettingsViewModel settings);
-    Task<bool> ConfirmAsync(string title, string message, string confirmText);
+    /// <summary>Asks yes or no; <paramref name="destructive"/>: Enter answers Cancel, not the action.</summary>
+    Task<bool> ConfirmAsync(string title, string message, string confirmText, bool destructive = false);
     Task<string?> PickFolderAsync(string title);
 
     /// <summary>The TMDB id the user chose, or null.</summary>

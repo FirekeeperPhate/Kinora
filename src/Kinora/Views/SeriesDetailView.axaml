@@ -186,6 +186,8 @@
                                                 </ControlTheme>
                                             </MenuItem.ItemContainerTheme>
                                         </MenuItem>
+                                        <Separator />
+                                        <MenuItem Header="Delete show…" Command="{Binding DeleteCommand}" />
                                     </MenuFlyout>
                                 </DropDownButton.Flyout>
                             </DropDownButton>
@@ -246,6 +248,8 @@
                                                     <MenuItem Header="Play" Command="{Binding PlayCommand}" />
                                                     <MenuItem Header="Show in folder" Command="{Binding RevealCommand}" />
                                                     <MenuItem Header="Find subtitles…" Command="{Binding FindSubtitlesCommand}" IsVisible="{Binding CanFindSubtitles}" />
+                                                    <Separator />
+                                                    <MenuItem Header="Delete episode…" Command="{Binding DeleteCommand}" />
                                                 </ContextMenu>
                                             </Button.ContextMenu>
                                             <Grid ColumnDefinitions="Auto,Auto,*">
