@@ -102,6 +102,11 @@ public partial class EpisodeRow : ObservableObject
         if (Episode is not null)
             _page.Reveal(Episode);
     }
+
+    [RelayCommand]
+    private Task FindSubtitles() => Episode is null ? Task.CompletedTask : _page.FindSubtitles(Episode);
+
+    public bool CanFindSubtitles => Episode is not null && _page.HasOpenSubtitlesKey;
 }
 
 /// <summary>The page of a show: what it is, its seasons, and the episodes of the chosen season.</summary>
@@ -116,7 +121,8 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
     private CancellationTokenSource _thumbs = new();
     private bool _disposed;
 
-    public SeriesDetailViewModel(MainWindowViewModel owner, AppServices services, SeriesCardViewModel card, LibraryRoot? root, bool rootUnavailable)
+    public SeriesDetailViewModel(MainWindowViewModel owner, AppServices services, SeriesCardViewModel card, LibraryRoot? root, bool rootUnavailable,
+                                 int? season = null)
     {
         _owner = owner;
         _s = services;
@@ -131,18 +137,19 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
         var seasons = _s.Database.GetSeasons(card.Series.Id).ToDictionary(x => x.Number);
         foreach (var group in _episodes.GroupBy(e => e.Season).OrderBy(g => g.Key is 0 ? 9999 : g.Key ?? 10000))
         {
-            seasons.TryGetValue(group.Key ?? -1, out var season);
+            seasons.TryGetValue(group.Key ?? -1, out var seasonInfo);
             Seasons.Add(new SeasonTab
             {
                 Number = group.Key,
-                PosterFile = season?.PosterFile,
-                OnlinePoster = season?.OnlinePoster,
+                PosterFile = seasonInfo?.PosterFile,
+                OnlinePoster = seasonInfo?.OnlinePoster,
                 Count = group.Count(),
                 WatchedCount = group.Count(e => e.Watched),
             });
         }
         var next = MainWindowViewModel.NextEpisode(_episodes);
-        SelectedSeason = Seasons.FirstOrDefault(t => t.Number == next?.Season) ?? Seasons.FirstOrDefault();
+        SelectedSeason = Seasons.FirstOrDefault(t => season is not null && t.Number == season)
+                         ?? Seasons.FirstOrDefault(t => t.Number == next?.Season) ?? Seasons.FirstOrDefault();
         _ = LoadImagesAsync();
     }
 
@@ -370,6 +377,8 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
 
     public void Play(Episode e) => _owner.PlayEpisode(Card, e);
     public void Reveal(Episode e) => _owner.RevealEpisode(Card, e);
+    public Task FindSubtitles(Episode e) => _owner.FindSubtitlesAsync(Card, e);
+    public bool HasOpenSubtitlesKey => _owner.HasOpenSubtitlesKey;
     public void SetWatched(IReadOnlyCollection<Episode> episodes, bool watched) => _owner.SetEpisodesWatched(Card, episodes, watched);
 
     /// <summary>Called back after episodes changed state, with the fresh list.</summary>

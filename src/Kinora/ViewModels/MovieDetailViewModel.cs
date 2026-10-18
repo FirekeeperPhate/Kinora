@@ -202,6 +202,11 @@ public partial class MovieDetailViewModel : ViewModelBase, IDisposable
     private void Reveal() => _owner.Reveal(Card);
 
     [RelayCommand]
+    private Task FindSubtitles() => _owner.FindSubtitlesAsync(Card);
+
+    public bool HasOpenSubtitlesKey => _owner.HasOpenSubtitlesKey;
+
+    [RelayCommand]
     private Task Identify() => _owner.IdentifyAsync(Card);
 
     [RelayCommand]

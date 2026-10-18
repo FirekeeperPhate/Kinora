@@ -8,6 +8,7 @@ using Kinora.Core.Online;
 using Kinora.Core.Platform;
 using Kinora.Core.Scanning;
 using Kinora.Core.Settings;
+using Kinora.Core.Subtitles;
 using Kinora.Services;
 
 namespace Kinora.ViewModels;
@@ -664,11 +665,11 @@ public partial class MainWindowViewModel : ViewModelBase
         old?.Dispose();
     }
 
-    public void OpenSeries(SeriesCardViewModel card)
+    public void OpenSeries(SeriesCardViewModel card, int? season = null)
     {
         var old = SeriesDetail;
         _roots.TryGetValue(card.RootId, out var root);
-        SeriesDetail = new SeriesDetailViewModel(this, _s, card, root, _unavailable.Contains(card.RootId));
+        SeriesDetail = new SeriesDetailViewModel(this, _s, card, root, _unavailable.Contains(card.RootId), season);
         old?.Dispose();
     }
 
@@ -760,6 +761,57 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             ShowStatusFor($"Can't open the folder: {e.Message}", 12);
         }
+    }
+
+    // ---- subtitles ----
+
+    public bool HasOpenSubtitlesKey => _s.Settings.HasOpenSubtitlesKey;
+
+    public async Task FindSubtitlesAsync(MovieCardViewModel card)
+    {
+        if (Dialogs is null || !_roots.TryGetValue(card.RootId, out var root) || !CheckSubtitlesKey())
+            return;
+        var m = card.Movie;
+        var query = new SubtitleQuery(ImdbId: m.ImdbId, TmdbId: m.TmdbId, Title: m.Title, Year: m.Year);
+        using var vm = new SubtitlesViewModel(_s, Dialogs, m.Title, RelPath.ToFull(root.Path, m.VideoFile), query, async name =>
+        {
+            await Task.Run(() => _s.Scanner.RebuildAsync(root, [m], CancellationToken.None));
+            var showing = Detail?.Card == card;
+            Reload();
+            if (showing)
+                OpenDetail(card);
+            ShowStatusFor($"Subtitle saved as {name}", 10);
+        });
+        await Dialogs.ShowSubtitlesAsync(vm);
+    }
+
+    public async Task FindSubtitlesAsync(SeriesCardViewModel card, Episode episode)
+    {
+        if (Dialogs is null || !_roots.TryGetValue(card.RootId, out var root) || !CheckSubtitlesKey())
+            return;
+        var s = card.Series;
+        var query = episode.Season is not null && episode.Number is not null && (s.ImdbId is not null || s.TmdbId is not null)
+            ? new SubtitleQuery(ParentImdbId: s.ImdbId, ParentTmdbId: s.TmdbId, Season: episode.Season, Episode: episode.Number)
+            : new SubtitleQuery(ImdbId: episode.ImdbId, Title: $"{s.Title} {episode.Code}".Trim());
+        var title = $"{s.Title} · {(episode.Code.Length > 0 ? episode.Code + " · " : "")}{episode.Title}";
+        using var vm = new SubtitlesViewModel(_s, Dialogs, title, RelPath.ToFull(root.Path, episode.VideoFile), query, async name =>
+        {
+            await Task.Run(() => _s.SeriesScanner.RebuildAsync(root, [s], CancellationToken.None));
+            var showing = SeriesDetail?.Card == card;
+            Reload();
+            if (showing)
+                OpenSeries(card, episode.Season);
+            ShowStatusFor($"Subtitle saved as {name}", 10);
+        });
+        await Dialogs.ShowSubtitlesAsync(vm);
+    }
+
+    private bool CheckSubtitlesKey()
+    {
+        if (_s.Settings.HasOpenSubtitlesKey)
+            return true;
+        ShowStatusFor("Add an OpenSubtitles API key in Settings first.", 12);
+        return false;
     }
 
     // ---- watched ----

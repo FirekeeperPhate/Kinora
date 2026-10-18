@@ -9,4 +9,6 @@ public interface IDialogs
 
     /// <summary>The TMDB id the user chose, or null.</summary>
     Task<string?> ShowIdentifyAsync(IdentifyViewModel identify);
+
+    Task ShowSubtitlesAsync(SubtitlesViewModel subtitles);
 }

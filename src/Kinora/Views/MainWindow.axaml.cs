@@ -103,6 +103,12 @@ public partial class MainWindow : Window, IDialogs
         return identify.ChosenId;
     }
 
+    public async Task ShowSubtitlesAsync(SubtitlesViewModel subtitles)
+    {
+        var window = new SubtitlesWindow { DataContext = subtitles };
+        await window.ShowDialog(this);
+    }
+
     public Task<bool> ConfirmAsync(string title, string message, string confirmText) =>
         ConfirmDialog.ShowAsync(GetTopmostWindow(), title, message, confirmText);
 

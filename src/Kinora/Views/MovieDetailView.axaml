@@ -139,6 +139,8 @@
                                     <TextBlock Text="{Binding WatchedText}" />
                                 </StackPanel>
                             </Button>
+                            <Button Classes="pill" Command="{Binding FindSubtitlesCommand}" ToolTip.Tip="Find subtitles on OpenSubtitles"
+                                    IsVisible="{Binding HasOpenSubtitlesKey}" Content="Subtitles…" />
                             <Button Classes="pill" Command="{Binding RevealCommand}" ToolTip.Tip="Show in folder">
                                 <Path Classes="icon" Data="{x:Static k:Icons.Folder}" Width="16" Height="16" />
                             </Button>

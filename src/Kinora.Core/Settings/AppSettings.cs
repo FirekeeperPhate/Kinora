@@ -46,6 +46,34 @@ public sealed class AppSettings
 
     /// <summary>After a scan, ask TMDB about what is missing.</summary>
     public bool FetchAfterScan { get; set; } = true;
+
+    // ---- OpenSubtitles ----
+
+    public string? OpenSubtitlesKeyStored { get; set; }
+    public string? OpenSubtitlesUser { get; set; }
+    public string? OpenSubtitlesPasswordStored { get; set; }
+
+    [JsonIgnore]
+    public string OpenSubtitlesKey
+    {
+        get => SecretText.Unprotect(OpenSubtitlesKeyStored);
+        set => OpenSubtitlesKeyStored = SecretText.Protect(value.Trim());
+    }
+
+    [JsonIgnore]
+    public string OpenSubtitlesPassword
+    {
+        get => SecretText.Unprotect(OpenSubtitlesPasswordStored);
+        set => OpenSubtitlesPasswordStored = SecretText.Protect(value);
+    }
+
+    [JsonIgnore]
+    public bool HasOpenSubtitlesKey => !string.IsNullOrEmpty(OpenSubtitlesKeyStored) && OpenSubtitlesKey.Length > 0;
+
+    /// <summary>Subtitle languages in order of preference, as ISO codes: "en, it".</summary>
+    public string SubtitleLanguages { get; set; } = "en";
+
+    public bool SkipMachineTranslated { get; set; } = true;
     public SortOrder Sort { get; set; } = SortOrder.Title;
     public bool SortDescending { get; set; }
     public double CardWidth { get; set; } = 170;

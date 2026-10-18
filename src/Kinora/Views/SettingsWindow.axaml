@@ -102,10 +102,10 @@
                             <TextBox Grid.Column="1" Text="{Binding TmdbKey}" PasswordChar="●" RevealPassword="False"
                                      PlaceholderText="API key or read access token" />
                             <Button Grid.Column="2" Content="Test" Margin="8,0,0,0" Command="{Binding TestKeyCommand}" />
-                            <StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="12" Margin="0,6,0,0">
-                                <TextBlock Text="{Binding KeyStatus}" VerticalAlignment="Center"
+                            <StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Spacing="4" Margin="0,6,0,0">
+                                <TextBlock Text="{Binding KeyStatus}" VerticalAlignment="Center" TextWrapping="Wrap"
                                            IsVisible="{Binding KeyStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                                <Button Classes="link" Content="Get a key on themoviedb.org" Padding="0" Background="Transparent"
+                                <Button Classes="link" Content="Get a key on themoviedb.org" Padding="0" Background="Transparent" HorizontalAlignment="Left"
                                         Foreground="{DynamicResource AccentBrush}" Command="{Binding OpenTmdbApiPageCommand}" />
                             </StackPanel>
                             <TextBlock Grid.Row="2" Text="Language" VerticalAlignment="Center" Margin="0,12,0,0" />
@@ -118,6 +118,40 @@
                             <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="28,0,0,0" FontSize="12"
                                        Text="Off: Kinora only reads the movie folders and keeps what it downloads to itself. On: a movie.nfo and the pictures a folder lacks are written there, where Emby, Jellyfin and Kodi find them too. Files already there are never replaced." />
                         </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Subtitles -->
+                <Border Classes="card">
+                    <StackPanel Spacing="12">
+                        <StackPanel Spacing="4">
+                            <TextBlock Classes="heading" Text="Subtitles (OpenSubtitles)" />
+                            <TextBlock Classes="subtle" TextWrapping="Wrap"
+                                       Text="Search and download subtitles from a movie or episode page. Searching needs the API key; downloading also needs your OpenSubtitles account, and counts against its daily downloads. Subtitles are saved next to the video." />
+                        </StackPanel>
+                        <Grid ColumnDefinitions="140,*,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+                            <TextBlock Text="API key" VerticalAlignment="Center" />
+                            <TextBox Grid.Column="1" Text="{Binding OpenSubtitlesKey}" PasswordChar="●" PlaceholderText="Your application's API key" />
+                            <Button Grid.Column="2" Content="Test" Margin="8,0,0,0" Command="{Binding TestOpenSubtitlesCommand}" />
+
+                            <TextBlock Grid.Row="1" Text="User name" VerticalAlignment="Center" Margin="0,8,0,0" />
+                            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding OpenSubtitlesUser}" Margin="0,8,0,0" />
+
+                            <TextBlock Grid.Row="2" Text="Password" VerticalAlignment="Center" Margin="0,8,0,0" />
+                            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding OpenSubtitlesPassword}" PasswordChar="●" Margin="0,8,0,0" />
+
+                            <StackPanel Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Spacing="4" Margin="0,6,0,0">
+                                <TextBlock Text="{Binding SubtitlesStatus}" VerticalAlignment="Center" TextWrapping="Wrap"
+                                           IsVisible="{Binding SubtitlesStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                <Button Content="Get a key on opensubtitles.com" Padding="0" Background="Transparent" HorizontalAlignment="Left"
+                                        Foreground="{DynamicResource AccentBrush}" Command="{Binding OpenOpenSubtitlesPageCommand}" />
+                            </StackPanel>
+
+                            <TextBlock Grid.Row="4" Text="Languages" VerticalAlignment="Center" Margin="0,12,0,0" />
+                            <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding SubtitleLanguages}" Margin="0,12,0,0"
+                                     PlaceholderText="Codes in order of preference: it, en" />
+                        </Grid>
+                        <CheckBox IsChecked="{Binding SkipMachineTranslated}" Content="Hide machine-translated subtitles" />
                     </StackPanel>
                 </Border>
 

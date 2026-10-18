@@ -47,6 +47,7 @@ public partial class SettingsViewModel : ViewModelBase
         MetadataLanguage = Languages.FirstOrDefault(l => l.Code == _s.Settings.MetadataLanguage)
                            ?? new MetadataLanguageOption(_s.Settings.MetadataLanguage, _s.Settings.MetadataLanguage);
         FetchAfterScan = _s.Settings.FetchAfterScan;
+        LoadSubtitleSettings();
     }
 
     private readonly string _originalKey;
@@ -110,6 +111,74 @@ public partial class SettingsViewModel : ViewModelBase
 
     [RelayCommand]
     private void OpenTmdbApiPage() => Launcher.OpenUrl("https://www.themoviedb.org/settings/api");
+
+    // ---- OpenSubtitles ----
+
+    [ObservableProperty]
+    public partial string OpenSubtitlesKey { get; set; } = "";
+
+    [ObservableProperty]
+    public partial string OpenSubtitlesUser { get; set; } = "";
+
+    [ObservableProperty]
+    public partial string OpenSubtitlesPassword { get; set; } = "";
+
+    [ObservableProperty]
+    public partial string SubtitleLanguages { get; set; } = "";
+
+    [ObservableProperty]
+    public partial bool SkipMachineTranslated { get; set; }
+
+    [ObservableProperty]
+    public partial string? SubtitlesStatus { get; private set; }
+
+    partial void OnOpenSubtitlesKeyChanged(string value) { _s.Settings.OpenSubtitlesKey = value; SubtitlesStatus = null; }
+    partial void OnOpenSubtitlesUserChanged(string value) { _s.Settings.OpenSubtitlesUser = value.Trim(); SubtitlesStatus = null; }
+    partial void OnOpenSubtitlesPasswordChanged(string value) { _s.Settings.OpenSubtitlesPassword = value; SubtitlesStatus = null; }
+    partial void OnSubtitleLanguagesChanged(string value) =>
+        _s.Settings.SubtitleLanguages = string.Join(", ", Kinora.Core.Subtitles.SubtitleFiles.ParseLanguages(value));
+    partial void OnSkipMachineTranslatedChanged(bool value) => _s.Settings.SkipMachineTranslated = value;
+
+    private void LoadSubtitleSettings()
+    {
+        OpenSubtitlesKey = _s.Settings.OpenSubtitlesKey;
+        OpenSubtitlesUser = _s.Settings.OpenSubtitlesUser ?? "";
+        OpenSubtitlesPassword = _s.Settings.OpenSubtitlesPassword;
+        SubtitleLanguages = _s.Settings.SubtitleLanguages;
+        SkipMachineTranslated = _s.Settings.SkipMachineTranslated;
+        SubtitlesStatus = null;
+    }
+
+    /// <summary>Logs in: proves key, user and password, and tells today's downloads.</summary>
+    [RelayCommand]
+    private async Task TestOpenSubtitles()
+    {
+        if (OpenSubtitlesKey.Trim().Length == 0)
+        {
+            SubtitlesStatus = "Paste the API key first.";
+            return;
+        }
+        SubtitlesStatus = "Checking…";
+        try
+        {
+            using var client = new Kinora.Core.Subtitles.OpenSubtitlesClient(OpenSubtitlesKey);
+            if (OpenSubtitlesUser.Trim().Length == 0)
+            {
+                await client.SearchAsync(new Kinora.Core.Subtitles.SubtitleQuery(ImdbId: "tt0113277"), ["en"], CancellationToken.None);
+                SubtitlesStatus = "The key works. Add user name and password to download.";
+                return;
+            }
+            var account = await client.LoginAsync(OpenSubtitlesUser.Trim(), OpenSubtitlesPassword, CancellationToken.None);
+            SubtitlesStatus = $"Logged in{(account.Vip ? " (VIP)" : "")} · {account.RemainingDownloads:N0} of {account.AllowedDownloads:N0} downloads left today.";
+        }
+        catch (Exception e) when (e is Kinora.Core.Subtitles.OpenSubtitlesException or HttpRequestException or TaskCanceledException)
+        {
+            SubtitlesStatus = e.Message;
+        }
+    }
+
+    [RelayCommand]
+    private void OpenOpenSubtitlesPage() => Launcher.OpenUrl("https://www.opensubtitles.com/en/consumers");
 
     public ObservableCollection<RootItem> Roots { get; } = [];
     public bool RootsChanged { get; private set; }

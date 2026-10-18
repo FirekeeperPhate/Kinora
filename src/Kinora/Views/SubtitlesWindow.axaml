@@ -1,0 +1,74 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Kinora.ViewModels"
+        x:Class="Kinora.Views.SubtitlesWindow"
+        x:DataType="vm:SubtitlesViewModel"
+        Title="Subtitles"
+        Icon="/Assets/kinora-256.png"
+        Width="760" Height="640" MinWidth="560" MinHeight="420"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{DynamicResource AppBackground}">
+
+    <Window.Styles>
+        <Style Selector="Border.tag">
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="6,1" />
+            <Setter Property="Background" Value="{DynamicResource ChipBackground}" />
+        </Style>
+        <Style Selector="Border.tag.good">
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+        </Style>
+    </Window.Styles>
+
+    <DockPanel Margin="24">
+        <StackPanel DockPanel.Dock="Top" Spacing="6">
+            <TextBlock Text="{Binding Title}" FontSize="22" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
+            <TextBlock Text="{Binding FileName}" Classes="subtle" TextTrimming="CharacterEllipsis" />
+            <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,10,0,4">
+                <TextBlock Text="Languages" VerticalAlignment="Center" Margin="0,0,10,0" />
+                <ComboBox Grid.Column="1" ItemsSource="{Binding LanguageChoices}" SelectedItem="{Binding LanguageChoice}" MinWidth="200" />
+                <TextBlock Grid.Column="2" Text="{Binding AccountText}" Classes="subtle" VerticalAlignment="Center" />
+            </Grid>
+        </StackPanel>
+
+        <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto,Auto" Margin="0,14,0,0">
+            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="{DynamicResource AccentBrush}" />
+            <Button Grid.Column="1" Content="Close" IsCancel="True" Click="OnClose" Margin="10,0,0,0" />
+            <Button Grid.Column="2" Content="Download" Classes="accent" Command="{Binding DownloadCommand}" Margin="10,0,0,0" />
+        </Grid>
+
+        <Panel>
+            <ListBox ItemsSource="{Binding Results}" SelectedItem="{Binding Selected}" Background="Transparent"
+                     DoubleTapped="OnDoubleTapped">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SubtitleRow">
+                        <StackPanel Spacing="4" Margin="0,4">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="{Binding Language}" FontWeight="SemiBold" />
+                                <Border Classes="tag good" IsVisible="{Binding HashMatch}" ToolTip.Tip="Made for this exact file: the timing fits">
+                                    <TextBlock Text="matches this file" Foreground="White" FontSize="11" />
+                                </Border>
+                                <Border Classes="tag" IsVisible="{Binding HearingImpaired}">
+                                    <TextBlock Text="hearing impaired" FontSize="11" />
+                                </Border>
+                                <Border Classes="tag" IsVisible="{Binding Forced}">
+                                    <TextBlock Text="forced" FontSize="11" />
+                                </Border>
+                                <Border Classes="tag" IsVisible="{Binding MachineTranslated}">
+                                    <TextBlock Text="machine translated" FontSize="11" />
+                                </Border>
+                            </StackPanel>
+                            <TextBlock Text="{Binding Release}" TextTrimming="CharacterEllipsis" />
+                            <StackPanel Orientation="Horizontal" Spacing="14">
+                                <TextBlock Text="{Binding DownloadsText}" Classes="subtle" FontSize="12" />
+                                <TextBlock Text="{Binding UploadedText}" Classes="subtle" FontSize="12" />
+                            </StackPanel>
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+            <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsBusy}" VerticalAlignment="Top" />
+        </Panel>
+    </DockPanel>
+</Window>

@@ -221,13 +221,14 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:EpisodeRow">
                                 <Border Classes="episode" Classes.missing="{Binding IsMissing}">
-                                    <Grid ColumnDefinitions="*,Auto">
+                                    <Grid ColumnDefinitions="*,Auto,Auto">
                                         <Button Classes="episodeButton" Command="{Binding PlayCommand}" IsEnabled="{Binding !IsMissing}"
                                                 ToolTip.Tip="Play">
                                             <Button.ContextMenu>
                                                 <ContextMenu>
                                                     <MenuItem Header="Play" Command="{Binding PlayCommand}" />
                                                     <MenuItem Header="Show in folder" Command="{Binding RevealCommand}" />
+                                                    <MenuItem Header="Find subtitles…" Command="{Binding FindSubtitlesCommand}" IsVisible="{Binding CanFindSubtitles}" />
                                                 </ContextMenu>
                                             </Button.ContextMenu>
                                             <Grid ColumnDefinitions="Auto,Auto,*">
@@ -246,7 +247,10 @@
                                                 </StackPanel>
                                             </Grid>
                                         </Button>
-                                        <ToggleButton Grid.Column="1" Classes="watched" IsChecked="{Binding Watched, Mode=OneWay}" Command="{Binding ToggleWatchedCommand}"
+                                        <Button Grid.Column="1" Content="CC" FontSize="11" FontWeight="SemiBold" Width="40" Height="40" CornerRadius="20"
+                                                Margin="12,0,0,0" VerticalAlignment="Center" ToolTip.Tip="Find subtitles"
+                                                Command="{Binding FindSubtitlesCommand}" IsVisible="{Binding CanFindSubtitles}" />
+                                        <ToggleButton Grid.Column="2" Classes="watched" IsChecked="{Binding Watched, Mode=OneWay}" Command="{Binding ToggleWatchedCommand}"
                                                       IsVisible="{Binding !IsMissing}" Width="40" Height="40" CornerRadius="20" Margin="12,0,6,0"
                                                       VerticalAlignment="Center" ToolTip.Tip="Watched">
                                             <Path Classes="icon" Data="{x:Static k:Icons.Check}" Width="15" Height="15" />
