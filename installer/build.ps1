@@ -40,6 +40,16 @@ function Publish([string]$rid) {
     Write-Host "== Publish $rid $version" -ForegroundColor Cyan
     dotnet publish $project -c Release -r $rid --self-contained true -p:DebugType=none -o $out -nologo | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "dotnet publish ($rid) failed." }
+
+    # Kinora's license and the notices of everything it ships, the .NET runtime's included
+    Copy-Item (Join-Path $root 'LICENSE') (Join-Path $out 'LICENSE.txt')
+    Copy-Item (Join-Path $root 'THIRD-PARTY-NOTICES.txt') $out
+    $deps = Get-Content (Join-Path $out 'Kinora.deps.json') -Raw
+    if ($deps -notmatch "runtimepack\.Microsoft\.NETCore\.App\.Runtime\.$([regex]::Escape($rid))/([\d.]+)") { throw "Runtime pack version not found ($rid)." }
+    $packs = if ($env:NUGET_PACKAGES) { $env:NUGET_PACKAGES } else { Join-Path $env:USERPROFILE '.nuget\packages' }
+    $pack = Join-Path $packs "microsoft.netcore.app.runtime.$rid\$($Matches[1])"
+    Copy-Item (Join-Path $pack 'LICENSE.TXT') (Join-Path $out 'dotnet-LICENSE.txt')
+    Copy-Item (Join-Path $pack 'THIRD-PARTY-NOTICES.TXT') (Join-Path $out 'dotnet-THIRD-PARTY-NOTICES.txt')
     return $out
 }
 

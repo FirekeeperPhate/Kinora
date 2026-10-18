@@ -132,3 +132,11 @@ dotnet run --project tools/IconMaker -- src/Kinora/Assets
 - `src/Kinora.Core`: models, scanning (nfo, names, artwork), SQLite, image cache, launcher. No UI.
 - `src/Kinora`: the Avalonia app (MVVM with CommunityToolkit.Mvvm).
 - `tests/Kinora.Tests`: xUnit v3 (Microsoft Testing Platform, see `global.json`).
+
+## License
+
+Kinora is released under the [MIT License](LICENSE). The software it uses, and ships in its
+packages, is listed with its licenses in [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt).
+
+This product uses the TMDB API but is not endorsed or certified by TMDB. Subtitles come from
+OpenSubtitles.com.

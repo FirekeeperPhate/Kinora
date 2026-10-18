@@ -85,7 +85,9 @@ void MacOs()
     {
         var rel = Path.GetRelativePath(source, path).Replace('\\', '/');
         var executable = rel == "Kinora" || rel.EndsWith(".dylib", StringComparison.Ordinal) || rel == "createdump";
-        AddZip(zip, app + "MacOS/" + rel, File.ReadAllBytes(path), executable);
+        // Licenses and notices are documents: Resources, not next to the program
+        var folder = rel.EndsWith(".txt", StringComparison.OrdinalIgnoreCase) && !rel.Contains('/') ? "Resources/" : "MacOS/";
+        AddZip(zip, app + folder + rel, File.ReadAllBytes(path), executable);
     }
     AddZip(zip, app + "Info.plist", Encoding.UTF8.GetBytes(InfoPlist()), false);
     AddZip(zip, app + "Resources/kinora.icns", File.ReadAllBytes(icon), false);

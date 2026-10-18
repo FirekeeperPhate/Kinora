@@ -118,6 +118,9 @@
                             <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="28,0,0,0" FontSize="12"
                                        Text="Off: Kinora only reads the movie folders and keeps what it downloads to itself. On: a movie.nfo and the pictures a folder lacks are written there, where Emby, Jellyfin and Kodi find them too. Files already there are never replaced." />
                         </StackPanel>
+                        <!-- Required by TMDB's terms of use -->
+                        <TextBlock Classes="subtle" FontSize="12" TextWrapping="Wrap"
+                                   Text="This product uses the TMDB API but is not endorsed or certified by TMDB." />
                     </StackPanel>
                 </Border>
 
@@ -196,6 +199,7 @@
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                 <Button Content="Check now" Command="{Binding CheckUpdatesNowCommand}" />
                                 <Button Content="Releases" Command="{Binding OpenReleasesPageCommand}" ToolTip.Tip="All versions on GitHub" />
+                                <Button Content="Licenses" Command="{Binding OpenLicensesCommand}" ToolTip.Tip="Kinora is under the MIT License; the notices of the software it uses" />
                             </StackPanel>
                         </Grid>
                         <CheckBox IsChecked="{Binding CheckForUpdates}" Content="Look for a new version when Kinora starts (once a day)" />

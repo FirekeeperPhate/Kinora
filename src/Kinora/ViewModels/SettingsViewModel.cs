@@ -138,6 +138,17 @@ public partial class SettingsViewModel : ViewModelBase
     [RelayCommand]
     private void OpenReleasesPage() => Launcher.OpenUrl(Kinora.Core.Updates.UpdateService.ReleasesPage);
 
+    /// <summary>The notices shipped next to the program, or the ones on GitHub when running from the sources.</summary>
+    [RelayCommand]
+    private void OpenLicenses()
+    {
+        var local = Path.Combine(AppContext.BaseDirectory, "THIRD-PARTY-NOTICES.txt");
+        if (File.Exists(local))
+            Launcher.Open(local);
+        else
+            Launcher.OpenUrl($"https://github.com/{Kinora.Core.Updates.UpdateService.Repository}/blob/main/THIRD-PARTY-NOTICES.txt");
+    }
+
     [RelayCommand]
     private void OpenTmdbApiPage() => Launcher.OpenUrl("https://www.themoviedb.org/settings/api");
 
