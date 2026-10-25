@@ -11,7 +11,7 @@ namespace Kinora.Core.Data;
 /// </summary>
 public sealed partial class LibraryDatabase
 {
-    private const int SchemaVersion = 4;
+    private const int SchemaVersion = 5;
 
     private readonly string _connectionString;
 
@@ -255,6 +255,20 @@ public sealed partial class LibraryDatabase
                 -- Read every folder again once, to pick up the actors' TMDB ids from the nfo files
                 UPDATE movies SET stamp = 0;
                 UPDATE series SET stamp = 0;
+                """, transaction: tx);
+        }
+        if (version < 5)
+        {
+            c.Execute("""
+                -- Where the built-in player stopped: a movie or an episode, by its id
+                CREATE TABLE playback (
+                    kind TEXT NOT NULL,
+                    item_id INTEGER NOT NULL,
+                    position_ms INTEGER NOT NULL,
+                    length_ms INTEGER NOT NULL,
+                    updated INTEGER NOT NULL,
+                    PRIMARY KEY (kind, item_id)
+                );
                 """, transaction: tx);
         }
         c.Execute($"PRAGMA user_version = {SchemaVersion};", transaction: tx);

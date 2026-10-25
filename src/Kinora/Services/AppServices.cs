@@ -32,6 +32,9 @@ public sealed class AppServices
     public Kinora.Core.Moving.LibraryMover Mover { get; }
     public Kinora.Core.Moving.LibraryDeleter Deleter { get; }
 
+    /// <summary>The built-in player's engine, started when first needed.</summary>
+    public VideoEngine Video { get; } = new();
+
     public AppServices()
     {
         PosterLoader = new PosterLoader(Posters);

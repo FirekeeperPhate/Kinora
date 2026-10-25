@@ -89,6 +89,12 @@ public sealed class AppSettings
     /// <summary>The library opens on TV shows rather than movies.</summary>
     public bool ShowTvShows { get; set; }
 
+    /// <summary>Play inside Kinora (VLC's engine), or with the app the system opens videos with.</summary>
+    public bool UseBuiltInPlayer { get; set; } = true;
+
+    /// <summary>The built-in player's volume, 0-100, as it was left.</summary>
+    public int PlayerVolume { get; set; } = 100;
+
     public double WindowWidth { get; set; } = 1280;
     public double WindowHeight { get; set; } = 820;
     public bool WindowMaximized { get; set; }

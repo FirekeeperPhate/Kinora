@@ -24,6 +24,20 @@
       <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
     </PackageReference>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <!-- The built-in player: VLC's engine. On Windows it comes with Kinora (64-bit only);
+         on macOS and Linux the VLC installed on the computer is used. -->
+    <PackageReference Include="LibVLCSharp" Version="3.10.2" />
+    <PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.0.24"
+                      Condition="'$(RuntimeIdentifier)' == '' Or $(RuntimeIdentifier.StartsWith('win'))" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <VlcWindowsX86Enabled>false</VlcWindowsX86Enabled>
+    <VlcWindowsArm64Enabled>false</VlcWindowsArm64Enabled>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Streaming out, recording, visualizations, network discovery and scripts: not for playing a file -->
+    <VlcWindowsX64ExcludeFiles Include="plugins\stream_out\%2A%2A;plugins\access_output\%2A%2A;plugins\mux\%2A%2A;plugins\visualization\%2A%2A;plugins\video_splitter\%2A%2A;plugins\services_discovery\%2A%2A;lua\%2A%2A;libvlc.lib;libvlccore.lib" />
   </ItemGroup>
 
   <ItemGroup>

@@ -21,4 +21,16 @@ public static class Icons
     public static Geometry Search { get; } = Geometry.Parse("M10.5,4 A6.5,6.5 0 1 0 10.51,4 Z M15.5,15.5 L20,20");
     public static Geometry Sort { get; } = Geometry.Parse("M8,4 V20 M4.5,16.5 L8,20 L11.5,16.5 M16,20 V4 M12.5,7.5 L16,4 L19.5,7.5");
     public static Geometry Offline { get; } = Geometry.Parse("M3,3 L21,21 M8.5,8.6 A5,5 0 0 0 7,12.5 M5,10 A9,9 0 0 0 4,13 M12,18.5 V18.6 M15.7,10.5 A5,5 0 0 1 17,12.5 M10,5.2 A9,9 0 0 1 20,10");
+
+    // ---- the player ----
+    public static Geometry Play { get; } = Geometry.Parse("M8,5.5 L18.5,12 L8,18.5 Z");
+    public static Geometry Pause { get; } = Geometry.Parse("M8.5,5.5 V18.5 M15.5,5.5 V18.5");
+    public static Geometry Rewind { get; } = Geometry.Parse("M4.5,12 A7.5,7.5 0 1 0 6.7,6.7 M4.5,3.5 V7.5 H8.5");
+    public static Geometry Forward { get; } = Geometry.Parse("M19.5,12 A7.5,7.5 0 1 1 17.3,6.7 M19.5,3.5 V7.5 H15.5");
+    public static Geometry Volume { get; } = Geometry.Parse("M4,9.5 H7.5 L12,5.5 V18.5 L7.5,14.5 H4 Z M15.5,9 A4,4 0 0 1 15.5,15 M18,6.5 A7.5,7.5 0 0 1 18,17.5");
+    public static Geometry Muted { get; } = Geometry.Parse("M4,9.5 H7.5 L12,5.5 V18.5 L7.5,14.5 H4 Z M16,9.5 L21,14.5 M21,9.5 L16,14.5");
+    public static Geometry Subtitles { get; } = Geometry.Parse("M3.5,5.5 H20.5 V18.5 H3.5 Z M7,12.5 H11 M13.5,12.5 H17 M7,15.5 H14 M16.5,15.5 H17");
+    public static Geometry Audio { get; } = Geometry.Parse("M4,16 V12 A8,8 0 0 1 20,12 V16 M4,14 H7.5 V19.5 H4 Z M16.5,14 H20 V19.5 H16.5 Z");
+    public static Geometry FullScreen { get; } = Geometry.Parse("M4,9 V4 H9 M15,4 H20 V9 M20,15 V20 H15 M9,20 H4 V15");
+    public static Geometry ExitFullScreen { get; } = Geometry.Parse("M9,4 V9 H4 M20,9 H15 V4 M15,20 V15 H20 M4,15 H9 V20");
 }

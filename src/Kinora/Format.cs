@@ -1,9 +1,13 @@
 using System.Globalization;
+using Avalonia.Data.Converters;
 
 namespace Kinora;
 
 public static class Format
 {
+    /// <summary>For things that fade in and out: true → 1, false → 0.</summary>
+    public static IValueConverter VisibleOpacity { get; } = new FuncValueConverter<bool, double>(v => v ? 1 : 0);
+
     public static string Runtime(int minutes) =>
         minutes < 60 ? $"{minutes}m" : minutes % 60 == 0 ? $"{minutes / 60}h" : $"{minutes / 60}h {minutes % 60}m";
 

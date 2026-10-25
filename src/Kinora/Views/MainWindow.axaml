@@ -310,5 +310,14 @@
                                 IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).SeriesDetail, Converter={x:Static ObjectConverters.IsNotNull}}" />
         <views:PersonView DataContext="{Binding Person}"
                           IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).Person, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+        <!-- The built-in player, over everything; made when a video starts, gone when it ends -->
+        <ContentControl Content="{Binding Player}" IsVisible="{Binding Player, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <ContentControl.DataTemplates>
+                <DataTemplate DataType="vm:PlayerViewModel">
+                    <views:PlayerView />
+                </DataTemplate>
+            </ContentControl.DataTemplates>
+        </ContentControl>
     </Panel>
 </Window>

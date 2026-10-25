@@ -5,8 +5,9 @@
 [![License: MIT](https://img.shields.io/github/license/FirekeeperPhate/Kinora?label=license&color=green)](LICENSE)
 
 A desktop library for movies and TV shows kept in folders on a disk or a NAS.
-Covers, metadata, light and dark theme; Play opens the file with the player the OS associates
-with it. Windows, Linux and macOS (Avalonia 12, .NET 10).
+Covers, metadata, light and dark theme; Play opens the video in Kinora's own player (VLC's
+engine), or, if you prefer, in the player the OS associates with it. Windows, Linux and macOS
+(Avalonia 12, .NET 10).
 
 **[Download the latest release](https://github.com/FirekeeperPhate/Kinora/releases/latest)**
 
@@ -74,6 +75,25 @@ With a TMDB API key (Settings), what the folders don't say comes from The Movie 
 The key is stored encrypted for the Windows user (DPAPI); on Linux and macOS in a settings file
 only the user can read.
 
+## Playing
+
+Play opens the video in Kinora's player, over the whole window: VLC's engine draws it (hardware
+decoding, 4K and HDR included: a 4K HDR10 HEVC movie from the NAS takes 7% of one core), Kinora's
+controls sit over it and go away after three seconds without moving the mouse.
+
+- Play/pause, back 10 s, forward 30 s, the seek bar, volume and mute, full screen; the audio track
+  and the subtitles (the ones in the file and the `.srt` files next to it) from two menus.
+- Keys: Space or K play/pause, ← →  back 10 s / forward 30 s (Ctrl+→ a minute), ↑ ↓ volume, M mute,
+  F or a double click full screen, A and S the next audio track or subtitle, Esc leaves full screen,
+  then the player.
+- It starts again where you stopped (past the first minute; "Start over" goes back to the
+  beginning), and marks the movie or episode watched once 90% is behind or it reaches the end.
+- Settings → Playback: Kinora's player, or the app the system opens videos with.
+
+On Windows VLC's engine comes with Kinora (64-bit libvlc 3.0, about 20 MB more in the setup). On
+macOS and Linux Kinora uses the VLC installed on the computer (`/Applications/VLC.app`, or the
+`vlc` package); without it, Play opens the system's player and says why.
+
 ## Subtitles (OpenSubtitles)
 
 With an OpenSubtitles API key and account (Settings), **Subtitles…** on a movie page, or **CC** on an
@@ -127,10 +147,11 @@ them all (tests first) and copies them to `Z:\Dropbox\Software\Kinora`.
   even by the uninstaller.
 - **Linux** (x64): `Kinora-<version>-linux-x64.tar.gz`. Unpack and run `./install.sh` (menu entry,
   `kinora` command, all in the home folder; `install.sh --uninstall` removes it), or run `./Kinora`
-  from the folder. Needs X11 or XWayland.
+  from the folder. Needs X11 or XWayland; the built-in player needs the `vlc` package.
 - **macOS** (12 or later): `Kinora-<version>-macos-arm64.zip` for Apple silicon, `-x64` for Intel.
   Unzip and drag `Kinora.app` to Applications. Not signed or notarized: the first time, right-click
-  it → Open (or `xattr -cr /Applications/Kinora.app`).
+  it → Open (or `xattr -cr /Applications/Kinora.app`). The built-in player needs VLC in
+  Applications.
 
 Only the Windows installer has been tried on a real machine; the Linux and macOS packages are built
 from Windows and have not been run yet.

@@ -1,0 +1,201 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Kinora.ViewModels"
+             xmlns:views="using:Kinora.Views"
+             xmlns:k="using:Kinora"
+             x:Class="Kinora.Views.PlayerView"
+             x:DataType="vm:PlayerViewModel"
+             Background="Black">
+
+    <Panel>
+        <views:VideoSurface x:Name="Surface" />
+
+        <!-- The controls. Nothing Avalonia draws can sit over VLC's window, and a popup is held
+             inside the work area (not over the taskbar in full screen): in code they move into
+             a borderless window of their own, kept over the video. Their styles travel with them.
+             Almost transparent rather than transparent, so they also catch the mouse. -->
+        <Grid x:Name="OverlayRoot" Background="#01000000" RowDefinitions="Auto,*,Auto">
+            <Grid.Resources>
+                <!-- The seek and volume bars in Kinora's colour, light on the dark video -->
+                <SolidColorBrush x:Key="SliderTrackFill" Color="#55FFFFFF" />
+                <SolidColorBrush x:Key="SliderTrackFillPointerOver" Color="#77FFFFFF" />
+                <SolidColorBrush x:Key="SliderTrackFillPressed" Color="#77FFFFFF" />
+                <!-- The player is always dark: the dark theme's accent -->
+                <SolidColorBrush x:Key="SliderTrackValueFill" Color="#FF6A5C" />
+                <SolidColorBrush x:Key="SliderTrackValueFillPointerOver" Color="#FF8274" />
+                <SolidColorBrush x:Key="SliderTrackValueFillPressed" Color="#FF6A5C" />
+                <SolidColorBrush x:Key="SliderThumbBackground" Color="White" />
+                <SolidColorBrush x:Key="SliderThumbBackgroundPointerOver" Color="White" />
+                <SolidColorBrush x:Key="SliderThumbBackgroundPressed" Color="White" />
+            </Grid.Resources>
+            <Grid.Styles>
+                <Style Selector="TextBlock">
+                    <Setter Property="Foreground" Value="White" />
+                </Style>
+                <Style Selector="Button.player, DropDownButton.player">
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="Foreground" Value="White" />
+                    <Setter Property="BorderThickness" Value="0" />
+                    <Setter Property="Padding" Value="9" />
+                    <Setter Property="CornerRadius" Value="22" />
+                    <Setter Property="Focusable" Value="False" />
+                    <Setter Property="VerticalAlignment" Value="Center" />
+                </Style>
+                <Style Selector="Button.player:pointerover /template/ ContentPresenter#PART_ContentPresenter, DropDownButton.player:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                    <Setter Property="Background" Value="#33FFFFFF" />
+                    <Setter Property="Foreground" Value="White" />
+                </Style>
+                <Style Selector="Button.player:pressed /template/ ContentPresenter#PART_ContentPresenter, DropDownButton.player:pressed /template/ ContentPresenter#PART_ContentPresenter">
+                    <Setter Property="Background" Value="#55FFFFFF" />
+                    <Setter Property="Foreground" Value="White" />
+                </Style>
+                <Style Selector="Button.player Path.icon, DropDownButton.player Path.icon">
+                    <Setter Property="Stroke" Value="White" />
+                    <Setter Property="Width" Value="22" />
+                    <Setter Property="Height" Value="22" />
+                </Style>
+                <Style Selector="Path.icon.filled">
+                    <Setter Property="Fill" Value="White" />
+                </Style>
+                <Style Selector="Border.bar">
+                    <Setter Property="Transitions">
+                        <Transitions>
+                            <DoubleTransition Property="Opacity" Duration="0:0:0.25" />
+                        </Transitions>
+                    </Setter>
+                </Style>
+                <Style Selector="Slider">
+                    <Setter Property="Focusable" Value="False" />
+                </Style>
+            </Grid.Styles>
+
+            <!-- Top: back, and what is playing -->
+            <Border Classes="bar" Opacity="{Binding ControlsVisible, Converter={x:Static k:Format.VisibleOpacity}}"
+                    IsHitTestVisible="{Binding ControlsVisible}" Padding="20,16,20,48">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                        <GradientStop Color="#C0000000" Offset="0" />
+                        <GradientStop Color="#00000000" Offset="1" />
+                    </LinearGradientBrush>
+                </Border.Background>
+                <Grid ColumnDefinitions="Auto,*">
+                    <Button Classes="player" Command="{Binding CloseCommand}" ToolTip.Tip="Back (Esc)">
+                        <Path Classes="icon" Data="{x:Static k:Icons.Back}" />
+                    </Button>
+                    <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Title}" FontSize="20" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Subtitle}" IsVisible="{Binding HasSubtitle}" Opacity="0.8" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Resumed where it was left -->
+            <Border Grid.Row="0" IsVisible="{Binding ShowResume}" HorizontalAlignment="Right" VerticalAlignment="Top"
+                    Margin="0,18,24,0" Padding="16,8,8,8" CornerRadius="22" Background="#CC1A1A22">
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <TextBlock Text="{Binding ResumeText}" VerticalAlignment="Center" />
+                    <Button Classes="player" Padding="14,6" Background="#33FFFFFF" Command="{Binding StartOverCommand}" Content="Start over" />
+                </StackPanel>
+            </Border>
+
+            <!-- Middle: loading, or what went wrong -->
+            <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="16">
+                <ProgressBar IsIndeterminate="True" Width="160" IsVisible="{Binding IsBuffering}" />
+                <Border IsVisible="{Binding Message, Converter={x:Static ObjectConverters.IsNotNull}}"
+                        Background="#CC1A1A22" CornerRadius="14" Padding="24,18">
+                    <StackPanel Spacing="14">
+                        <TextBlock Text="{Binding Message}" FontSize="16" TextWrapping="Wrap" MaxWidth="480" />
+                        <Button Classes="player" HorizontalAlignment="Center" Padding="18,8" Background="#33FFFFFF"
+                                Command="{Binding CloseCommand}" Content="Back to Kinora" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- Bottom: the seek bar and the buttons -->
+            <Border x:Name="BottomBar" Grid.Row="2" Classes="bar" Padding="24,48,24,14"
+                    Opacity="{Binding ControlsVisible, Converter={x:Static k:Format.VisibleOpacity}}"
+                    IsHitTestVisible="{Binding ControlsVisible}">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                        <GradientStop Color="#00000000" Offset="0" />
+                        <GradientStop Color="#D0000000" Offset="1" />
+                    </LinearGradientBrush>
+                </Border.Background>
+                <StackPanel Spacing="2">
+                    <Grid ColumnDefinitions="Auto,*,Auto" IsEnabled="{Binding CanSeek}">
+                        <TextBlock Text="{Binding TimeText}" VerticalAlignment="Center" MinWidth="60" FontFeatures="tnum" />
+                        <Slider x:Name="SeekBar" Grid.Column="1" Minimum="0" Maximum="1000" Margin="12,0"
+                                Value="{Binding Progress}" />
+                        <TextBlock Grid.Column="2" Text="{Binding LengthText}" VerticalAlignment="Center" MinWidth="60"
+                                   TextAlignment="Right" FontFeatures="tnum" />
+                    </Grid>
+                    <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto,Auto,Auto">
+                        <Button Classes="player" Command="{Binding PlayPauseCommand}" ToolTip.Tip="Play / pause (Space)">
+                            <Panel>
+                                <Path Classes="icon filled" Data="{x:Static k:Icons.Play}" IsVisible="{Binding !IsPlaying}" />
+                                <Path Classes="icon" Data="{x:Static k:Icons.Pause}" IsVisible="{Binding IsPlaying}" StrokeThickness="2.6" />
+                            </Panel>
+                        </Button>
+                        <Button Grid.Column="1" Classes="player" Command="{Binding BackCommand}" ToolTip.Tip="Back 10 seconds (←)">
+                            <Panel>
+                                <Path Classes="icon" Data="{x:Static k:Icons.Rewind}" />
+                                <TextBlock Text="10" FontSize="8" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,2,0,0" />
+                            </Panel>
+                        </Button>
+                        <Button Grid.Column="2" Classes="player" Command="{Binding ForwardCommand}" ToolTip.Tip="Forward 30 seconds (→)">
+                            <Panel>
+                                <Path Classes="icon" Data="{x:Static k:Icons.Forward}" />
+                                <TextBlock Text="30" FontSize="8" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,2,0,0" />
+                            </Panel>
+                        </Button>
+
+                        <DropDownButton x:Name="AudioButton" Grid.Column="4" Classes="player" ToolTip.Tip="Audio (A)" IsVisible="{Binding HasAudioChoice}">
+                            <Path Classes="icon" Data="{x:Static k:Icons.Audio}" />
+                            <DropDownButton.Flyout>
+                                <MenuFlyout ItemsSource="{Binding AudioTracks}" Placement="TopEdgeAlignedRight">
+                                    <MenuFlyout.ItemContainerTheme>
+                                        <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}" x:DataType="vm:TrackChoice">
+                                            <Setter Property="Header" Value="{Binding Name}" />
+                                            <Setter Property="Command" Value="{Binding ChooseCommand}" />
+                                            <Setter Property="ToggleType" Value="Radio" />
+                                            <Setter Property="IsChecked" Value="{Binding IsSelected}" />
+                                        </ControlTheme>
+                                    </MenuFlyout.ItemContainerTheme>
+                                </MenuFlyout>
+                            </DropDownButton.Flyout>
+                        </DropDownButton>
+                        <DropDownButton x:Name="SubtitlesButton" Grid.Column="5" Classes="player" ToolTip.Tip="Subtitles (S)" IsVisible="{Binding HasSubtitleTracks}">
+                            <Path Classes="icon" Data="{x:Static k:Icons.Subtitles}" />
+                            <DropDownButton.Flyout>
+                                <MenuFlyout ItemsSource="{Binding SubtitleTracks}" Placement="TopEdgeAlignedRight">
+                                    <MenuFlyout.ItemContainerTheme>
+                                        <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}" x:DataType="vm:TrackChoice">
+                                            <Setter Property="Header" Value="{Binding Name}" />
+                                            <Setter Property="Command" Value="{Binding ChooseCommand}" />
+                                            <Setter Property="ToggleType" Value="Radio" />
+                                            <Setter Property="IsChecked" Value="{Binding IsSelected}" />
+                                        </ControlTheme>
+                                    </MenuFlyout.ItemContainerTheme>
+                                </MenuFlyout>
+                            </DropDownButton.Flyout>
+                        </DropDownButton>
+                        <Button Grid.Column="6" Classes="player" Command="{Binding ToggleMuteCommand}" ToolTip.Tip="Mute (M)">
+                            <Panel>
+                                <Path Classes="icon" Data="{x:Static k:Icons.Volume}" IsVisible="{Binding !IsMuted}" />
+                                <Path Classes="icon" Data="{x:Static k:Icons.Muted}" IsVisible="{Binding IsMuted}" />
+                            </Panel>
+                        </Button>
+                        <Slider Grid.Column="7" Width="110" Minimum="0" Maximum="100" VerticalAlignment="Center" Margin="2,0,10,0"
+                                Value="{Binding Volume}" ToolTip.Tip="Volume (↑ ↓)" />
+                        <Button Grid.Column="8" Classes="player" Command="{Binding ToggleFullScreenCommand}" ToolTip.Tip="Full screen (F)">
+                            <Panel>
+                                <Path Classes="icon" Data="{x:Static k:Icons.FullScreen}" IsVisible="{Binding !IsFullScreen}" />
+                                <Path Classes="icon" Data="{x:Static k:Icons.ExitFullScreen}" IsVisible="{Binding IsFullScreen}" />
+                            </Panel>
+                        </Button>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Panel>
+</UserControl>

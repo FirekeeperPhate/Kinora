@@ -188,6 +188,18 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Playback -->
+                <Border Classes="card">
+                    <StackPanel Spacing="10">
+                        <TextBlock Classes="heading" Text="Playback" />
+                        <TextBlock Text="Play movies and episodes with" />
+                        <RadioButton GroupName="Player" IsChecked="{Binding UseBuiltInPlayer}" Content="Kinora's player" />
+                        <TextBlock Classes="subtle" FontSize="12" TextWrapping="Wrap" Margin="28,-6,0,0"
+                                   Text="{Binding BuiltInPlayerNote}" />
+                        <RadioButton GroupName="Player" IsChecked="{Binding UseSystemPlayer}" Content="{Binding SystemPlayerText}" />
+                    </StackPanel>
+                </Border>
+
                 <!-- Updates -->
                 <Border Classes="card">
                     <StackPanel Spacing="10">

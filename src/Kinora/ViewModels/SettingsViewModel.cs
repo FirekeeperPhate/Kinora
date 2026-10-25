@@ -44,6 +44,7 @@ public partial class SettingsViewModel : ViewModelBase
         ThemeIndex = (int)_s.Settings.Theme;
         WriteToMediaFolders = _s.Settings.WriteToMediaFolders;
         ScanOnStartup = _s.Settings.ScanOnStartup;
+        UseBuiltInPlayer = _s.Settings.UseBuiltInPlayer;
         CardWidth = _s.Settings.CardWidth;
         ScrollSpeed = _s.Settings.ScrollSpeed;
         TmdbKey = _s.Settings.TmdbKey;
@@ -260,6 +261,30 @@ public partial class SettingsViewModel : ViewModelBase
 
     partial void OnWriteToMediaFoldersChanged(bool value) => _s.Settings.WriteToMediaFolders = value;
     partial void OnScanOnStartupChanged(bool value) => _s.Settings.ScanOnStartup = value;
+
+    // ---- playback ----
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UseSystemPlayer))]
+    public partial bool UseBuiltInPlayer { get; set; }
+
+    /// <summary>The other radio button: the two can't both be bound to one value.</summary>
+    public bool UseSystemPlayer
+    {
+        get => !UseBuiltInPlayer;
+        set => UseBuiltInPlayer = !value;
+    }
+
+    partial void OnUseBuiltInPlayerChanged(bool value) => _s.Settings.UseBuiltInPlayer = value;
+
+    public static string SystemPlayerText => OperatingSystem.IsWindows()
+        ? "The app Windows opens videos with"
+        : "The app the system opens videos with";
+
+    public static string BuiltInPlayerNote =>
+        "Inside the window, with audio and subtitle choice; starts again where you stopped and marks what you finished as watched. "
+        + (OperatingSystem.IsWindows() ? "Uses VLC's engine, which comes with Kinora."
+           : "Uses VLC's engine: VLC must be installed on this computer.");
     partial void OnCardWidthChanged(double value) => _s.Settings.CardWidth = Math.Round(value);
 
     [ObservableProperty]

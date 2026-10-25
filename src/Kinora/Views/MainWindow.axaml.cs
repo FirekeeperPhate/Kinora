@@ -55,6 +55,7 @@ public partial class MainWindow : Window, IDialogs
     {
         if (Vm is { } vm)
         {
+            vm.Player?.Close();   // keeps the position, stops VLC before its window goes
             var settings = vm.Services.Settings;
             settings.WindowMaximized = WindowState == WindowState.Maximized;
             if (WindowState == WindowState.Normal)
@@ -79,6 +80,13 @@ public partial class MainWindow : Window, IDialogs
     {
         if (Vm is not { } vm)
             return;
+        // While a video plays, the keys are the player's
+        if (vm.Player is not null)
+        {
+            if (this.GetVisualDescendants().OfType<PlayerView>().FirstOrDefault() is { } player)
+                e.Handled = player.HandleKey(e);
+            return;
+        }
         if (e.Key == Key.Escape && vm.Person is not null)
         {
             vm.ClosePerson();

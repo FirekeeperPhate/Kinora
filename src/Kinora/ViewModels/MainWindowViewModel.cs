@@ -1,8 +1,10 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Kinora.Core;
+using Kinora.Core.Data;
 using Kinora.Core.Models;
 using Kinora.Core.Online;
 using Kinora.Core.Platform;
@@ -126,6 +128,10 @@ public partial class MainWindowViewModel : ViewModelBase
     public partial PersonViewModel? Person { get; private set; }
 
     public bool ShowLibrary => Detail is null && SeriesDetail is null && Person is null;
+
+    /// <summary>The built-in player, over everything else while a video plays.</summary>
+    [ObservableProperty]
+    public partial PlayerViewModel? Player { get; private set; }
 
     [ObservableProperty]
     public partial bool HasNoResults { get; private set; }
@@ -752,9 +758,15 @@ public partial class MainWindowViewModel : ViewModelBase
     // ---- playing and folders ----
 
     public void Play(MovieCardViewModel card, string? videoFile) =>
-        PlayFile(card.RootId, videoFile ?? card.Movie.VideoFile);
+        PlayFile(card.RootId, videoFile ?? card.Movie.VideoFile, card.Title, card.Movie.Year?.ToString(CultureInfo.InvariantCulture),
+                 PlaybackKind.Movie, card.Movie.Id, () => SetWatched(card, true));
 
-    public void PlayEpisode(SeriesCardViewModel card, Episode episode) => PlayFile(card.RootId, episode.VideoFile);
+    public void PlayEpisode(SeriesCardViewModel card, Episode episode)
+    {
+        var what = string.Join(" · ", new[] { episode.Code, episode.Title }.Where(s => !string.IsNullOrWhiteSpace(s)));
+        PlayFile(card.RootId, episode.VideoFile, card.Title, what, PlaybackKind.Episode, episode.Id,
+                 () => SetEpisodesWatched(card, [episode], true));
+    }
 
     /// <summary>The first episode not seen yet, in order; the first one if all are seen.</summary>
     public void PlayNextEpisode(SeriesCardViewModel card)
@@ -772,7 +784,11 @@ public partial class MainWindowViewModel : ViewModelBase
         return ordered.FirstOrDefault(e => !e.Watched && e.Season is not 0) ?? ordered.FirstOrDefault();
     }
 
-    private async void PlayFile(long rootId, string relative)
+    /// <summary>
+    /// Plays a video: in the built-in player when the settings say so and VLC's engine starts,
+    /// otherwise with the app the system opens videos with.
+    /// </summary>
+    private async void PlayFile(long rootId, string relative, string title, string? subtitle, PlaybackKind kind, long itemId, Action markWatched)
     {
         if (!_roots.TryGetValue(rootId, out var root))
             return;
@@ -782,6 +798,17 @@ public partial class MainWindowViewModel : ViewModelBase
             ShowStatusFor($"Can't find {path}", 12);
             return;
         }
+        if (_s.Settings.UseBuiltInPlayer)
+        {
+            var (vlc, error) = await _s.Video.GetAsync();
+            if (vlc is not null)
+            {
+                Player?.Close();
+                Player = new PlayerViewModel(_s, vlc, new PlayRequest(path, title, subtitle, kind, itemId, markWatched), ClosePlayer);
+                return;
+            }
+            ShowStatusFor($"{error} The video opens in the system's player.", 16);
+        }
         try
         {
             Launcher.Open(path);
@@ -790,6 +817,13 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             ShowStatusFor($"Can't open the video: {e.Message}", 12);
         }
+    }
+
+    private void ClosePlayer(PlayerViewModel player)
+    {
+        if (Player == player)
+            Player = null;
+        player.Dispose();
     }
 
     public async void Reveal(CardViewModel card)
