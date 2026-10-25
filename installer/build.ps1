@@ -60,7 +60,11 @@ if ($Platform -in 'Windows', 'All') {
     $iscc = @("$env:ProgramFiles\Inno Setup 7\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe", "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe") |
         Where-Object { Test-Path $_ } | Select-Object -First 1
     if (-not $iscc) { throw 'ISCC.exe (Inno Setup) not found.' }
-    Publish 'win-x64' | Out-Null
+    $win = Publish 'win-x64'
+    # VLC's module cache, which its package lacks: without it the first Play loads all ~280 modules
+    Write-Host '== VLC module cache' -ForegroundColor Cyan
+    $cacheRun = Start-Process (Join-Path $win 'Kinora.exe') -ArgumentList '--vlc-plugins-cache' -Wait -PassThru -WindowStyle Hidden
+    if ($cacheRun.ExitCode -ne 0 -or -not (Test-Path (Join-Path $win 'libvlc\win-x64\plugins\plugins.dat'))) { throw 'VLC module cache not written.' }
     Write-Host '== Windows installer' -ForegroundColor Cyan
     & $iscc /Q "/DAppVersion=$version" (Join-Path $PSScriptRoot 'Kinora.iss')
     if ($LASTEXITCODE -ne 0) { throw 'ISCC failed.' }

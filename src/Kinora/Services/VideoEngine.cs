@@ -45,13 +45,44 @@ public sealed class VideoEngine : IDisposable
                 LibVLCSharp.Shared.Core.Initialize();
             }
             // Kinora shows its own title and messages; subtitles next to the video are found by VLC
-            return (new LibVLC("--no-video-title-show", "--no-osd", "--no-snapshot-preview", "--no-stats"), null);
+            string[] options = ["--no-video-title-show", "--no-osd", "--no-snapshot-preview", "--no-stats"];
+            // Without its module cache VLC loads all of its ~280 modules at every start (37 s from
+            // a slow disk, 0.85 s with the cache): a copy that lacks it writes it now, once
+            if (BundledPluginsCache is { } cache && !File.Exists(cache))
+                options = [.. options, "--reset-plugins-cache"];
+            return (new LibVLC(options), null);
         }
         catch (Exception e) when (e is VLCException or DllNotFoundException or TypeInitializationException or BadImageFormatException or InvalidOperationException)
         {
             return (null, OperatingSystem.IsLinux()
                 ? "VLC is not installed: install the vlc package (it brings libvlc), then try again."
                 : $"VLC's engine didn't start: {e.Message}");
+        }
+    }
+
+    /// <summary>The module cache of the VLC that comes with Kinora (Windows); null where Kinora uses the computer's VLC.</summary>
+    private static string? BundledPluginsCache =>
+        OperatingSystem.IsWindows() ? Path.Combine(AppContext.BaseDirectory, "libvlc", "win-x64", "plugins", "plugins.dat") : null;
+
+    /// <summary>
+    /// Writes VLC's module cache next to the modules (Kinora.exe --vlc-plugins-cache, when the
+    /// packages are built): the first Play then loads only the modules it needs.
+    /// </summary>
+    public static bool WritePluginsCache()
+    {
+        if (BundledPluginsCache is not { } cache)
+            return false;
+        try
+        {
+            LibVLCSharp.Shared.Core.Initialize();
+            using (new LibVLC("--reset-plugins-cache"))
+            {
+            }
+            return File.Exists(cache);
+        }
+        catch (Exception e) when (e is VLCException or DllNotFoundException or TypeInitializationException or IOException)
+        {
+            return false;
         }
     }
 

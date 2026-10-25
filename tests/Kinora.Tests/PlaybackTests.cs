@@ -31,6 +31,15 @@ public sealed class PlaybackTests : IDisposable
         Assert.Equal(watched, PlaybackRules.CountsAsWatched(position, length));
     }
 
+    [Fact]
+    public void How_much_was_seen()
+    {
+        Assert.Null(PlaybackRules.SeenFraction(null));
+        Assert.Null(PlaybackRules.SeenFraction(new PlaybackPosition(5 * Minute, 0)));   // length unknown
+        Assert.Equal(0.5, PlaybackRules.SeenFraction(new PlaybackPosition(60 * Minute, 120 * Minute)));
+        Assert.Equal(1, PlaybackRules.SeenFraction(new PlaybackPosition(130 * Minute, 120 * Minute)));   // never past the end
+    }
+
     [Theory]
     [InlineData(0, "0:00")]
     [InlineData(65_000, "1:05")]
@@ -60,6 +69,13 @@ public sealed class PlaybackTests : IDisposable
 
         Assert.Equal(new PlaybackPosition(6 * Minute, 120 * Minute), db.GetPlayback(PlaybackKind.Movie, 7));
         Assert.Equal(new PlaybackPosition(2 * Minute, 40 * Minute), db.GetPlayback(PlaybackKind.Episode, 7));
+
+        // The library's "started" marks, one kind at a time
+        db.SavePlayback(PlaybackKind.Movie, 9, 30 * Minute, 120 * Minute);
+        var movies = db.GetPlaybackPositions(PlaybackKind.Movie);
+        Assert.Equal([7L, 9L], movies.Keys.Order());
+        Assert.Equal(0.25, PlaybackRules.SeenFraction(movies[9]));
+        Assert.Single(db.GetPlaybackPositions(PlaybackKind.Episode));
 
         db.ClearPlayback(PlaybackKind.Movie, 7);
         Assert.Null(db.GetPlayback(PlaybackKind.Movie, 7));

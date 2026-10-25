@@ -96,6 +96,8 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
     public string? Subtitle => _request.Subtitle;
     public bool HasSubtitle => !string.IsNullOrEmpty(_request.Subtitle);
     public string? Picture => _request.Picture;
+    public PlaybackKind Kind => _request.Kind;
+    public long ItemId => _request.ItemId;
 
     [ObservableProperty]
     public partial bool IsPlaying { get; private set; }

@@ -257,7 +257,14 @@
                                                            VerticalAlignment="Center" TextAlignment="Center" Classes="subtle" />
                                                 <Border Grid.Column="1" Width="200" Height="112" CornerRadius="8" ClipToBounds="True" Margin="4,0,16,0"
                                                         Background="{DynamicResource PlaceholderBackground}">
-                                                    <Image Source="{Binding Thumb}" Stretch="UniformToFill" />
+                                                    <Panel>
+                                                        <Image Source="{Binding Thumb}" Stretch="UniformToFill" />
+                                                        <!-- Started in the built-in player: how far -->
+                                                        <ProgressBar IsVisible="{Binding IsStarted}" Minimum="0" Maximum="1" Value="{Binding Started}"
+                                                                     VerticalAlignment="Bottom" Height="5" MinHeight="5" CornerRadius="0"
+                                                                     Foreground="{DynamicResource AccentBrush}" Background="#90000000"
+                                                                     ToolTip.Tip="{Binding StartedText}" />
+                                                    </Panel>
                                                 </Border>
                                                 <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="4">
                                                     <TextBlock Classes="episodeTitle" Text="{Binding Title}" FontWeight="SemiBold" FontSize="15"

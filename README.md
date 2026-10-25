@@ -92,6 +92,12 @@ controls sit over it and go away after three seconds without moving the mouse.
   app that played last: while a video plays that is Kinora, not the music paused for it.
 - It starts again where you stopped (past the first minute; "Start over" goes back to the
   beginning), and marks the movie or episode watched once 90% is behind or it reaches the end.
+  Until then a started movie has a ring on its poster instead of the check, as full as what was
+  seen; a started episode has a bar under its picture.
+- VLC's engine starts in the background a couple of seconds after Kinora opens, so the first
+  Play doesn't wait for it. The Windows packages carry VLC's module cache (`plugins.dat`, written
+  by `build.ps1`): without it VLC loads all of its ~280 modules at every start (from a slow disk
+  37 s instead of 0.85 s).
 - Settings → Playback: Kinora's player, or the app the system opens videos with.
 
 On Windows VLC's engine comes with Kinora (64-bit libvlc 3.0; the setup is about 58 MB). On

@@ -225,6 +225,16 @@
                                                                       StrokeLineCap="Round" StrokeJoin="Round" Stretch="Uniform"
                                                                       Width="13" Height="13" />
                                                             </Border>
+                                                            <!-- Started in the built-in player: a ring as full as what was seen -->
+                                                            <Panel IsVisible="{Binding IsStarted}" Width="26" Height="26" Margin="8"
+                                                                   HorizontalAlignment="Right" VerticalAlignment="Top" ToolTip.Tip="{Binding StartedText}">
+                                                                <Ellipse Fill="#D0141418" />
+                                                                <Ellipse Margin="3" Stroke="#50FFFFFF" StrokeThickness="2.4" />
+                                                                <Arc Margin="3" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2.4" StrokeLineCap="Round"
+                                                                     StartAngle="-90" SweepAngle="{Binding StartedAngle}" />
+                                                                <Path Data="{x:Static k:Icons.Play}" Fill="White" Stretch="Uniform"
+                                                                      Width="7" Height="8" Margin="1.5,0,0,0" />
+                                                            </Panel>
                                                             <Border IsVisible="{Binding ShowUnwatchedCount}" MinWidth="26" Height="26" CornerRadius="13" Padding="7,0"
                                                                     Margin="8" HorizontalAlignment="Right" VerticalAlignment="Top"
                                                                     Background="{DynamicResource AccentBrush}" ToolTip.Tip="Episodes not watched yet">

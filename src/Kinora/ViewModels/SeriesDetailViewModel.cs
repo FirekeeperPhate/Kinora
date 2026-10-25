@@ -80,7 +80,21 @@ public partial class EpisodeRow : ObservableObject
     [ObservableProperty]
     public partial Bitmap? Thumb { get; set; }
 
-    public void NotifyWatched() => OnPropertyChanged(nameof(Watched));
+    /// <summary>How much of it the built-in player has shown, 0-1, while it is kept to resume; null otherwise.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsStarted), nameof(StartedText))]
+    public partial double? Started { get; set; }
+
+    /// <summary>Begun and not finished: a bar under its picture.</summary>
+    public bool IsStarted => Started is not null && !Watched;
+
+    public string StartedText => Started is { } f ? $"Started: {f:P0} seen" : "";
+
+    public void NotifyWatched()
+    {
+        OnPropertyChanged(nameof(Watched));
+        OnPropertyChanged(nameof(IsStarted));
+    }
 
     [RelayCommand]
     private void Play()
@@ -227,9 +241,14 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
             var have = onDisk.SelectMany(e => e.Number is { } a ? Enumerable.Range(a, Math.Max(1, (e.NumberEnd ?? a) - a + 1)) : []).ToHashSet();
             rows.AddRange(tmdb.Episodes.Where(te => !have.Contains(te.Number)).Select(te => new EpisodeRow(this, null, te, n)));
         }
+        var started = _s.Database.GetPlaybackPositions(Core.Data.PlaybackKind.Episode);
         foreach (var row in rows.OrderBy(r => r.Episode?.Number ?? r.Missing?.Number ?? int.MaxValue)
                                 .ThenBy(r => r.Episode?.VideoFile, StringComparer.OrdinalIgnoreCase))
+        {
+            if (row.Episode is { } e)
+                row.Started = Core.Playback.PlaybackRules.SeenFraction(started.GetValueOrDefault(e.Id));
             Episodes.Add(row);
+        }
         _ = LoadThumbsAsync(Episodes.ToList(), _thumbs.Token);
     }
 
@@ -383,6 +402,13 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
     public void Reveal(Episode e) => _owner.RevealEpisode(Card, e);
     public Task FindSubtitles(Episode e) => _owner.FindSubtitlesAsync(Card, e);
     public Task DeleteEpisode(Episode e) => _owner.DeleteEpisodeAsync(Card, e);
+
+    /// <summary>After the player: the episode's bar follows where it stopped.</summary>
+    public void SetStarted(long episodeId, double? seen)
+    {
+        if (Episodes.FirstOrDefault(r => r.Episode?.Id == episodeId) is { } row)
+            row.Started = seen;
+    }
     public bool HasOpenSubtitlesKey => _owner.HasOpenSubtitlesKey;
     public void SetWatched(IReadOnlyCollection<Episode> episodes, bool watched) => _owner.SetEpisodesWatched(Card, episodes, watched);
 

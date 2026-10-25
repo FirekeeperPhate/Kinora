@@ -7,6 +7,7 @@ using Kinora.Core;
 using Kinora.Core.Data;
 using Kinora.Core.Models;
 using Kinora.Core.Online;
+using Kinora.Core.Playback;
 using Kinora.Core.Platform;
 using Kinora.Core.Scanning;
 using Kinora.Core.Settings;
@@ -193,6 +194,19 @@ public partial class MainWindowViewModel : ViewModelBase
         if (_s.Settings.ScanOnStartup && _roots.Count > 0)
             _ = RunScanAsync(full: false);
         _ = CheckForUpdatesOnStartupAsync();
+        _ = WarmUpPlayerAsync();
+    }
+
+    /// <summary>
+    /// VLC's engine is started in the background soon after Kinora opens, so the first Play
+    /// doesn't wait for it (the first start after a reboot or an update can take seconds).
+    /// </summary>
+    private async Task WarmUpPlayerAsync()
+    {
+        if (!_s.Settings.UseBuiltInPlayer)
+            return;
+        await Task.Delay(TimeSpan.FromSeconds(2));
+        await _s.Video.GetAsync();
     }
 
     private void Reload()
@@ -201,6 +215,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         var movies = _s.Database.GetMovies().Where(m => _roots.ContainsKey(m.RootId)).ToList();
         var cast = _s.Database.GetCastNames();
+        var started = _s.Database.GetPlaybackPositions(PlaybackKind.Movie);
         var oldMovies = _movies.ToDictionary(c => c.Movie.Id);
         _movies.Clear();
         foreach (var movie in movies)
@@ -211,6 +226,7 @@ public partial class MainWindowViewModel : ViewModelBase
             else
                 card = new MovieCardViewModel(this, _s.PosterLoader, movie, names);
             card.IsUnavailable = _unavailable.Contains(movie.RootId);
+            card.Started = PlaybackRules.SeenFraction(started.GetValueOrDefault(movie.Id));
             _movies.Add(card);
         }
 
@@ -826,6 +842,17 @@ public partial class MainWindowViewModel : ViewModelBase
         if (Player == player)
             Player = null;
         player.Dispose();
+        // The "started" ring follows where it stopped (or goes, once watched)
+        var seen = PlaybackRules.SeenFraction(_s.Database.GetPlayback(player.Kind, player.ItemId));
+        if (player.Kind == PlaybackKind.Movie)
+        {
+            if (_movies.FirstOrDefault(c => c.Movie.Id == player.ItemId) is { } card)
+                card.Started = seen;
+        }
+        else
+        {
+            SeriesDetail?.SetStarted(player.ItemId, seen);
+        }
     }
 
     public async void Reveal(CardViewModel card)

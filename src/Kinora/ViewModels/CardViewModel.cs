@@ -95,8 +95,22 @@ public abstract partial class CardViewModel : ViewModelBase, IPosterHolder
         OnPropertyChanged(string.Empty);
     }
 
+    /// <summary>How much of it the built-in player has shown, 0-1, while it is kept to resume; null otherwise.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsStarted), nameof(StartedAngle), nameof(StartedText))]
+    public partial double? Started { get; set; }
+
+    /// <summary>Begun and not finished: the ring instead of the check.</summary>
+    public bool IsStarted => Started is not null && !Watched;
+
+    /// <summary>The ring's arc; a sliver at least, so a few minutes still show.</summary>
+    public double StartedAngle => Math.Max(14, (Started ?? 0) * 360);
+
+    public string StartedText => Started is { } f ? $"Started: {f:P0} seen" : "";
+
     public void NotifyWatchedChanged()
     {
+        OnPropertyChanged(nameof(IsStarted));
         OnPropertyChanged(nameof(Watched));
         OnPropertyChanged(nameof(WatchedMenuText));
         OnPropertyChanged(nameof(UnwatchedCount));

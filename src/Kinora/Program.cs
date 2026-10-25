@@ -9,6 +9,12 @@ internal sealed class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        // For the packages' build: write VLC's module cache next to the modules, and quit
+        if (args is ["--vlc-plugins-cache"])
+        {
+            Environment.ExitCode = Services.VideoEngine.WritePluginsCache() ? 0 : 1;
+            return;
+        }
         // Held while Kinora runs: the Windows installer asks to close it before replacing files
         using var running = OperatingSystem.IsWindows() ? new Mutex(false, "Kinora.Running") : null;
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);

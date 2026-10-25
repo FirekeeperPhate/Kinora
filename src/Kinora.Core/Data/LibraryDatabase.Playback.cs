@@ -24,6 +24,15 @@ public sealed partial class LibraryDatabase
             new { kind = KindText(kind), id });
     }
 
+    /// <summary>Every place kept for one kind, by item id: the "started" marks of a whole library in one read.</summary>
+    public Dictionary<long, PlaybackPosition> GetPlaybackPositions(PlaybackKind kind)
+    {
+        using var c = Open();
+        return c.Query<(long Id, long PositionMs, long LengthMs)>(
+                    "SELECT item_id, position_ms, length_ms FROM playback WHERE kind = @kind", new { kind = KindText(kind) })
+                .ToDictionary(r => r.Id, r => new PlaybackPosition(r.PositionMs, r.LengthMs));
+    }
+
     public void SavePlayback(PlaybackKind kind, long id, long positionMs, long lengthMs)
     {
         using var c = Open();

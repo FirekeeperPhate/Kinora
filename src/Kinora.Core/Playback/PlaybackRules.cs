@@ -15,6 +15,10 @@ public static class PlaybackRules
     public static bool WorthResuming(long positionMs, long lengthMs) =>
         positionMs >= MinimumResume.TotalMilliseconds && !CountsAsWatched(positionMs, lengthMs);
 
+    /// <summary>How much of it has been seen, 0-1, for the "started" mark; null for nothing kept.</summary>
+    public static double? SeenFraction(Data.PlaybackPosition? kept) =>
+        kept is { LengthMs: > 0 } p ? Math.Clamp((double)p.PositionMs / p.LengthMs, 0, 1) : null;
+
     /// <summary>VLC's track names, for a menu: "Track 1 - [English]" → "English"; "Commentary - [English]" → "Commentary (English)".</summary>
     public static string TrackName(string? raw, int index)
     {
