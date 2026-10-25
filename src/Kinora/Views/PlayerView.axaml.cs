@@ -5,6 +5,7 @@ using Avalonia.Interactivity;
 using Avalonia.Controls.Primitives;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Kinora.Services;
 using Kinora.ViewModels;
 
 namespace Kinora.Views;
@@ -20,6 +21,7 @@ public partial class PlayerView : UserControl
     private PlayerViewModel? _vm;
     private Window? _window;
     private PlayerOverlayWindow? _overlay;
+    private Services.MediaKeys? _mediaKeys;
     private WindowState _stateBeforeFullScreen = WindowState.Normal;
     private bool _menuOpen;
     private Point _lastPointer;
@@ -91,8 +93,10 @@ public partial class PlayerView : UserControl
         _vm.FullScreenToggleRequested += ToggleFullScreen;
         _vm.PropertyChanged += (_, args) =>
         {
-            if (args.PropertyName == nameof(PlayerViewModel.IsPlaying))
-                ShowControls();
+            if (args.PropertyName != nameof(PlayerViewModel.IsPlaying))
+                return;
+            ShowControls();
+            _mediaKeys?.SetPlaying(_vm?.IsPlaying == true);
         };
     }
 
@@ -119,11 +123,44 @@ public partial class PlayerView : UserControl
             FitOverlay();
             ShowControls();
         }, DispatcherPriority.Loaded);
+
+        // The media keys, also when Kinora isn't the window in front (Windows)
+        _mediaKeys = MediaKeys.TryCreate(_window.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero);
+        if (_mediaKeys is not null && _vm is not null)
+        {
+            _mediaKeys.Pressed += OnMediaKey;
+            _mediaKeys.SetInfo(_vm.Title, _vm.Subtitle, _vm.Picture);
+            _mediaKeys.SetPlaying(_vm.IsPlaying);
+        }
+    }
+
+    private void OnMediaKey(MediaKey key)
+    {
+        if (_vm is not { } vm)
+            return;
+        switch (key)
+        {
+            case MediaKey.Play when !vm.IsPlaying:
+            case MediaKey.Pause when vm.IsPlaying:
+                vm.PlayPause();
+                break;
+            case MediaKey.Stop:
+                vm.Close();
+                break;
+            case MediaKey.FastForward:
+                vm.SeekBy(30);
+                break;
+            case MediaKey.Rewind:
+                vm.SeekBy(-10);
+                break;
+        }
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         _hideTimer.Stop();
+        _mediaKeys?.Dispose();
+        _mediaKeys = null;
         if (_overlay is not null)
         {
             _overlay.Close();
@@ -239,10 +276,16 @@ public partial class PlayerView : UserControl
             SubtitlesButton.Flyout?.Hide();
             return true;
         }
+        // Where Windows' media controls are on, the media keys come from there (once, focused or not)
+        if (_mediaKeys is not null && e.Key is Key.MediaPlayPause or Key.MediaStop or Key.MediaNextTrack or Key.MediaPreviousTrack)
+            return false;
         switch (e.Key)
         {
             case Key.Space or Key.K or Key.MediaPlayPause:
                 vm.PlayPause();
+                break;
+            case Key.MediaStop:
+                vm.Close();
                 break;
             case Key.Left or Key.J:
                 vm.SeekBy(-10);

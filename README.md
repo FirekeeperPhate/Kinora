@@ -86,11 +86,15 @@ controls sit over it and go away after three seconds without moving the mouse.
 - Keys: Space or K play/pause, ← →  back 10 s / forward 30 s (Ctrl+→ a minute), ↑ ↓ volume, M mute,
   F or a double click full screen, A and S the next audio track or subtitle, Esc leaves full screen,
   then the player.
+- Media keys (Windows): play/pause, stop, and the forward and rewind buttons of remotes work even
+  when Kinora is minimized or another window is in front, and so do the buttons of Bluetooth
+  headphones. Windows' media panel shows the title and the poster. Windows sends the keys to the
+  app that played last: while a video plays that is Kinora, not the music paused for it.
 - It starts again where you stopped (past the first minute; "Start over" goes back to the
   beginning), and marks the movie or episode watched once 90% is behind or it reaches the end.
 - Settings → Playback: Kinora's player, or the app the system opens videos with.
 
-On Windows VLC's engine comes with Kinora (64-bit libvlc 3.0, about 20 MB more in the setup). On
+On Windows VLC's engine comes with Kinora (64-bit libvlc 3.0; the setup is about 58 MB). On
 macOS and Linux Kinora uses the VLC installed on the computer (`/Applications/VLC.app`, or the
 `vlc` package); without it, Play opens the system's player and says why.
 

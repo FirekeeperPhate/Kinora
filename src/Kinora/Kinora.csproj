@@ -9,6 +9,13 @@
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
 
+  <!-- Built for Windows (on Windows without a runtime given, or for win-*): with Windows' own API
+       too, for the media keys and the media panel. Linux and macOS builds stay plain net10.0. -->
+  <PropertyGroup Condition="('$(RuntimeIdentifier)' == '' And '$(OS)' == 'Windows_NT') Or $(RuntimeIdentifier.StartsWith('win'))">
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
   <ItemGroup>
     <!-- The big icon files are for the installers and the macOS bundle, not for the app itself -->
     <AvaloniaResource Include="Assets\**" Exclude="Assets\kinora.icns;Assets\kinora-512.png;Assets\kinora-1024.png" />

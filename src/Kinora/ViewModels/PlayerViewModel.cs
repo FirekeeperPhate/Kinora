@@ -10,7 +10,8 @@ using LibVLCSharp.Shared;
 namespace Kinora.ViewModels;
 
 /// <summary>What the built-in player plays, and what happens once it has been seen.</summary>
-public sealed record PlayRequest(string Path, string Title, string? Subtitle, PlaybackKind Kind, long ItemId, Action MarkWatched);
+/// <param name="Picture">The poster in Kinora's cache, for Windows' media panel.</param>
+public sealed record PlayRequest(string Path, string Title, string? Subtitle, PlaybackKind Kind, long ItemId, Action MarkWatched, string? Picture = null);
 
 /// <summary>An audio or subtitle track in the player's menus.</summary>
 public sealed partial class TrackChoice : ObservableObject
@@ -94,6 +95,7 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
     public string Title => _request.Title;
     public string? Subtitle => _request.Subtitle;
     public bool HasSubtitle => !string.IsNullOrEmpty(_request.Subtitle);
+    public string? Picture => _request.Picture;
 
     [ObservableProperty]
     public partial bool IsPlaying { get; private set; }

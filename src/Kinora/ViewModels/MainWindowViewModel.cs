@@ -759,14 +759,16 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public void Play(MovieCardViewModel card, string? videoFile) =>
         PlayFile(card.RootId, videoFile ?? card.Movie.VideoFile, card.Title, card.Movie.Year?.ToString(CultureInfo.InvariantCulture),
-                 PlaybackKind.Movie, card.Movie.Id, () => SetWatched(card, true));
+                 PlaybackKind.Movie, card.Movie.Id, () => SetWatched(card, true), PosterPath(card.Movie.ThumbKey));
 
     public void PlayEpisode(SeriesCardViewModel card, Episode episode)
     {
         var what = string.Join(" · ", new[] { episode.Code, episode.Title }.Where(s => !string.IsNullOrWhiteSpace(s)));
         PlayFile(card.RootId, episode.VideoFile, card.Title, what, PlaybackKind.Episode, episode.Id,
-                 () => SetEpisodesWatched(card, [episode], true));
+                 () => SetEpisodesWatched(card, [episode], true), PosterPath(card.Series.ThumbKey));
     }
+
+    private string? PosterPath(string? key) => key is null ? null : _s.Posters.PathFor(key);
 
     /// <summary>The first episode not seen yet, in order; the first one if all are seen.</summary>
     public void PlayNextEpisode(SeriesCardViewModel card)
@@ -788,7 +790,7 @@ public partial class MainWindowViewModel : ViewModelBase
     /// Plays a video: in the built-in player when the settings say so and VLC's engine starts,
     /// otherwise with the app the system opens videos with.
     /// </summary>
-    private async void PlayFile(long rootId, string relative, string title, string? subtitle, PlaybackKind kind, long itemId, Action markWatched)
+    private async void PlayFile(long rootId, string relative, string title, string? subtitle, PlaybackKind kind, long itemId, Action markWatched, string? picture)
     {
         if (!_roots.TryGetValue(rootId, out var root))
             return;
@@ -804,7 +806,7 @@ public partial class MainWindowViewModel : ViewModelBase
             if (vlc is not null)
             {
                 Player?.Close();
-                Player = new PlayerViewModel(_s, vlc, new PlayRequest(path, title, subtitle, kind, itemId, markWatched), ClosePlayer);
+                Player = new PlayerViewModel(_s, vlc, new PlayRequest(path, title, subtitle, kind, itemId, markWatched, picture), ClosePlayer);
                 return;
             }
             ShowStatusFor($"{error} The video opens in the system's player.", 16);
