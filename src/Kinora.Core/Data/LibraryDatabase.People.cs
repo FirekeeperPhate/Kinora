@@ -55,6 +55,31 @@ public sealed partial class LibraryDatabase
         return json is null ? null : TmdbPerson.FromJson(json);
     }
 
+    /// <summary>TMDB's cast of a title as it was asked once (for the photos), or null if never asked.</summary>
+    public List<TmdbCast>? GetTmdbCredits(bool series, string tmdbId)
+    {
+        using var c = Open();
+        var json = c.QuerySingleOrDefault<string>("SELECT data FROM tmdb_credits WHERE kind = @kind AND tmdb_id = @tmdbId",
+                                                    new { kind = series ? "tv" : "movie", tmdbId });
+        try
+        {
+            return json is null ? null : System.Text.Json.JsonSerializer.Deserialize<List<TmdbCast>>(json);
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return null;
+        }
+    }
+
+    public void SaveTmdbCredits(bool series, string tmdbId, IReadOnlyList<TmdbCast> cast)
+    {
+        using var c = Open();
+        c.Execute("""
+            INSERT INTO tmdb_credits (kind, tmdb_id, data, fetched) VALUES (@kind, @tmdbId, @data, @fetched)
+            ON CONFLICT(kind, tmdb_id) DO UPDATE SET data = excluded.data, fetched = excluded.fetched
+            """, new { kind = series ? "tv" : "movie", tmdbId, data = System.Text.Json.JsonSerializer.Serialize(cast), fetched = DateTimeOffset.UtcNow.ToUnixTimeSeconds() });
+    }
+
     /// <summary>A person's TMDB id, if any cast entry in the library knows it.</summary>
     public string? FindPersonId(string name)
     {

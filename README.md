@@ -68,6 +68,10 @@ With a TMDB API key (Settings), what the folders don't say comes from The Movie 
   says always wins, and a rescan keeps what came from TMDB (it is kept apart, in its own table,
   and merged again whenever a movie is rebuilt from its folder);
 - missing posters are downloaded into Kinora's cache; backdrops and logos when a movie page opens;
+- the actors on a movie or show page get their photos: the one the nfo names when it can be
+  reached (a web address, a file in the folder, Kodi's `.actors`; Jellyfin's paths on its own
+  server can't), otherwise TMDB's, from the title's credits (asked once per title, matched by
+  TMDB id or by name). Without a photo, the initials;
 - with **Save downloaded metadata and pictures in the movie folders** on (off by default) a
   `movie.nfo` and the missing pictures are written next to the movie; existing files are never
   replaced.

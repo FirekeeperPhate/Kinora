@@ -131,6 +131,7 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
 {
     private readonly MainWindowViewModel _owner;
     private readonly AppServices _s;
+    private readonly CancellationTokenSource _photos = new();
     private readonly LibraryRoot? _root;
     private readonly bool _rootUnavailable;
     private readonly Dictionary<int, TmdbSeason> _tmdbSeasons;
@@ -146,7 +147,9 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
         _root = root;
         _rootUnavailable = rootUnavailable;
         Card = card;
-        Cast = _s.Database.GetSeriesCast(card.Series.Id);
+        Cast = _s.Database.GetSeriesCast(card.Series.Id).Select(c => new CastItem(c)).ToList();
+        var folder = root is not null && !rootUnavailable ? RelPath.ToFull(root.Path, card.Series.Folder) : null;
+        _ = CastItem.LoadPhotosAsync(_s, Cast, series: true, card.Series.TmdbId, folder, _photos.Token);
         _episodes = _s.Database.GetEpisodes(card.Series.Id);
         _tmdbSeasons = card.Series.TmdbId is { } id ? _s.Database.GetTmdbSeasons(id).ToDictionary(x => x.Number) : [];
         CanIdentify = card.Series.NeedsMatch || (root is not null && _s.Database.GetMatch(root.Id, card.Series.Folder) is not null);
@@ -183,7 +186,7 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
     public IReadOnlyList<string> Genres => Series.GenreList;
     public string? Networks => Series.StudioList.Count > 0 ? string.Join(", ", Series.StudioList.Take(3)) : null;
     public string EpisodesText => Format.Count(_episodes.Count, "episode", "episodes") + (Series.WatchedCount > 0 ? $", {Series.WatchedCount:N0} watched" : "");
-    public List<CastMember> Cast { get; }
+    public List<CastItem> Cast { get; }
     public bool HasCast => Cast.Count > 0;
     public bool IsUnavailable => _rootUnavailable;
     public bool HasTmdbKey => _owner.HasTmdbKey;
@@ -459,7 +462,7 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
     private void AnotherRandom() => _owner.RandomCommand.Execute(null);
 
     [RelayCommand]
-    private void OpenPerson(CastMember member) => _owner.OpenPerson(member.Name, member.TmdbId, director: false);
+    private void OpenPerson(CastItem actor) => _owner.OpenPerson(actor.Name, actor.Member.TmdbId, director: false);
 
     [RelayCommand]
     private void OpenDirector(string name) => _owner.OpenPerson(name, null, director: true);
@@ -473,6 +476,9 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
             return;
         _disposed = true;
         _thumbs.Cancel();
+        _photos.Cancel();
+        foreach (var actor in Cast)
+            actor.Release();
         foreach (var row in Episodes)
             row.Thumb?.Dispose();
         if (!ReferenceEquals(Backdrop, Poster))

@@ -201,7 +201,7 @@ public sealed class SeriesScanner(LibraryDatabase db, ImageCache posters)
                               .Select(n => new Season { Number = n, PosterFile = SeasonPoster(rel, names, subFiles, n) })
                               .ToList();
 
-        var cast = (nfo?.Actors ?? []).Take(40).Select(a => new CastMember { Name = a.Name, Role = a.Role, TmdbId = a.TmdbId }).ToList();
+        var cast = (nfo?.Actors ?? []).Take(40).Select(a => new CastMember { Name = a.Name, Role = a.Role, TmdbId = a.TmdbId, Thumb = a.Thumb }).ToList();
         online.Apply(series, cast, seasons, episodes, showTitleIsGuess: nfo?.Title is null, guessed, posters);
 
         var dates = episodes.Select(e => e.DateAdded).DefaultIfEmpty(DateTimeOffset.UtcNow.ToUnixTimeSeconds()).ToList();

@@ -87,12 +87,12 @@ public sealed class PlaybackTests : IDisposable
     {
         var path = Path.Combine(_dir, "old.db");
         _ = new LibraryDatabase(path);
-        // As Kinora 0.1.3 left it: schema 4, no playback table
+        // As Kinora 0.1.3 left it: schema 4 (no playback, no tmdb_credits, no actor photos)
         using (var c = new SqliteConnection($"Data Source={path};Pooling=False"))
         {
             c.Open();
             using var cmd = c.CreateCommand();
-            cmd.CommandText = "DROP TABLE playback; PRAGMA user_version = 4;";
+            cmd.CommandText = "DROP TABLE playback; DROP TABLE tmdb_credits; ALTER TABLE cast_members DROP COLUMN thumb; ALTER TABLE series_cast DROP COLUMN thumb; PRAGMA user_version = 4;";
             cmd.ExecuteNonQuery();
         }
         SqliteConnection.ClearAllPools();

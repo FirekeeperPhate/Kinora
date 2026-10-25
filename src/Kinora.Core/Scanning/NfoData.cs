@@ -83,4 +83,5 @@ public sealed class NfoData
     }
 }
 
-public sealed record NfoActor(string Name, string? Role, int Order, string? TmdbId = null);
+/// <param name="Thumb">The photo the nfo names: a web address, or a file (Kodi puts them in .actors).</param>
+public sealed record NfoActor(string Name, string? Role, int Order, string? TmdbId = null, string? Thumb = null);

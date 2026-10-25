@@ -50,7 +50,8 @@ public sealed class TmdbMovie
     }
 }
 
-public sealed record TmdbCast(string Name, string? Character, string? Id = null);
+/// <param name="ProfilePath">The photo on TMDB's image server.</param>
+public sealed record TmdbCast(string Name, string? Character, string? Id = null, string? ProfilePath = null);
 
 public sealed record TmdbSearchResult(string Id, string Title, string? OriginalTitle, int? Year, string? Overview,
                                       string? PosterPath, double Popularity)

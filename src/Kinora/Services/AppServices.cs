@@ -35,6 +35,9 @@ public sealed class AppServices
     /// <summary>The built-in player's engine, started when first needed.</summary>
     public VideoEngine Video { get; } = new();
 
+    /// <summary>The actors' photos on the movie and show pages.</summary>
+    public CastPhotos CastPhotos { get; }
+
     public AppServices()
     {
         PosterLoader = new PosterLoader(Posters);
@@ -44,6 +47,7 @@ public sealed class AppServices
         SeriesFetcher = new SeriesFetcher(Database, SeriesScanner, Posters);
         Mover = new Kinora.Core.Moving.LibraryMover(Database, Scanner, SeriesScanner);
         Deleter = new Kinora.Core.Moving.LibraryDeleter(Database, Scanner, SeriesScanner);
+        CastPhotos = new CastPhotos(Database, People);
     }
 
     /// <summary>Null without a key: Kinora then works with the folders alone.</summary>

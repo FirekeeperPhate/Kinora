@@ -61,6 +61,18 @@ internal sealed class FakeTmdb : HttpMessageHandler
             return Json(HttpStatusCode.OK, $$"""{"results":[{{hits}}]}""");
         }
 
+        // The cast with their photos, for the cast pictures
+        if (path == "movie/949/credits")
+            return Json(HttpStatusCode.OK, """
+                {"cast":[{"id":1158,"name":"Al Pacino","character":"Hanna","profile_path":"/pacino.jpg"},
+                         {"id":380,"name":"Robert De Niro","character":"McCauley","profile_path":"/deniro.jpg"},
+                         {"id":10127,"name":"Jon Voight","character":"Nate","profile_path":null}]}
+                """);
+        if (path == "tv/1396/aggregate_credits")
+            return Json(HttpStatusCode.OK, """
+                {"cast":[{"id":17419,"name":"Bryan Cranston","roles":[{"character":"Walter White"}],"profile_path":"/cranston.jpg"}]}
+                """);
+
         if (path == "tv/1396")
             return Json(HttpStatusCode.OK, """
                 {

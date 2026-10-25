@@ -87,4 +87,7 @@ public sealed class CastMember
 
     /// <summary>The person on TMDB, when the nfo or TMDB said it.</summary>
     public string? TmdbId { get; set; }
+
+    /// <summary>The photo the nfo names (a web address or a file), as it is written there.</summary>
+    public string? Thumb { get; set; }
 }

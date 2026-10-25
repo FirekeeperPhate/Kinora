@@ -129,7 +129,7 @@ public sealed class TmdbClient : IDisposable
             {
                 foreach (var c in credits.GetProperty("cast").EnumerateArray().Take(30))
                     if (Str(c, "name") is { } name)
-                        movie.Cast.Add(new TmdbCast(name, Str(c, "character"), c.TryGetProperty("id", out var pid) ? pid.GetRawText() : null));
+                        movie.Cast.Add(new TmdbCast(name, Str(c, "character"), c.TryGetProperty("id", out var pid) ? pid.GetRawText() : null, Str(c, "profile_path")));
                 foreach (var c in credits.GetProperty("crew").EnumerateArray())
                     if (Str(c, "job") == "Director" && Str(c, "name") is { } name && !movie.Directors.Contains(name))
                         movie.Directors.Add(name);
@@ -269,7 +269,7 @@ public sealed class TmdbClient : IDisposable
                     if (Str(c, "name") is { } name)
                     {
                         var role = c.TryGetProperty("roles", out var roles) && roles.GetArrayLength() > 0 ? Str(roles[0], "character") : null;
-                        series.Cast.Add(new TmdbCast(name, role, c.TryGetProperty("id", out var pid) ? pid.GetRawText() : null));
+                        series.Cast.Add(new TmdbCast(name, role, c.TryGetProperty("id", out var pid) ? pid.GetRawText() : null, Str(c, "profile_path")));
                     }
             if (r.TryGetProperty("content_ratings", out var ratings))
             {
@@ -311,6 +311,40 @@ public sealed class TmdbClient : IDisposable
                     Str(e, "still_path")));
             }
             return result;
+        }
+    }
+
+    /// <summary>
+    /// The cast of a movie or a show with their photos (a show: all its seasons together), for the
+    /// photos on a page. Empty when TMDB doesn't know the title.
+    /// </summary>
+    public async Task<List<TmdbCast>> GetCreditsAsync(bool series, string tmdbId, CancellationToken ct)
+    {
+        JsonDocument doc;
+        try
+        {
+            doc = await GetJsonAsync(series ? $"tv/{Uri.EscapeDataString(tmdbId)}/aggregate_credits" : $"movie/{Uri.EscapeDataString(tmdbId)}/credits",
+                [("language", Language)], ct);
+        }
+        catch (TmdbException e) when (e.Status == HttpStatusCode.NotFound)
+        {
+            return [];
+        }
+        using (doc)
+        {
+            var cast = new List<TmdbCast>();
+            if (!doc.RootElement.TryGetProperty("cast", out var list))
+                return cast;
+            foreach (var c in list.EnumerateArray())
+            {
+                if (Str(c, "name") is not { } name)
+                    continue;
+                var role = series
+                    ? c.TryGetProperty("roles", out var roles) && roles.GetArrayLength() > 0 ? Str(roles[0], "character") : null
+                    : Str(c, "character");
+                cast.Add(new TmdbCast(name, role, c.TryGetProperty("id", out var pid) ? pid.GetRawText() : null, Str(c, "profile_path")));
+            }
+            return cast;
         }
     }
 

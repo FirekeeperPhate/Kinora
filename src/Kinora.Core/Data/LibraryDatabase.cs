@@ -11,7 +11,7 @@ namespace Kinora.Core.Data;
 /// </summary>
 public sealed partial class LibraryDatabase
 {
-    private const int SchemaVersion = 5;
+    private const int SchemaVersion = 6;
 
     private readonly string _connectionString;
 
@@ -271,6 +271,22 @@ public sealed partial class LibraryDatabase
                 );
                 """, transaction: tx);
         }
+        if (version < 6)
+        {
+            c.Execute("""
+                -- The actor photos: the one the nfo names (read again when a folder changes, or on a
+                -- full scan), and TMDB's credits of a title, asked once, for the photos of its cast
+                ALTER TABLE cast_members ADD COLUMN thumb TEXT;
+                ALTER TABLE series_cast ADD COLUMN thumb TEXT;
+                CREATE TABLE tmdb_credits (
+                    kind TEXT NOT NULL,
+                    tmdb_id TEXT NOT NULL,
+                    data TEXT NOT NULL,
+                    fetched INTEGER NOT NULL,
+                    PRIMARY KEY (kind, tmdb_id)
+                );
+                """, transaction: tx);
+        }
         c.Execute($"PRAGMA user_version = {SchemaVersion};", transaction: tx);
         tx.Commit();
     }
@@ -358,7 +374,7 @@ public sealed partial class LibraryDatabase
                 cast[i].MovieId = movie.Id;
                 cast[i].Ord = i;
             }
-            c.Execute("INSERT INTO cast_members (movie_id, ord, name, role, tmdb_id) VALUES (@MovieId, @Ord, @Name, @Role, @TmdbId)", cast, tx);
+            c.Execute("INSERT INTO cast_members (movie_id, ord, name, role, tmdb_id, thumb) VALUES (@MovieId, @Ord, @Name, @Role, @TmdbId, @Thumb)", cast, tx);
         }
         tx.Commit();
     }

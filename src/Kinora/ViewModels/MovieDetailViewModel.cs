@@ -19,6 +19,7 @@ public partial class MovieDetailViewModel : ViewModelBase, IDisposable
     private readonly LibraryRoot? _root;
     private readonly bool _rootUnavailable;
     private bool _disposed;
+    private readonly CancellationTokenSource _photos = new();
 
     public MovieDetailViewModel(MainWindowViewModel owner, AppServices services, MovieCardViewModel card, LibraryRoot? root, bool rootUnavailable)
     {
@@ -27,7 +28,7 @@ public partial class MovieDetailViewModel : ViewModelBase, IDisposable
         _root = root;
         _rootUnavailable = rootUnavailable;
         Card = card;
-        Cast = _s.Database.GetCast(card.Movie.Id);
+        Cast = _s.Database.GetCast(card.Movie.Id).Select(c => new CastItem(c)).ToList();
         CanIdentify = card.Movie.NeedsMatch || (root is not null && _s.Database.GetMatch(root.Id, card.Movie.VideoFile) is not null);
 
         var m = card.Movie;
@@ -36,6 +37,8 @@ public partial class MovieDetailViewModel : ViewModelBase, IDisposable
             Versions = all.Select(f => new VideoVersion(Path.GetFileName(f), f)).ToList();
 
         _ = LoadImagesAsync();
+        var folder = root is not null && !rootUnavailable ? RelPath.ToFull(root.Path, m.Folder) : null;
+        _ = CastItem.LoadPhotosAsync(_s, Cast, series: false, m.TmdbId, folder, _photos.Token);
     }
 
     public MovieCardViewModel Card { get; }
@@ -57,7 +60,7 @@ public partial class MovieDetailViewModel : ViewModelBase, IDisposable
     public string? Countries => Join(Movie.CountryList);
     public string? Collection => Movie.Collection;
     public string? Subtitles => Join(Movie.SubtitleList.Select(Format.Language));
-    public List<CastMember> Cast { get; }
+    public List<CastItem> Cast { get; }
     public bool HasCast => Cast.Count > 0;
     public IReadOnlyList<VideoVersion>? Versions { get; }
     public bool HasVersions => Versions is not null;
@@ -230,7 +233,7 @@ public partial class MovieDetailViewModel : ViewModelBase, IDisposable
     private void AnotherRandom() => _owner.RandomCommand.Execute(null);
 
     [RelayCommand]
-    private void OpenPerson(CastMember member) => _owner.OpenPerson(member.Name, member.TmdbId, director: false);
+    private void OpenPerson(CastItem actor) => _owner.OpenPerson(actor.Name, actor.Member.TmdbId, director: false);
 
     [RelayCommand]
     private void OpenDirector(string name) => _owner.OpenPerson(name, null, director: true);
@@ -243,6 +246,9 @@ public partial class MovieDetailViewModel : ViewModelBase, IDisposable
         if (_disposed)
             return;
         _disposed = true;
+        _photos.Cancel();
+        foreach (var actor in Cast)
+            actor.Release();
         if (!ReferenceEquals(Backdrop, Poster))
             Backdrop?.Dispose();
         Poster?.Dispose();

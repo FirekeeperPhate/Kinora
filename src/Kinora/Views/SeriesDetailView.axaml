@@ -299,13 +299,24 @@
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="core:CastMember">
-                                <Button Classes="person" Width="210" ToolTip.Tip="See this actor's page"
+                            <DataTemplate x:DataType="vm:CastItem">
+                                <Button Classes="person" Width="236" ToolTip.Tip="See this actor's page"
                                         Command="{Binding $parent[UserControl].((vm:SeriesDetailViewModel)DataContext).OpenPersonCommand}" CommandParameter="{Binding}">
-                                    <StackPanel Spacing="2">
-                                        <TextBlock Classes="personName" Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Text="{Binding Role}" Classes="subtle" FontSize="12" TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
+                                    <Grid ColumnDefinitions="Auto,*">
+                                        <!-- The photo, round; the initials while there is none -->
+                                        <Border Width="48" Height="48" CornerRadius="24" ClipToBounds="True" Margin="0,0,12,0"
+                                                Background="{DynamicResource PlaceholderBackground}">
+                                            <Panel>
+                                                <TextBlock Text="{Binding Initials}" Classes="subtle" FontSize="15" FontWeight="SemiBold"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding !HasPhoto}" />
+                                                <Image Source="{Binding Photo}" Stretch="UniformToFill" />
+                                            </Panel>
+                                        </Border>
+                                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                            <TextBlock Classes="personName" Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding Role}" Classes="subtle" FontSize="12" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                    </Grid>
                                 </Button>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
