@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 using Kinora.Core;
 using Kinora.Core.Imaging;
 using Kinora.Core.Models;
+using Kinora.Core.Playback;
 using Kinora.Core.Online;
 using Kinora.Services;
 
@@ -167,7 +168,7 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
                 WatchedCount = group.Count(e => e.Watched),
             });
         }
-        var next = MainWindowViewModel.NextEpisode(_episodes);
+        var next = EpisodeOrder.FirstToWatch(_episodes);
         SelectedSeason = Seasons.FirstOrDefault(t => season is not null && t.Number == season)
                          ?? Seasons.FirstOrDefault(t => t.Number == next?.Season) ?? Seasons.FirstOrDefault();
         _ = LoadImagesAsync();
@@ -203,7 +204,7 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
 
     public string SeasonWatchedText => SelectedSeason is { } t && t.WatchedCount >= t.Count ? "Mark season unwatched" : "Mark season watched";
 
-    public string PlayNextText => MainWindowViewModel.NextEpisode(_episodes) is { } e
+    public string PlayNextText => EpisodeOrder.FirstToWatch(_episodes) is { } e
         ? e.Code.Length > 0 ? $"Play {e.Code}" : "Play"
         : "Play";
 

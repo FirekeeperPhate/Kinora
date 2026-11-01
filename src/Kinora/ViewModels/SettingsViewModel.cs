@@ -45,6 +45,7 @@ public partial class SettingsViewModel : ViewModelBase
         WriteToMediaFolders = _s.Settings.WriteToMediaFolders;
         ScanOnStartup = _s.Settings.ScanOnStartup;
         UseBuiltInPlayer = _s.Settings.UseBuiltInPlayer;
+        AutoPlayNextEpisode = _s.Settings.AutoPlayNextEpisode;
         CardWidth = _s.Settings.CardWidth;
         ScrollSpeed = _s.Settings.ScrollSpeed;
         TmdbKey = _s.Settings.TmdbKey;
@@ -276,6 +277,11 @@ public partial class SettingsViewModel : ViewModelBase
     }
 
     partial void OnUseBuiltInPlayerChanged(bool value) => _s.Settings.UseBuiltInPlayer = value;
+
+    [ObservableProperty]
+    public partial bool AutoPlayNextEpisode { get; set; }
+
+    partial void OnAutoPlayNextEpisodeChanged(bool value) => _s.Settings.AutoPlayNextEpisode = value;
 
     public static string SystemPlayerText => OperatingSystem.IsWindows()
         ? "The app Windows opens videos with"

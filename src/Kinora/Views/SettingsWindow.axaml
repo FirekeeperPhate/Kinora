@@ -197,6 +197,8 @@
                         <TextBlock Classes="subtle" FontSize="12" TextWrapping="Wrap" Margin="28,-6,0,0"
                                    Text="{Binding BuiltInPlayerNote}" />
                         <RadioButton GroupName="Player" IsChecked="{Binding UseSystemPlayer}" Content="{Binding SystemPlayerText}" />
+                        <CheckBox IsChecked="{Binding AutoPlayNextEpisode}" IsEnabled="{Binding UseBuiltInPlayer}"
+                                  Content="At the end of an episode, start the next one after 10 seconds" />
                     </StackPanel>
                 </Border>
 

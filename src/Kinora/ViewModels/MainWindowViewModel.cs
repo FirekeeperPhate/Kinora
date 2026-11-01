@@ -206,7 +206,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (!_s.Settings.UseBuiltInPlayer)
             return;
         await Task.Delay(TimeSpan.FromSeconds(2));
-        await _s.Video.GetAsync();
+        await _s.Video.GetAsync(_s.Settings.SubtitleScale);
     }
 
     private void Reload()
@@ -773,15 +773,37 @@ public partial class MainWindowViewModel : ViewModelBase
 
     // ---- playing and folders ----
 
-    public void Play(MovieCardViewModel card, string? videoFile) =>
-        PlayFile(card.RootId, videoFile ?? card.Movie.VideoFile, card.Title, card.Movie.Year?.ToString(CultureInfo.InvariantCulture),
-                 PlaybackKind.Movie, card.Movie.Id, () => SetWatched(card, true), PosterPath(card.Movie.ThumbKey));
+    public void Play(MovieCardViewModel card, string? videoFile)
+    {
+        if (!_roots.TryGetValue(card.RootId, out var root))
+            return;
+        PlayFile(new PlayRequest(RelPath.ToFull(root.Path, videoFile ?? card.Movie.VideoFile), card.Title,
+                                 card.Movie.Year?.ToString(CultureInfo.InvariantCulture), PlaybackKind.Movie, card.Movie.Id,
+                                 () => SetWatched(card, true), _ => MovieKept(card), PosterPath(card.Movie.ThumbKey),
+                                 FindSubtitles: added => FindSubtitlesAsync(card, added)));
+    }
 
     public void PlayEpisode(SeriesCardViewModel card, Episode episode)
     {
+        if (EpisodeRequest(card, episode) is { } request)
+            PlayFile(request);
+    }
+
+    /// <summary>An episode for the player, which goes on to the ones around it by itself.</summary>
+    private PlayRequest? EpisodeRequest(SeriesCardViewModel card, Episode episode)
+    {
+        if (!_roots.TryGetValue(card.RootId, out var root))
+            return null;
         var what = string.Join(" · ", new[] { episode.Code, episode.Title }.Where(s => !string.IsNullOrWhiteSpace(s)));
-        PlayFile(card.RootId, episode.VideoFile, card.Title, what, PlaybackKind.Episode, episode.Id,
-                 () => SetEpisodesWatched(card, [episode], true), PosterPath(card.Series.ThumbKey));
+        return new PlayRequest(RelPath.ToFull(root.Path, episode.VideoFile), card.Title, what, PlaybackKind.Episode, episode.Id,
+                               () => SetEpisodesWatched(card, [episode], true), _ => EpisodeKept(episode), PosterPath(card.Series.ThumbKey),
+                               TrackScope: $"series:{card.Series.Id}",
+                               Next: () => Neighbour(EpisodeOrder.After),
+                               Previous: () => Neighbour(EpisodeOrder.Before),
+                               FindSubtitles: added => FindSubtitlesAsync(card, episode, added));
+
+        PlayRequest? Neighbour(Func<IEnumerable<Episode>, Episode, Episode?> pick) =>
+            pick(_s.Database.GetEpisodes(card.Series.Id), episode) is { } other ? EpisodeRequest(card, other) : null;
     }
 
     private string? PosterPath(string? key) => key is null ? null : _s.Posters.PathFor(key);
@@ -789,47 +811,36 @@ public partial class MainWindowViewModel : ViewModelBase
     /// <summary>The first episode not seen yet, in order; the first one if all are seen.</summary>
     public void PlayNextEpisode(SeriesCardViewModel card)
     {
-        var next = NextEpisode(_s.Database.GetEpisodes(card.Series.Id));
+        var next = EpisodeOrder.FirstToWatch(_s.Database.GetEpisodes(card.Series.Id));
         if (next is not null)
             PlayEpisode(card, next);
-    }
-
-    public static Episode? NextEpisode(IEnumerable<Episode> episodes)
-    {
-        var ordered = episodes.OrderBy(e => e.Season is 0 or null ? int.MaxValue : e.Season)
-                              .ThenBy(e => e.Number ?? int.MaxValue).ThenBy(e => e.VideoFile, StringComparer.OrdinalIgnoreCase)
-                              .ToList();
-        return ordered.FirstOrDefault(e => !e.Watched && e.Season is not 0) ?? ordered.FirstOrDefault();
     }
 
     /// <summary>
     /// Plays a video: in the built-in player when the settings say so and VLC's engine starts,
     /// otherwise with the app the system opens videos with.
     /// </summary>
-    private async void PlayFile(long rootId, string relative, string title, string? subtitle, PlaybackKind kind, long itemId, Action markWatched, string? picture)
+    private async void PlayFile(PlayRequest request)
     {
-        if (!_roots.TryGetValue(rootId, out var root))
-            return;
-        var path = RelPath.ToFull(root.Path, relative);
-        if (!await ExistsAsync(path))
+        if (!await ExistsAsync(request.Path))
         {
-            ShowStatusFor($"Can't find {path}", 12);
+            ShowStatusFor($"Can't find {request.Path}", 12);
             return;
         }
         if (_s.Settings.UseBuiltInPlayer)
         {
-            var (vlc, error) = await _s.Video.GetAsync();
+            var (vlc, error) = await _s.Video.GetAsync(_s.Settings.SubtitleScale);
             if (vlc is not null)
             {
                 Player?.Close();
-                Player = new PlayerViewModel(_s, vlc, new PlayRequest(path, title, subtitle, kind, itemId, markWatched, picture), ClosePlayer);
+                Player = new PlayerViewModel(_s, vlc, request, ClosePlayer);
                 return;
             }
             ShowStatusFor($"{error} The video opens in the system's player.", 16);
         }
         try
         {
-            Launcher.Open(path);
+            Launcher.Open(request.Path);
         }
         catch (Exception e)
         {
@@ -842,18 +853,14 @@ public partial class MainWindowViewModel : ViewModelBase
         if (Player == player)
             Player = null;
         player.Dispose();
-        // The "started" ring follows where it stopped (or goes, once watched)
-        var seen = PlaybackRules.SeenFraction(_s.Database.GetPlayback(player.Kind, player.ItemId));
-        if (player.Kind == PlaybackKind.Movie)
-        {
-            if (_movies.FirstOrDefault(c => c.Movie.Id == player.ItemId) is { } card)
-                card.Started = seen;
-        }
-        else
-        {
-            SeriesDetail?.SetStarted(player.ItemId, seen);
-        }
     }
+
+    /// <summary>The "started" ring follows where it stopped (or goes, once watched).</summary>
+    private void MovieKept(MovieCardViewModel card) =>
+        card.Started = PlaybackRules.SeenFraction(_s.Database.GetPlayback(PlaybackKind.Movie, card.Movie.Id));
+
+    private void EpisodeKept(Episode episode) =>
+        SeriesDetail?.SetStarted(episode.Id, PlaybackRules.SeenFraction(_s.Database.GetPlayback(PlaybackKind.Episode, episode.Id)));
 
     public async void Reveal(CardViewModel card)
     {
@@ -1555,14 +1562,17 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public bool HasOpenSubtitlesKey => _s.Settings.HasOpenSubtitlesKey;
 
-    public async Task FindSubtitlesAsync(MovieCardViewModel card)
+    /// <param name="added">From the player: given the file saved, to show it at once.</param>
+    public async Task FindSubtitlesAsync(MovieCardViewModel card, Action<string>? added = null)
     {
         if (Dialogs is null || !_roots.TryGetValue(card.RootId, out var root) || !CheckSubtitlesKey())
             return;
         var m = card.Movie;
         var query = new SubtitleQuery(ImdbId: m.ImdbId, TmdbId: m.TmdbId, Title: m.Title, Year: m.Year);
-        using var vm = new SubtitlesViewModel(_s, Dialogs, m.Title, RelPath.ToFull(root.Path, m.VideoFile), query, async name =>
+        var video = RelPath.ToFull(root.Path, m.VideoFile);
+        using var vm = new SubtitlesViewModel(_s, Dialogs, m.Title, video, query, async name =>
         {
+            added?.Invoke(Path.Combine(Path.GetDirectoryName(video)!, name));
             await Task.Run(() => _s.Scanner.RebuildAsync(root, [m], CancellationToken.None));
             var showing = Detail?.Card == card;
             Reload();
@@ -1573,7 +1583,7 @@ public partial class MainWindowViewModel : ViewModelBase
         await Dialogs.ShowSubtitlesAsync(vm);
     }
 
-    public async Task FindSubtitlesAsync(SeriesCardViewModel card, Episode episode)
+    public async Task FindSubtitlesAsync(SeriesCardViewModel card, Episode episode, Action<string>? added = null)
     {
         if (Dialogs is null || !_roots.TryGetValue(card.RootId, out var root) || !CheckSubtitlesKey())
             return;
@@ -1582,8 +1592,10 @@ public partial class MainWindowViewModel : ViewModelBase
             ? new SubtitleQuery(ParentImdbId: s.ImdbId, ParentTmdbId: s.TmdbId, Season: episode.Season, Episode: episode.Number)
             : new SubtitleQuery(ImdbId: episode.ImdbId, Title: $"{s.Title} {episode.Code}".Trim());
         var title = $"{s.Title} · {(episode.Code.Length > 0 ? episode.Code + " · " : "")}{episode.Title}";
-        using var vm = new SubtitlesViewModel(_s, Dialogs, title, RelPath.ToFull(root.Path, episode.VideoFile), query, async name =>
+        var video = RelPath.ToFull(root.Path, episode.VideoFile);
+        using var vm = new SubtitlesViewModel(_s, Dialogs, title, video, query, async name =>
         {
+            added?.Invoke(Path.Combine(Path.GetDirectoryName(video)!, name));
             await Task.Run(() => _s.SeriesScanner.RebuildAsync(root, [s], CancellationToken.None));
             var showing = SeriesDetail?.Card == card;
             Reload();

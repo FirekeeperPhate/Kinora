@@ -11,7 +11,7 @@ namespace Kinora.Core.Data;
 /// </summary>
 public sealed partial class LibraryDatabase
 {
-    private const int SchemaVersion = 6;
+    private const int SchemaVersion = 7;
 
     private readonly string _connectionString;
 
@@ -287,6 +287,35 @@ public sealed partial class LibraryDatabase
                 );
                 """, transaction: tx);
         }
+        if (version < 7)
+        {
+            c.Execute("""
+                -- The audio and subtitle tracks last chosen, by show and in general
+                CREATE TABLE track_choices (
+                    scope TEXT PRIMARY KEY,
+                    audio_name TEXT,
+                    audio_language TEXT,
+                    subtitle_name TEXT,
+                    subtitle_language TEXT
+                );
+                -- When an episode of a show was last played, for "Continue watching"
+                CREATE TABLE series_played (
+                    series_id INTEGER PRIMARY KEY REFERENCES series(id) ON DELETE CASCADE,
+                    updated INTEGER NOT NULL
+                );
+                -- After watching a movie here: offer the move to this library folder
+                ALTER TABLE roots ADD COLUMN watched_move_root INTEGER;
+                -- What Kinora and the Emby or Jellyfin server agreed on at the last sync,
+                -- to tell which of the two changed since
+                CREATE TABLE server_sync (
+                    kind TEXT NOT NULL,
+                    item_id INTEGER NOT NULL,
+                    watched INTEGER NOT NULL,
+                    position_ms INTEGER NOT NULL,
+                    PRIMARY KEY (kind, item_id)
+                );
+                """, transaction: tx);
+        }
         c.Execute($"PRAGMA user_version = {SchemaVersion};", transaction: tx);
         tx.Commit();
     }
@@ -310,7 +339,7 @@ public sealed partial class LibraryDatabase
     public void UpdateRoot(LibraryRoot root)
     {
         using var c = Open();
-        c.Execute("UPDATE roots SET name = @Name, path = @Path, last_scan = @LastScan WHERE id = @Id", root);
+        c.Execute("UPDATE roots SET name = @Name, path = @Path, last_scan = @LastScan, watched_move_root = @WatchedMoveRoot WHERE id = @Id", root);
     }
 
     public void RemoveRoot(long rootId)

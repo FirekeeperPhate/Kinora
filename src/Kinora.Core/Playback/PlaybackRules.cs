@@ -34,6 +34,31 @@ public static class PlaybackRules
         return title.Contains(language, StringComparison.OrdinalIgnoreCase) ? title : $"{title} ({language})";
     }
 
+    /// <summary>The language in VLC's track name: "Commentary - [English]" → "English"; null without one.</summary>
+    public static string? TrackLanguage(string? raw)
+    {
+        var m = System.Text.RegularExpressions.Regex.Match(raw ?? "", @"\[(.+)\]\s*$");
+        return m.Success ? m.Groups[1].Value.Trim() : null;
+    }
+
+    /// <summary>
+    /// The track that goes with what was chosen last time: the same name, otherwise the same
+    /// language; null when this file has neither, and then VLC's own choice stays.
+    /// </summary>
+    public static int? PickTrack(IReadOnlyList<(int Id, string Name, string? Language)> tracks, Data.TrackMemory? remembered)
+    {
+        if (remembered is null)
+            return null;
+        foreach (var t in tracks)
+            if (t.Name.Equals(remembered.Name, StringComparison.OrdinalIgnoreCase))
+                return t.Id;
+        if (remembered.Language is { Length: > 0 } language)
+            foreach (var t in tracks)
+                if (language.Equals(t.Language, StringComparison.OrdinalIgnoreCase))
+                    return t.Id;
+        return null;
+    }
+
     /// <summary>"1:02:13", or "4:05" under an hour.</summary>
     public static string Clock(long ms)
     {

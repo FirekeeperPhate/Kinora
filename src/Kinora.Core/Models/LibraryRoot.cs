@@ -19,5 +19,8 @@ public sealed class LibraryRoot
     public string Path { get; set; } = "";
     public long? LastScan { get; set; }
 
+    /// <summary>After watching a movie from here: offer the move to this library folder.</summary>
+    public long? WatchedMoveRoot { get; set; }
+
     public override string ToString() => Name;
 }

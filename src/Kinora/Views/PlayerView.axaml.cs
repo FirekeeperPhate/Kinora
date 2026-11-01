@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Controls.Primitives;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Kinora.Services;
@@ -79,24 +80,34 @@ public partial class PlayerView : UserControl
             button.Flyout!.Opened += (_, _) => { _menuOpen = true; ShowControls(); };
             button.Flyout!.Closed += (_, _) => { _menuOpen = false; ShowControls(); };
         }
+        AudioPanel.AddHandler(Button.ClickEvent, (_, _) => AudioButton.Flyout?.Hide());
     }
 
     protected override void OnDataContextChanged(EventArgs e)
     {
         base.OnDataContextChanged(e);
         if (_vm is not null)
+        {
             _vm.FullScreenToggleRequested -= ToggleFullScreen;
+            _vm.ItemChanged -= OnItemChanged;
+        }
         _vm = DataContext as PlayerViewModel;
         if (_vm is null)
             return;
         Surface.Player = _vm.Player;
         _vm.FullScreenToggleRequested += ToggleFullScreen;
+        _vm.ItemChanged += OnItemChanged;
         _vm.PropertyChanged += (_, args) =>
         {
-            if (args.PropertyName != nameof(PlayerViewModel.IsPlaying))
-                return;
-            ShowControls();
-            _mediaKeys?.SetPlaying(_vm?.IsPlaying == true);
+            if (args.PropertyName == nameof(PlayerViewModel.Player))
+            {
+                Surface.Player = _vm?.Player;
+            }
+            else if (args.PropertyName == nameof(PlayerViewModel.IsPlaying))
+            {
+                ShowControls();
+                _mediaKeys?.SetPlaying(_vm?.IsPlaying == true);
+            }
         };
     }
 
@@ -129,9 +140,24 @@ public partial class PlayerView : UserControl
         if (_mediaKeys is not null && _vm is not null)
         {
             _mediaKeys.Pressed += OnMediaKey;
-            _mediaKeys.SetInfo(_vm.Title, _vm.Subtitle, _vm.Picture);
             _mediaKeys.SetPlaying(_vm.IsPlaying);
+            TellMediaKeys();
         }
+    }
+
+    /// <summary>Another episode in the same player.</summary>
+    private void OnItemChanged()
+    {
+        TellMediaKeys();
+        ShowControls();
+    }
+
+    private void TellMediaKeys()
+    {
+        if (_mediaKeys is null || _vm is not { } vm)
+            return;
+        _mediaKeys.SetInfo(vm.Title, vm.Subtitle, vm.Picture);
+        _mediaKeys.SetNextPrevious(vm.HasNext, vm.HasPrevious);
     }
 
     private void OnMediaKey(MediaKey key)
@@ -153,7 +179,37 @@ public partial class PlayerView : UserControl
             case MediaKey.Rewind:
                 vm.SeekBy(-10);
                 break;
+            case MediaKey.Next:
+                vm.PlayNext();
+                break;
+            case MediaKey.Previous:
+                vm.PlayPrevious();
+                break;
         }
+    }
+
+    private void OnFindSubtitles(object? sender, RoutedEventArgs e)
+    {
+        SubtitlesButton.Flyout?.Hide();
+        _vm?.FindSubtitlesCommand.Execute(null);
+    }
+
+    /// <summary>A subtitle file from anywhere, for this viewing: it isn't copied next to the video.</summary>
+    private async void OnLoadSubtitles(object? sender, RoutedEventArgs e)
+    {
+        SubtitlesButton.Flyout?.Hide();
+        if (_window is not { } window || _vm is not { } vm)
+            return;
+        await vm.WhilePaused(async () =>
+        {
+            var files = await window.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "Load subtitles",
+                FileTypeFilter = [new FilePickerFileType("Subtitles") { Patterns = ["*.srt", "*.ass", "*.ssa", "*.sub", "*.vtt"] }],
+            });
+            if (files.Count > 0 && files[0].TryGetLocalPath() is { } path)
+                vm.AddSubtitleFile(path);
+        });
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
@@ -310,6 +366,18 @@ public partial class PlayerView : UserControl
                 break;
             case Key.S:
                 vm.CycleTrack(subtitles: true);
+                break;
+            case Key.G:
+                vm.SubtitlesEarlier();
+                break;
+            case Key.H:
+                vm.SubtitlesLater();
+                break;
+            case Key.N or Key.MediaNextTrack:
+                vm.PlayNext();
+                break;
+            case Key.P or Key.MediaPreviousTrack:
+                vm.PlayPrevious();
                 break;
             case Key.Escape or Key.Back or Key.BrowserBack:
                 if (_window?.WindowState == WindowState.FullScreen && e.Key == Key.Escape)

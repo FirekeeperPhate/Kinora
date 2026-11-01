@@ -5,22 +5,36 @@ namespace Kinora.Services;
 /// <summary>
 /// VLC's engine for the built-in player, started once, on first use. On Windows it comes with
 /// Kinora; on macOS the one inside VLC.app is used, on Linux the system's libvlc (the vlc
-/// package). When it can't start, the reason says what to install.
+/// package). When it can't start, the reason says what to install. The size of subtitles is one
+/// of its start options: a new size means a new engine.
 /// </summary>
 public sealed class VideoEngine : IDisposable
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     private LibVLC? _vlc;
+    private int _subtitleScale;
     private string? _error;
 
     /// <summary>The engine, or null with <paramref name="Error"/> saying why.</summary>
-    public async Task<(LibVLC? Vlc, string? Error)> GetAsync()
+    public async Task<(LibVLC? Vlc, string? Error)> GetAsync(int subtitleScale)
     {
         await _gate.WaitAsync();
         try
         {
-            if (_vlc is null && _error is null)
-                (_vlc, _error) = await Task.Run(Start);
+            if ((_vlc is null && _error is null) || (_vlc is not null && _subtitleScale != subtitleScale))
+            {
+                var (vlc, error) = await Task.Run(() => Start(subtitleScale));
+                if (vlc is null)
+                {
+                    _error = _vlc is null ? error : null;   // the one running stays, at the old size
+                }
+                else
+                {
+                    _vlc?.Dispose();   // a player still on it keeps it alive until it goes
+                    _vlc = vlc;
+                    _subtitleScale = subtitleScale;
+                }
+            }
             return (_vlc, _error);
         }
         finally
@@ -29,7 +43,7 @@ public sealed class VideoEngine : IDisposable
         }
     }
 
-    private static (LibVLC?, string?) Start()
+    private static (LibVLC?, string?) Start(int subtitleScale)
     {
         try
         {
@@ -45,7 +59,7 @@ public sealed class VideoEngine : IDisposable
                 LibVLCSharp.Shared.Core.Initialize();
             }
             // Kinora shows its own title and messages; subtitles next to the video are found by VLC
-            string[] options = ["--no-video-title-show", "--no-osd", "--no-snapshot-preview", "--no-stats"];
+            string[] options = ["--no-video-title-show", "--no-osd", "--no-snapshot-preview", "--no-stats", $"--sub-text-scale={subtitleScale}"];
             // Without its module cache VLC loads all of its ~280 modules at every start (37 s from
             // a slow disk, 0.85 s with the cache): a copy that lacks it writes it now, once
             if (BundledPluginsCache is { } cache && !File.Exists(cache))

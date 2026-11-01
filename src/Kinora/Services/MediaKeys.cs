@@ -14,6 +14,8 @@ public enum MediaKey
     Stop,
     FastForward,
     Rewind,
+    Next,
+    Previous,
 }
 
 /// <summary>
@@ -68,6 +70,8 @@ public sealed class MediaKeys : IDisposable
             SystemMediaTransportControlsButton.Stop => MediaKey.Stop,
             SystemMediaTransportControlsButton.FastForward => MediaKey.FastForward,
             SystemMediaTransportControlsButton.Rewind => MediaKey.Rewind,
+            SystemMediaTransportControlsButton.Next => MediaKey.Next,
+            SystemMediaTransportControlsButton.Previous => MediaKey.Previous,
             _ => null,
         };
         // Windows' thread: the player is called on the UI thread
@@ -78,6 +82,13 @@ public sealed class MediaKeys : IDisposable
     /// <summary>Windows chooses Play or Pause for the play/pause key from this.</summary>
     public void SetPlaying(bool playing) =>
         _controls.PlaybackStatus = playing ? MediaPlaybackStatus.Playing : MediaPlaybackStatus.Paused;
+
+    /// <summary>The next and previous buttons exist only where there is an episode to go to.</summary>
+    public void SetNextPrevious(bool next, bool previous)
+    {
+        _controls.IsNextEnabled = next;
+        _controls.IsPreviousEnabled = previous;
+    }
 
     /// <summary>What Windows' media panel shows: the title, the line under it, the poster.</summary>
     public async void SetInfo(string title, string? subtitle, string? picture)
@@ -127,6 +138,10 @@ public sealed class MediaKeys : IDisposable
     public static MediaKeys? TryCreate(IntPtr window) => null;
 
     public void SetPlaying(bool playing)
+    {
+    }
+
+    public void SetNextPrevious(bool next, bool previous)
     {
     }
 

@@ -11,7 +11,18 @@ namespace Kinora.Views;
 /// </summary>
 public sealed class VideoSurface : NativeControlHost
 {
-    public MediaPlayer? Player { get; set; }
+    private IPlatformHandle? _window;
+
+    public MediaPlayer? Player
+    {
+        get;
+        set
+        {
+            field = value;
+            if (value is not null && _window is not null)
+                Attach(value, _window);
+        }
+    }
 
     /// <summary>VLC has its window: playback can start.</summary>
     public event Action? Ready;
@@ -19,19 +30,30 @@ public sealed class VideoSurface : NativeControlHost
     protected override IPlatformHandle CreateNativeControlCore(IPlatformHandle parent)
     {
         var handle = base.CreateNativeControlCore(parent);
+        _window = handle;
         if (Player is { } player)
         {
-            if (OperatingSystem.IsWindows())
-                player.Hwnd = handle.Handle;
-            else if (OperatingSystem.IsMacOS())
-                player.NsObject = handle.Handle;
-            else
-                player.XWindow = (uint)handle.Handle;
+            Attach(player, handle);
             Ready?.Invoke();
         }
         return handle;
     }
 
+    private static void Attach(MediaPlayer player, IPlatformHandle window)
+    {
+        if (OperatingSystem.IsWindows())
+            player.Hwnd = window.Handle;
+        else if (OperatingSystem.IsMacOS())
+            player.NsObject = window.Handle;
+        else
+            player.XWindow = (uint)window.Handle;
+    }
+
     // The window goes a moment after the page, when the player has been stopped and disposed:
     // VLC is not told anything then (a disposed player crashes the process).
+    protected override void DestroyNativeControlCore(IPlatformHandle control)
+    {
+        _window = null;
+        base.DestroyNativeControlCore(control);
+    }
 }

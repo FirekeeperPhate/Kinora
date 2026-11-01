@@ -27,6 +27,8 @@ public static class Icons
     public static Geometry Pause { get; } = Geometry.Parse("M8.5,5.5 V18.5 M15.5,5.5 V18.5");
     public static Geometry Rewind { get; } = Geometry.Parse("M4.5,12 A7.5,7.5 0 1 0 6.7,6.7 M4.5,3.5 V7.5 H8.5");
     public static Geometry Forward { get; } = Geometry.Parse("M19.5,12 A7.5,7.5 0 1 1 17.3,6.7 M19.5,3.5 V7.5 H15.5");
+    public static Geometry Next { get; } = Geometry.Parse("M6,5.5 L15.5,12 L6,18.5 Z M18.5,5.5 V18.5");
+    public static Geometry Previous { get; } = Geometry.Parse("M18,5.5 L8.5,12 L18,18.5 Z M5.5,5.5 V18.5");
     public static Geometry Volume { get; } = Geometry.Parse("M4,9.5 H7.5 L12,5.5 V18.5 L7.5,14.5 H4 Z M15.5,9 A4,4 0 0 1 15.5,15 M18,6.5 A7.5,7.5 0 0 1 18,17.5");
     public static Geometry Muted { get; } = Geometry.Parse("M4,9.5 H7.5 L12,5.5 V18.5 L7.5,14.5 H4 Z M16,9.5 L21,14.5 M21,9.5 L16,14.5");
     public static Geometry Subtitles { get; } = Geometry.Parse("M3.5,5.5 H20.5 V18.5 H3.5 Z M7,12.5 H11 M13.5,12.5 H17 M7,15.5 H14 M16.5,15.5 H17");

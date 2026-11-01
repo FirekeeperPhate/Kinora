@@ -27,6 +27,15 @@
                 <SolidColorBrush x:Key="SliderThumbBackground" Color="White" />
                 <SolidColorBrush x:Key="SliderThumbBackgroundPointerOver" Color="White" />
                 <SolidColorBrush x:Key="SliderThumbBackgroundPressed" Color="White" />
+                <DataTemplate x:Key="TrackRow" x:DataType="vm:TrackChoice">
+                    <Button Classes="playerRow" Command="{Binding ChooseCommand}">
+                        <Grid ColumnDefinitions="26,*">
+                            <Path Classes="icon" Data="{x:Static k:Icons.Check}" Stroke="White" Width="16" Height="16"
+                                  HorizontalAlignment="Left" IsVisible="{Binding IsSelected}" />
+                            <TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                        </Grid>
+                    </Button>
+                </DataTemplate>
             </Grid.Resources>
             <Grid.Styles>
                 <Style Selector="TextBlock">
@@ -56,6 +65,38 @@
                 </Style>
                 <Style Selector="Path.icon.filled">
                     <Setter Property="Fill" Value="White" />
+                </Style>
+                <Style Selector="FlyoutPresenter.player">
+                    <Setter Property="Background" Value="#F21A1A22" />
+                    <Setter Property="BorderBrush" Value="#33FFFFFF" />
+                    <Setter Property="CornerRadius" Value="12" />
+                    <Setter Property="Padding" Value="6" />
+                </Style>
+                <Style Selector="Button.playerRow">
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="Foreground" Value="White" />
+                    <Setter Property="BorderThickness" Value="0" />
+                    <Setter Property="Padding" Value="10,7" />
+                    <Setter Property="CornerRadius" Value="8" />
+                    <Setter Property="Focusable" Value="False" />
+                    <Setter Property="HorizontalAlignment" Value="Stretch" />
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                </Style>
+                <Style Selector="Button.playerRow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                    <Setter Property="Background" Value="#33FFFFFF" />
+                    <Setter Property="Foreground" Value="White" />
+                </Style>
+                <Style Selector="Button.playerRow:pressed /template/ ContentPresenter#PART_ContentPresenter">
+                    <Setter Property="Background" Value="#55FFFFFF" />
+                    <Setter Property="Foreground" Value="White" />
+                </Style>
+                <Style Selector="Button.step">
+                    <Setter Property="Background" Value="#22FFFFFF" />
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="Width" Value="32" />
+                    <Setter Property="Height" Value="32" />
+                    <Setter Property="HorizontalContentAlignment" Value="Center" />
+                    <Setter Property="VerticalContentAlignment" Value="Center" />
                 </Style>
                 <Style Selector="Border.bar">
                     <Setter Property="Transitions">
@@ -98,6 +139,13 @@
                 </StackPanel>
             </Border>
 
+            <!-- A note on what the keys just did -->
+            <Border Grid.Row="1" IsVisible="{Binding Toast, Converter={x:Static ObjectConverters.IsNotNull}}"
+                    HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,8,0,0" Padding="16,8"
+                    CornerRadius="18" Background="#CC1A1A22">
+                <TextBlock Text="{Binding Toast}" />
+            </Border>
+
             <!-- Middle: loading, or what went wrong -->
             <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="16">
                 <ProgressBar IsIndeterminate="True" Width="160" IsVisible="{Binding IsBuffering}" />
@@ -110,6 +158,20 @@
                     </StackPanel>
                 </Border>
             </StackPanel>
+
+            <!-- The episode is over: the next one, unless told otherwise -->
+            <Border Grid.Row="1" IsVisible="{Binding ShowNextCard}" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                    Margin="0,0,24,16" Padding="20,16" CornerRadius="14" Background="#E61A1A22">
+                <StackPanel Spacing="10" MaxWidth="380">
+                    <TextBlock Text="Up next" Opacity="0.7" FontSize="12" />
+                    <TextBlock Text="{Binding NextTitle}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Classes="player" Padding="16,7" Background="#FF6A5C" Command="{Binding PlayNextCommand}"
+                                Content="{Binding NextCountdownText}" />
+                        <Button Classes="player" Padding="16,7" Background="#33FFFFFF" Command="{Binding CancelNextCommand}" Content="Cancel" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
 
             <!-- Bottom: the seek bar and the buttons -->
             <Border x:Name="BottomBar" Grid.Row="2" Classes="bar" Padding="24,48,24,14"
@@ -129,65 +191,77 @@
                         <TextBlock Grid.Column="2" Text="{Binding LengthText}" VerticalAlignment="Center" MinWidth="60"
                                    TextAlignment="Right" FontFeatures="tnum" />
                     </Grid>
-                    <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto,Auto,Auto">
+                    <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto,Auto,Auto,Auto,Auto">
                         <Button Classes="player" Command="{Binding PlayPauseCommand}" ToolTip.Tip="Play / pause (Space)">
                             <Panel>
                                 <Path Classes="icon filled" Data="{x:Static k:Icons.Play}" IsVisible="{Binding !IsPlaying}" />
                                 <Path Classes="icon" Data="{x:Static k:Icons.Pause}" IsVisible="{Binding IsPlaying}" StrokeThickness="2.6" />
                             </Panel>
                         </Button>
-                        <Button Grid.Column="1" Classes="player" Command="{Binding BackCommand}" ToolTip.Tip="Back 10 seconds (←)">
+                        <Button Grid.Column="1" Classes="player" Command="{Binding PlayPreviousCommand}" ToolTip.Tip="Previous episode (P)" IsVisible="{Binding HasPrevious}">
+                            <Path Classes="icon filled" Data="{x:Static k:Icons.Previous}" />
+                        </Button>
+                        <Button Grid.Column="2" Classes="player" Command="{Binding BackCommand}" ToolTip.Tip="Back 10 seconds (←)">
                             <Panel>
                                 <Path Classes="icon" Data="{x:Static k:Icons.Rewind}" />
                                 <TextBlock Text="10" FontSize="8" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,2,0,0" />
                             </Panel>
                         </Button>
-                        <Button Grid.Column="2" Classes="player" Command="{Binding ForwardCommand}" ToolTip.Tip="Forward 30 seconds (→)">
+                        <Button Grid.Column="3" Classes="player" Command="{Binding ForwardCommand}" ToolTip.Tip="Forward 30 seconds (→)">
                             <Panel>
                                 <Path Classes="icon" Data="{x:Static k:Icons.Forward}" />
                                 <TextBlock Text="30" FontSize="8" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,2,0,0" />
                             </Panel>
                         </Button>
+                        <Button Grid.Column="4" Classes="player" Command="{Binding PlayNextCommand}" ToolTip.Tip="Next episode (N)" IsVisible="{Binding HasNext}">
+                            <Path Classes="icon filled" Data="{x:Static k:Icons.Next}" />
+                        </Button>
 
-                        <DropDownButton x:Name="AudioButton" Grid.Column="4" Classes="player" ToolTip.Tip="Audio (A)" IsVisible="{Binding HasAudioChoice}">
+                        <DropDownButton x:Name="AudioButton" Grid.Column="6" Classes="player" ToolTip.Tip="Audio (A)" IsVisible="{Binding HasAudioChoice}">
                             <Path Classes="icon" Data="{x:Static k:Icons.Audio}" />
                             <DropDownButton.Flyout>
-                                <MenuFlyout ItemsSource="{Binding AudioTracks}" Placement="TopEdgeAlignedRight">
-                                    <MenuFlyout.ItemContainerTheme>
-                                        <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}" x:DataType="vm:TrackChoice">
-                                            <Setter Property="Header" Value="{Binding Name}" />
-                                            <Setter Property="Command" Value="{Binding ChooseCommand}" />
-                                            <Setter Property="ToggleType" Value="Radio" />
-                                            <Setter Property="IsChecked" Value="{Binding IsSelected}" />
-                                        </ControlTheme>
-                                    </MenuFlyout.ItemContainerTheme>
-                                </MenuFlyout>
+                                <Flyout Placement="TopEdgeAlignedRight" FlyoutPresenterClasses="player">
+                                    <ItemsControl x:Name="AudioPanel" Width="260" ItemsSource="{Binding AudioTracks}" ItemTemplate="{StaticResource TrackRow}" />
+                                </Flyout>
                             </DropDownButton.Flyout>
                         </DropDownButton>
-                        <DropDownButton x:Name="SubtitlesButton" Grid.Column="5" Classes="player" ToolTip.Tip="Subtitles (S)" IsVisible="{Binding HasSubtitleTracks}">
+                        <DropDownButton x:Name="SubtitlesButton" Grid.Column="7" Classes="player" ToolTip.Tip="Subtitles (S)">
                             <Path Classes="icon" Data="{x:Static k:Icons.Subtitles}" />
                             <DropDownButton.Flyout>
-                                <MenuFlyout ItemsSource="{Binding SubtitleTracks}" Placement="TopEdgeAlignedRight">
-                                    <MenuFlyout.ItemContainerTheme>
-                                        <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}" x:DataType="vm:TrackChoice">
-                                            <Setter Property="Header" Value="{Binding Name}" />
-                                            <Setter Property="Command" Value="{Binding ChooseCommand}" />
-                                            <Setter Property="ToggleType" Value="Radio" />
-                                            <Setter Property="IsChecked" Value="{Binding IsSelected}" />
-                                        </ControlTheme>
-                                    </MenuFlyout.ItemContainerTheme>
-                                </MenuFlyout>
+                                <Flyout Placement="TopEdgeAlignedRight" FlyoutPresenterClasses="player">
+                                    <StackPanel Width="280" Spacing="2">
+                                        <ItemsControl ItemsSource="{Binding SubtitleTracks}" ItemTemplate="{StaticResource TrackRow}" />
+                                        <Border Height="1" Background="#22FFFFFF" Margin="4,6" />
+                                        <Grid ColumnDefinitions="*,Auto,64,Auto" Margin="10,2">
+                                            <TextBlock Text="Delay" VerticalAlignment="Center" />
+                                            <Button Grid.Column="1" Classes="player step" Content="−" Command="{Binding SubtitlesEarlierCommand}" ToolTip.Tip="Earlier (G)" />
+                                            <Button Grid.Column="2" Classes="playerRow" Padding="0,6" Command="{Binding ResetSubtitleDelayCommand}" ToolTip.Tip="Back to zero">
+                                                <TextBlock Text="{Binding SubtitleDelayText}" HorizontalAlignment="Center" FontFeatures="tnum" />
+                                            </Button>
+                                            <Button Grid.Column="3" Classes="player step" Content="+" Command="{Binding SubtitlesLaterCommand}" ToolTip.Tip="Later (H)" />
+                                        </Grid>
+                                        <Grid ColumnDefinitions="*,Auto,64,Auto" Margin="10,2">
+                                            <TextBlock Text="Size" VerticalAlignment="Center" />
+                                            <Button Grid.Column="1" Classes="player step" Content="−" Command="{Binding SubtitlesSmallerCommand}" ToolTip.Tip="Smaller" />
+                                            <TextBlock Grid.Column="2" Text="{Binding SubtitleScaleText}" HorizontalAlignment="Center" VerticalAlignment="Center" FontFeatures="tnum" />
+                                            <Button Grid.Column="3" Classes="player step" Content="+" Command="{Binding SubtitlesBiggerCommand}" ToolTip.Tip="Bigger" />
+                                        </Grid>
+                                        <Border Height="1" Background="#22FFFFFF" Margin="4,6" />
+                                        <Button Classes="playerRow" Content="Find subtitles…" IsVisible="{Binding CanFindSubtitles}" Click="OnFindSubtitles" />
+                                        <Button Classes="playerRow" Content="Load a file…" Click="OnLoadSubtitles" />
+                                    </StackPanel>
+                                </Flyout>
                             </DropDownButton.Flyout>
                         </DropDownButton>
-                        <Button Grid.Column="6" Classes="player" Command="{Binding ToggleMuteCommand}" ToolTip.Tip="Mute (M)">
+                        <Button Grid.Column="8" Classes="player" Command="{Binding ToggleMuteCommand}" ToolTip.Tip="Mute (M)">
                             <Panel>
                                 <Path Classes="icon" Data="{x:Static k:Icons.Volume}" IsVisible="{Binding !IsMuted}" />
                                 <Path Classes="icon" Data="{x:Static k:Icons.Muted}" IsVisible="{Binding IsMuted}" />
                             </Panel>
                         </Button>
-                        <Slider Grid.Column="7" Width="110" Minimum="0" Maximum="100" VerticalAlignment="Center" Margin="2,0,10,0"
+                        <Slider Grid.Column="9" Width="110" Minimum="0" Maximum="100" VerticalAlignment="Center" Margin="2,0,10,0"
                                 Value="{Binding Volume}" ToolTip.Tip="Volume (↑ ↓)" />
-                        <Button Grid.Column="8" Classes="player" Command="{Binding ToggleFullScreenCommand}" ToolTip.Tip="Full screen (F)">
+                        <Button Grid.Column="10" Classes="player" Command="{Binding ToggleFullScreenCommand}" ToolTip.Tip="Full screen (F)">
                             <Panel>
                                 <Path Classes="icon" Data="{x:Static k:Icons.FullScreen}" IsVisible="{Binding !IsFullScreen}" />
                                 <Path Classes="icon" Data="{x:Static k:Icons.ExitFullScreen}" IsVisible="{Binding IsFullScreen}" />

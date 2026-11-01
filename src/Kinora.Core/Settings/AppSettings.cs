@@ -95,6 +95,12 @@ public sealed class AppSettings
     /// <summary>The built-in player's volume, 0-100, as it was left.</summary>
     public int PlayerVolume { get; set; } = 100;
 
+    /// <summary>At the end of an episode, the next one starts after a short countdown.</summary>
+    public bool AutoPlayNextEpisode { get; set; } = true;
+
+    /// <summary>The size of text subtitles, in percent of VLC's normal one.</summary>
+    public int SubtitleScale { get; set; } = 100;
+
     public double WindowWidth { get; set; } = 1280;
     public double WindowHeight { get; set; } = 820;
     public bool WindowMaximized { get; set; }
