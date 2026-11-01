@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Kinora.Core;
+using Kinora.Core.MediaServers;
 using Kinora.Core.Models;
 using Kinora.Core.Platform;
 using Kinora.Core.Settings;
@@ -89,6 +90,7 @@ public partial class SettingsViewModel : ViewModelBase
                            ?? new MetadataLanguageOption(_s.Settings.MetadataLanguage, _s.Settings.MetadataLanguage);
         FetchAfterScan = _s.Settings.FetchAfterScan;
         LoadSubtitleSettings();
+        LoadServerSettings();
     }
 
     private readonly string _originalKey;
@@ -255,6 +257,102 @@ public partial class SettingsViewModel : ViewModelBase
 
     [RelayCommand]
     private void OpenOpenSubtitlesPage() => Launcher.OpenUrl("https://www.opensubtitles.com/en/consumers");
+
+    // ---- Emby or Jellyfin ----
+
+    private bool _loadingServer;
+
+    [ObservableProperty]
+    public partial string ServerUrl { get; set; } = "";
+
+    [ObservableProperty]
+    public partial string ServerKey { get; set; } = "";
+
+    [ObservableProperty]
+    public partial string? ServerStatus { get; private set; }
+
+    [ObservableProperty]
+    public partial IReadOnlyList<ServerUser> ServerUsers { get; private set; } = [];
+
+    [ObservableProperty]
+    public partial ServerUser? ServerUser { get; set; }
+
+    [ObservableProperty]
+    public partial bool SyncOnStartup { get; set; }
+
+    private void LoadServerSettings()
+    {
+        _loadingServer = true;
+        ServerUrl = _s.Settings.MediaServerUrl ?? "";
+        ServerKey = _s.Settings.MediaServerKey;
+        SyncOnStartup = _s.Settings.SyncOnStartup;
+        if (_s.Settings is { MediaServerUserId: { } id, MediaServerUserName: { } name })
+        {
+            ServerUsers = [new ServerUser(id, name)];
+            ServerUser = ServerUsers[0];
+        }
+        _loadingServer = false;
+    }
+
+    partial void OnServerUrlChanged(string value)
+    {
+        if (_loadingServer)
+            return;
+        _s.Settings.MediaServerUrl = value.Trim();
+        ServerStatus = null;
+        ServerUser = null;
+        ServerUsers = [];
+    }
+
+    partial void OnServerKeyChanged(string value)
+    {
+        if (_loadingServer)
+            return;
+        _s.Settings.MediaServerKey = value;
+        ServerStatus = null;
+    }
+
+    partial void OnServerUserChanged(ServerUser? value)
+    {
+        if (_loadingServer || value?.Id == _s.Settings.MediaServerUserId)
+            return;
+        _s.Settings.MediaServerUserId = value?.Id;
+        _s.Settings.MediaServerUserName = value?.Name;
+        _s.Database.ClearSyncStates();   // another user has seen other things
+    }
+
+    partial void OnSyncOnStartupChanged(bool value)
+    {
+        if (!_loadingServer)
+            _s.Settings.SyncOnStartup = value;
+    }
+
+    [RelayCommand]
+    private async Task TestServer()
+    {
+        if (ServerUrl.Trim().Length == 0 || ServerKey.Trim().Length == 0)
+        {
+            ServerStatus = "Write the address and paste the key first.";
+            return;
+        }
+        ServerStatus = "Checking…";
+        try
+        {
+            using var client = new MediaServerClient(ServerUrl, ServerKey);
+            var info = await client.ConnectAsync(CancellationToken.None);
+            var users = await client.GetUsersAsync(CancellationToken.None);
+            var wanted = _s.Settings.MediaServerUserId;
+            ServerUsers = users;
+            ServerUser = users.FirstOrDefault(u => u.Id == wanted) ?? (users.Count == 1 ? users[0] : null);
+            _s.Settings.MediaServerProduct = info.Kind.ToString();
+            ServerStatus = $"{info.Kind} {info.Version} answers{(info.Name.Length > 0 ? $": {info.Name}" : "")}."
+                           + (ServerUser is null ? " Choose whose watched list to sync." : "");
+        }
+        catch (Exception e) when (e is MediaServerException or HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+        {
+            ServerStatus = e is MediaServerException ? e.Message : "Can't reach the server: " + e.Message;
+        }
+    }
 
     public ObservableCollection<RootItem> Roots { get; } = [];
     public bool RootsChanged { get; private set; }

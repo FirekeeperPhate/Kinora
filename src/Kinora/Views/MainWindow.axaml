@@ -153,6 +153,7 @@
                                 <MenuFlyout Placement="BottomEdgeAlignedRight">
                                     <MenuItem Header="Full scan (read every folder again)" Command="{Binding FullScanCommand}" />
                                     <MenuItem Header="Download missing metadata from TMDB" Command="{Binding FetchMissingCommand}" />
+                                    <MenuItem Header="{Binding SyncMenuText}" Command="{Binding SyncMediaServerCommand}" IsVisible="{Binding HasMediaServer}" />
                                 </MenuFlyout>
                             </SplitButton.Flyout>
                         </SplitButton>

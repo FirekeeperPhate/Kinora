@@ -164,6 +164,31 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Emby or Jellyfin -->
+                <Border Classes="card">
+                    <StackPanel Spacing="12">
+                        <StackPanel Spacing="4">
+                            <TextBlock Classes="heading" Text="Media server (Emby or Jellyfin)" />
+                            <TextBlock Classes="subtle" TextWrapping="Wrap"
+                                       Text="Keeps watched marks and places to resume the same here and on the server. The sync is in the Scan menu; the first one shows what would change before doing it. Files are never touched." />
+                        </StackPanel>
+                        <Grid ColumnDefinitions="140,*,Auto" RowDefinitions="Auto,Auto,Auto,Auto">
+                            <TextBlock Text="Address" VerticalAlignment="Center" />
+                            <TextBox Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding ServerUrl}" PlaceholderText="http://nas:8096" />
+                            <TextBlock Grid.Row="1" Text="API key" VerticalAlignment="Center" Margin="0,8,0,0" />
+                            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding ServerKey}" PasswordChar="●" Margin="0,8,0,0"
+                                     PlaceholderText="From the server's dashboard: API Keys" />
+                            <Button Grid.Row="1" Grid.Column="2" Content="Test" Margin="8,8,0,0" Command="{Binding TestServerCommand}" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding ServerStatus}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                       IsVisible="{Binding ServerStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                            <TextBlock Grid.Row="3" Text="User" VerticalAlignment="Center" Margin="0,8,0,0" />
+                            <ComboBox Grid.Row="3" Grid.Column="1" ItemsSource="{Binding ServerUsers}" SelectedItem="{Binding ServerUser}"
+                                      MinWidth="240" Margin="0,8,0,0" PlaceholderText="Press Test to see them" />
+                        </Grid>
+                        <CheckBox IsChecked="{Binding SyncOnStartup}" Content="Sync when Kinora starts" />
+                    </StackPanel>
+                </Border>
+
                 <!-- Appearance -->
                 <Border Classes="card">
                     <StackPanel Spacing="14">

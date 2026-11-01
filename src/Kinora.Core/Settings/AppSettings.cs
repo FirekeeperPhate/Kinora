@@ -70,6 +70,30 @@ public sealed class AppSettings
     [JsonIgnore]
     public bool HasOpenSubtitlesKey => !string.IsNullOrEmpty(OpenSubtitlesKeyStored) && OpenSubtitlesKey.Length > 0;
 
+    // ---- Emby or Jellyfin ----
+
+    public string? MediaServerUrl { get; set; }
+    public string? MediaServerKeyStored { get; set; }
+    public string? MediaServerUserId { get; set; }
+    public string? MediaServerUserName { get; set; }
+
+    /// <summary>Emby or Jellyfin, as the server said at the last test.</summary>
+    public string MediaServerProduct { get; set; } = "Emby or Jellyfin";
+
+    /// <summary>After the first sync, done by hand, every start syncs by itself.</summary>
+    public bool SyncOnStartup { get; set; }
+
+    [JsonIgnore]
+    public string MediaServerKey
+    {
+        get => SecretText.Unprotect(MediaServerKeyStored);
+        set => MediaServerKeyStored = SecretText.Protect(value.Trim());
+    }
+
+    [JsonIgnore]
+    public bool HasMediaServer => !string.IsNullOrWhiteSpace(MediaServerUrl) && !string.IsNullOrEmpty(MediaServerUserId)
+                                  && !string.IsNullOrEmpty(MediaServerKeyStored) && MediaServerKey.Length > 0;
+
     /// <summary>Subtitle languages in order of preference, as ISO codes: "en, it".</summary>
     public string SubtitleLanguages { get; set; } = "en";
 

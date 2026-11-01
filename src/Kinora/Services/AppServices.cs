@@ -1,6 +1,7 @@
 using Kinora.Core;
 using Kinora.Core.Data;
 using Kinora.Core.Imaging;
+using Kinora.Core.MediaServers;
 using Kinora.Core.Online;
 using Kinora.Core.Scanning;
 using Kinora.Core.Settings;
@@ -53,6 +54,9 @@ public sealed class AppServices
     /// <summary>Null without a key: Kinora then works with the folders alone.</summary>
     public TmdbClient? CreateTmdbClient() =>
         Settings.HasTmdbKey ? new TmdbClient(Settings.TmdbKey, Settings.MetadataLanguage) : null;
+
+    public MediaServerClient? CreateMediaServerClient() =>
+        Settings.HasMediaServer ? new MediaServerClient(Settings.MediaServerUrl!, Settings.MediaServerKey) : null;
 
     public void SaveSettings()
     {

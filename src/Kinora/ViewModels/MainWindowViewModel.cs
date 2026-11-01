@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Kinora.Core;
 using Kinora.Core.Data;
+using Kinora.Core.MediaServers;
 using Kinora.Core.Models;
 using Kinora.Core.Online;
 using Kinora.Core.Playback;
@@ -192,10 +193,17 @@ public partial class MainWindowViewModel : ViewModelBase
     public void Initialize()
     {
         Reload();
-        if (_s.Settings.ScanOnStartup && _roots.Count > 0)
-            _ = RunScanAsync(full: false);
+        _ = ScanAndSyncOnStartupAsync();
         _ = CheckForUpdatesOnStartupAsync();
         _ = WarmUpPlayerAsync();
+    }
+
+    private async Task ScanAndSyncOnStartupAsync()
+    {
+        if (_s.Settings.ScanOnStartup && _roots.Count > 0)
+            await RunScanAsync(full: false);
+        if (_s.Settings is { SyncOnStartup: true, HasMediaServer: true })
+            await SyncMediaServerAsync(asked: false);
     }
 
     /// <summary>
@@ -613,6 +621,126 @@ public partial class MainWindowViewModel : ViewModelBase
 
         if (!cancelled && stopped is null && _s.Settings.FetchAfterScan && _s.Settings.HasTmdbKey)
             await RunFetchAsync(retryNotFound: false, asked: false);
+    }
+
+    // ---- Emby or Jellyfin ----
+
+    /// <summary>More unmarked than this, unasked, is more likely a server wiped or another user than a change of mind.</summary>
+    private const int MostUnmarkedAlone = 20;
+
+    public bool HasMediaServer => _s.Settings.HasMediaServer;
+    public string SyncMenuText => $"Sync watched with {_s.Settings.MediaServerProduct}";
+
+    [RelayCommand]
+    private Task SyncMediaServer() => SyncMediaServerAsync(asked: true);
+
+    /// <summary>
+    /// Asked: says what would change and waits for a yes. At startup it goes on alone, but
+    /// not the first time and not when a lot would be unmarked.
+    /// </summary>
+    private async Task SyncMediaServerAsync(bool asked)
+    {
+        if (asked ? IsBusy("sync") : IsScanning)
+            return;
+        var product = _s.Settings.MediaServerProduct;
+        using var client = _s.CreateMediaServerClient();
+        if (client is null || Dialogs is null || _s.Settings.MediaServerUserId is not { } user)
+            return;
+
+        BeginBusy($"Asking {product}…");
+        _scanCts = new CancellationTokenSource();
+        string text;
+        var touched = false;
+        try
+        {
+            await client.ConnectAsync(_scanCts.Token);
+            var sync = new MediaServerSync(_s.Database, client, user);
+            var token = _scanCts.Token;
+            var plan = await Task.Run(() => sync.PlanAsync(token));
+            if (!plan.HasChanges)
+            {
+                if (plan.FirstTime)
+                    await Task.Run(() => sync.ApplyAsync(plan, null, token));
+                text = $"In step with {product}: {Format.Count(plan.Pairs.Count, "title", "titles")} on both sides"
+                       + (plan.NotFound > 0 ? $", {plan.NotFound:N0} only on the server" : "");
+            }
+            else if (!asked && (plan.FirstTime || plan.UnwatchedHere + plan.UnwatchedThere > MostUnmarkedAlone))
+            {
+                text = $"Sync with {product} not done: it would change a lot. Look at it from the Scan menu.";
+            }
+            else if (asked && !await ConfirmSyncAsync(plan, product))
+            {
+                text = "";
+            }
+            else
+            {
+                ScanIndeterminate = false;
+                ScanStatus = $"Syncing with {product}…";
+                var progress = new Progress<(int Done, int Total)>(p =>
+                {
+                    ScanProgress = 100.0 * p.Done / p.Total;
+                    ScanStatus = $"Telling {product}  {p.Done:N0} of {p.Total:N0}";
+                });
+                var result = await Task.Run(() => sync.ApplyAsync(plan, progress, token));
+                touched = true;
+                text = $"Synced with {product}: {SyncSummary(plan)}"
+                       + (result.Failed > 0 ? $" · {Format.Count(result.Failed, "title", "titles")} refused: {result.FirstError}" : "");
+            }
+        }
+        catch (OperationCanceledException) when (_scanCts.IsCancellationRequested)
+        {
+            text = "Sync cancelled";
+            touched = true;
+        }
+        catch (Exception e) when (e is MediaServerException or HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+        {
+            text = asked || e is MediaServerException { Message: "The server refused this API key." }
+                ? $"Sync with {product} stopped: {e.Message}"
+                : "";
+        }
+        finally
+        {
+            IsScanning = false;
+            ScanIndeterminate = false;
+            ScanStatus = "";
+            _scanCts.Dispose();
+            _scanCts = null;
+        }
+
+        if (touched)
+        {
+            var movie = Detail?.Card;
+            var show = SeriesDetail?.Card;
+            Reload();
+            if (movie is not null && _movies.Contains(movie))
+                OpenDetail(movie);
+            else if (show is not null && _shows.Contains(show))
+                OpenSeries(show);
+        }
+        if (text.Length > 0)
+            ShowStatusFor(text, 14);
+    }
+
+    private async Task<bool> ConfirmSyncAsync(SyncPlan plan, string product)
+    {
+        var message = $"{Format.Count(plan.Pairs.Count, "title is", "titles are")} on both sides"
+                      + (plan.NotFound > 0 ? $", {plan.NotFound:N0} only on {product}." : ".")
+                      + $"\n\nIn Kinora: {plan.WatchedHere:N0} marked watched, {plan.UnwatchedHere:N0} unmarked, {Format.Count(plan.PositionsHere, "place to resume", "places to resume")}."
+                      + $"\nOn {product}: {plan.WatchedThere:N0} marked watched, {plan.UnwatchedThere:N0} unmarked, {Format.Count(plan.PositionsThere, "place to resume", "places to resume")}.";
+        if (plan.FirstTime)
+            message += "\n\nThis is the first sync: what is watched on one side becomes watched on the other, and nothing is unmarked.";
+        ScanStatus = "Sync: waiting for your answer";
+        return await Dialogs!.ConfirmAsync($"Sync with {product}", message, "Sync");
+    }
+
+    private static string SyncSummary(SyncPlan plan)
+    {
+        var parts = new List<string>();
+        if (plan.WatchedHere + plan.UnwatchedHere + plan.PositionsHere > 0)
+            parts.Add($"{plan.WatchedHere + plan.UnwatchedHere + plan.PositionsHere:N0} changes here");
+        if (plan.WatchedThere + plan.UnwatchedThere + plan.PositionsThere > 0)
+            parts.Add($"{plan.WatchedThere + plan.UnwatchedThere + plan.PositionsThere:N0} on the server");
+        return string.Join(", ", parts);
     }
 
     // ---- online metadata ----
@@ -1894,6 +2022,8 @@ public partial class MainWindowViewModel : ViewModelBase
         var cardWidth = _s.Settings.CardWidth;
         await Dialogs.ShowSettingsAsync(settings);
         _s.SaveSettings();
+        OnPropertyChanged(nameof(HasMediaServer));
+        OnPropertyChanged(nameof(SyncMenuText));
         if (Math.Abs(cardWidth - _s.Settings.CardWidth) > 0.5)
             LayoutRows();
         OnPropertyChanged(nameof(HasTmdbKey));

@@ -80,13 +80,13 @@ public sealed partial class LibraryDatabase
     // ---- shows in progress ----
 
     /// <summary>A show's episode was played: "Continue watching" goes by this.</summary>
-    public void SetSeriesPlayed(long seriesId)
+    public void SetSeriesPlayed(long seriesId, long? updated = null)
     {
         using var c = Open();
         c.Execute("""
             INSERT INTO series_played (series_id, updated) VALUES (@seriesId, @now)
-            ON CONFLICT (series_id) DO UPDATE SET updated = excluded.updated
-            """, new { seriesId, now = DateTimeOffset.UtcNow.ToUnixTimeSeconds() });
+            ON CONFLICT (series_id) DO UPDATE SET updated = max(updated, excluded.updated)
+            """, new { seriesId, now = updated ?? DateTimeOffset.UtcNow.ToUnixTimeSeconds() });
     }
 
     /// <summary>Marked unwatched from the start: it isn't being followed any more.</summary>
