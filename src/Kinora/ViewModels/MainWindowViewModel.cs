@@ -227,11 +227,14 @@ public partial class MainWindowViewModel : ViewModelBase
                 card = new MovieCardViewModel(this, _s.PosterLoader, movie, names);
             card.IsUnavailable = _unavailable.Contains(movie.RootId);
             card.Started = PlaybackRules.SeenFraction(started.GetValueOrDefault(movie.Id));
+            card.LastPlayed = started.GetValueOrDefault(movie.Id)?.Updated ?? 0;
             _movies.Add(card);
         }
 
         var shows = _s.Database.GetSeries().Where(s => _roots.ContainsKey(s.RootId)).ToList();
         var showCast = _s.Database.GetSeriesCastNames();
+        var startedEpisodes = _s.Database.GetStartedEpisodes();
+        var played = _s.Database.GetSeriesPlayed();
         var oldShows = _shows.ToDictionary(c => c.Series.Id);
         _shows.Clear();
         foreach (var show in shows)
@@ -242,6 +245,7 @@ public partial class MainWindowViewModel : ViewModelBase
             else
                 card = new SeriesCardViewModel(this, _s.PosterLoader, show, names);
             card.IsUnavailable = _unavailable.Contains(show.RootId);
+            card.SetProgress(startedEpisodes.GetValueOrDefault(show.Id), played.GetValueOrDefault(show.Id));
             _shows.Add(card);
         }
 
@@ -259,6 +263,9 @@ public partial class MainWindowViewModel : ViewModelBase
         var movies = Mode == LibraryMode.Movies;
 
         NavItems.Add(new NavItem(NavKind.AllMovies, movies ? "All movies" : "All shows", movies ? Icons.Film : Icons.Tv) { Count = cards.Count });
+        var going = cards.Count(c => c.InProgress);
+        if (going > 0)
+            NavItems.Add(new NavItem(NavKind.Continue, "Continue watching", Icons.Play) { Count = going });
         NavItems.Add(new NavItem(NavKind.Unwatched, "Unwatched", Icons.Eye) { Count = cards.Count(c => !c.Watched) });
         NavItems.Add(new NavItem(NavKind.RecentlyAdded, "Recently added", Icons.Clock) { Count = Math.Min(RecentCount, cards.Count) });
         var missing = cards.Count(c => c.NeedsMatch);
@@ -303,6 +310,7 @@ public partial class MainWindowViewModel : ViewModelBase
         var cards = CurrentCards;
         return nav.Kind switch
         {
+            NavKind.Continue => cards.Where(c => c.InProgress),
             NavKind.Unwatched => cards.Where(c => !c.Watched),
             NavKind.RecentlyAdded => cards.OrderByDescending(c => c.DateAdded).Take(RecentCount),
             NavKind.NeedsMetadata => cards.Where(c => c.NeedsMatch),
@@ -327,6 +335,10 @@ public partial class MainWindowViewModel : ViewModelBase
         if (nav.Kind == NavKind.RecentlyAdded)
         {
             sorted = items.OrderByDescending(c => c.DateAdded);
+        }
+        else if (nav.Kind == NavKind.Continue)
+        {
+            sorted = items.OrderByDescending(c => c.LastPlayed);
         }
         else
         {
@@ -796,7 +808,7 @@ public partial class MainWindowViewModel : ViewModelBase
             return null;
         var what = string.Join(" · ", new[] { episode.Code, episode.Title }.Where(s => !string.IsNullOrWhiteSpace(s)));
         return new PlayRequest(RelPath.ToFull(root.Path, episode.VideoFile), card.Title, what, PlaybackKind.Episode, episode.Id,
-                               () => SetEpisodesWatched(card, [episode], true), _ => EpisodeKept(episode), PosterPath(card.Series.ThumbKey),
+                               () => SetEpisodesWatched(card, [episode], true), watched => EpisodeKept(card, episode, watched), PosterPath(card.Series.ThumbKey),
                                TrackScope: $"series:{card.Series.Id}",
                                Next: () => Neighbour(EpisodeOrder.After),
                                Previous: () => Neighbour(EpisodeOrder.Before),
@@ -808,10 +820,10 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private string? PosterPath(string? key) => key is null ? null : _s.Posters.PathFor(key);
 
-    /// <summary>The first episode not seen yet, in order; the first one if all are seen.</summary>
+    /// <summary>The episode left halfway, otherwise the first not seen yet.</summary>
     public void PlayNextEpisode(SeriesCardViewModel card)
     {
-        var next = EpisodeOrder.FirstToWatch(_s.Database.GetEpisodes(card.Series.Id));
+        var next = EpisodeOrder.ToPlay(_s.Database.GetEpisodes(card.Series.Id), card.Resume?.EpisodeId);
         if (next is not null)
             PlayEpisode(card, next);
     }
@@ -853,14 +865,56 @@ public partial class MainWindowViewModel : ViewModelBase
         if (Player == player)
             Player = null;
         player.Dispose();
+        AfterProgressChange();
     }
 
     /// <summary>The "started" ring follows where it stopped (or goes, once watched).</summary>
-    private void MovieKept(MovieCardViewModel card) =>
-        card.Started = PlaybackRules.SeenFraction(_s.Database.GetPlayback(PlaybackKind.Movie, card.Movie.Id));
+    private void MovieKept(MovieCardViewModel card)
+    {
+        var kept = _s.Database.GetPlayback(PlaybackKind.Movie, card.Movie.Id);
+        card.Started = PlaybackRules.SeenFraction(kept);
+        card.LastPlayed = kept?.Updated ?? 0;
+        if (Detail?.Card == card)
+            Detail.NotifyStartedChanged();
+    }
 
-    private void EpisodeKept(Episode episode) =>
-        SeriesDetail?.SetStarted(episode.Id, PlaybackRules.SeenFraction(_s.Database.GetPlayback(PlaybackKind.Episode, episode.Id)));
+    private void EpisodeKept(SeriesCardViewModel card, Episode episode, bool watched)
+    {
+        var seen = PlaybackRules.SeenFraction(_s.Database.GetPlayback(PlaybackKind.Episode, episode.Id));
+        if (watched || seen is not null)
+            _s.Database.SetSeriesPlayed(card.Series.Id);
+        ReadProgress(card);
+        if (SeriesDetail?.Card == card)
+            SeriesDetail.SetStarted(episode.Id, seen);
+    }
+
+    private void ReadProgress(SeriesCardViewModel card) =>
+        card.SetProgress(_s.Database.GetStartedEpisodes().GetValueOrDefault(card.Series.Id),
+                         _s.Database.GetSeriesPlayed().GetValueOrDefault(card.Series.Id));
+
+    /// <summary>Marked unwatched from the start: it leaves "Continue watching", unless an episode is still halfway.</summary>
+    private void ForgetProgress(SeriesCardViewModel card)
+    {
+        _s.Database.ClearSeriesPlayed(card.Series.Id);
+        ReadProgress(card);
+    }
+
+    /// <summary>"Continue watching" comes and goes with what is in it.</summary>
+    private void AfterProgressChange()
+    {
+        var going = CurrentCards.Count(c => c.InProgress);
+        var item = NavItems.FirstOrDefault(n => n.Kind == NavKind.Continue);
+        if ((item is null) != (going == 0))
+        {
+            RebuildNav();
+        }
+        else if (item is not null)
+        {
+            item.Count = going;
+            if (SelectedNav == item)
+                ApplyFilter();
+        }
+    }
 
     public async void Reveal(CardViewModel card)
     {
@@ -1043,6 +1097,12 @@ public partial class MainWindowViewModel : ViewModelBase
             ToggleSelection(card);
             return;
         }
+        // Here a click means going on with it; the page is in the menu
+        if (SelectedNav?.Kind == NavKind.Continue)
+        {
+            card.PlayCommand.Execute(null);
+            return;
+        }
         switch (card)
         {
             case MovieCardViewModel m: OpenDetail(m); break;
@@ -1117,6 +1177,8 @@ public partial class MainWindowViewModel : ViewModelBase
                         break;
                     _s.Database.SetEpisodesWatched(s.Series, episodes, watched);
                     s.SetWatchedCount(watched ? s.Series.EpisodeCount : 0);
+                    if (!watched)
+                        ForgetProgress(s);
                     break;
             }
         }
@@ -1635,6 +1697,8 @@ public partial class MainWindowViewModel : ViewModelBase
         _s.Database.SetEpisodesWatched(card.Series, episodes, watched);
         var all = _s.Database.GetEpisodes(card.Series.Id);
         card.SetWatchedCount(all.Count(e => e.Watched));
+        if (!watched && all.All(e => !e.Watched))
+            ForgetProgress(card);
         if (SeriesDetail?.Card == card)
             SeriesDetail.EpisodesChanged(all);
         AfterWatchedChange();
@@ -1647,6 +1711,7 @@ public partial class MainWindowViewModel : ViewModelBase
             unwatched.Count = CurrentCards.Count(c => !c.Watched);
         if (SelectedNav?.Kind == NavKind.Unwatched)
             ApplyFilter();
+        AfterProgressChange();
     }
 
     /// <summary>File.Exists on a sleeping or vanished NAS can hang: give it a deadline.</summary>

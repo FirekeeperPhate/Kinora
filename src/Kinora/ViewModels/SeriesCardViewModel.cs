@@ -1,6 +1,8 @@
 using System.Text;
 using Kinora.Core;
+using Kinora.Core.Data;
 using Kinora.Core.Models;
+using Kinora.Core.Playback;
 using Kinora.Services;
 
 namespace Kinora.ViewModels;
@@ -47,6 +49,21 @@ public sealed class SeriesCardViewModel : CardViewModel
         }
     }
 
+    /// <summary>The episode left halfway, if any.</summary>
+    public StartedEpisode? Resume { get; private set; }
+
+    public override bool InProgress => LastPlayed > 0 && !Watched;
+    public override string StartedText => Resume is { } r && Started is { } f ? $"{r.Code} started: {f:P0} seen".Trim() : "";
+
+    /// <param name="lastPlayed">When an episode was last played; 0 for never.</param>
+    public void SetProgress(StartedEpisode? started, long lastPlayed)
+    {
+        Resume = started;
+        LastPlayed = Math.Max(lastPlayed, started?.Position.Updated ?? 0);
+        Started = PlaybackRules.SeenFraction(started?.Position);
+        OnPropertyChanged(nameof(StartedText));
+    }
+
     public void Update(Series series, string castNames)
     {
         var posterChanged = series.ThumbKey != Series.ThumbKey;
@@ -74,6 +91,7 @@ public sealed class SeriesCardViewModel : CardViewModel
     }
 
     protected override void Open() => _owner.Activate(this);
+    protected override void Details() => _owner.OpenTitle(this);
     protected override void Play() => _owner.PlayNextEpisode(this);
     protected override void Reveal() => _owner.Reveal(this);
     protected override void ToggleWatched() => _owner.SetSeriesWatched(this, !Watched);

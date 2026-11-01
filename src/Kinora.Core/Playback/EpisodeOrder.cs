@@ -20,6 +20,10 @@ public static class EpisodeOrder
         return ordered.FirstOrDefault(e => !e.Watched && !IsSpecial(e)) ?? ordered.FirstOrDefault();
     }
 
+    /// <summary>What Play means for a show: the episode left halfway, otherwise the first to watch.</summary>
+    public static Episode? ToPlay(IReadOnlyCollection<Episode> episodes, long? started) =>
+        episodes.FirstOrDefault(e => e.Id == started && !e.Watched) ?? FirstToWatch(episodes);
+
     /// <summary>The episode after this one. The last of a show doesn't run on into the specials.</summary>
     public static Episode? After(IEnumerable<Episode> episodes, Episode current) => Neighbour(episodes, current, 1);
 

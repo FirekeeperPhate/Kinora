@@ -1,6 +1,7 @@
 using Kinora.Core.Data;
 using Kinora.Core.Imaging;
 using Kinora.Core.Models;
+using Kinora.Core.Playback;
 using Kinora.Core.Online;
 using Kinora.Core.Scanning;
 
@@ -168,6 +169,36 @@ public sealed class SeriesScannerTests : IDisposable
         var renamed = _db.GetEpisodes(bb.Id).Single(e => e.VideoFile.Contains("WEB-720p"));
         Assert.True(renamed.Watched);
         Assert.Equal(1, _db.GetSeries().Single().WatchedCount);
+    }
+
+    [Fact]
+    public async Task A_show_knows_the_episode_left_halfway()
+    {
+        BreakingBad();
+        await Scan();
+        var bb = _db.GetSeries().Single();
+        var episodes = EpisodeOrder.Sorted(_db.GetEpisodes(bb.Id));
+        var (first, second) = (episodes[0], episodes[1]);
+        Assert.Empty(_db.GetStartedEpisodes());
+
+        _db.SavePlayback(PlaybackKind.Episode, first.Id, 300_000, 3_000_000, updated: 100);
+        _db.SavePlayback(PlaybackKind.Episode, second.Id, 400_000, 3_000_000, updated: 200);
+        _db.SavePlayback(PlaybackKind.Movie, second.Id, 500_000, 3_000_000, updated: 300);   // same id, a movie
+        var started = _db.GetStartedEpisodes()[bb.Id];
+        Assert.Equal(second.Id, started.EpisodeId);
+        Assert.Equal(second.Code, started.Code);
+        Assert.Equal(200, started.Position.Updated);
+        Assert.Equal(second.Id, EpisodeOrder.ToPlay(_db.GetEpisodes(bb.Id), started.EpisodeId)!.Id);
+
+        // Seen in the meantime: the one before is what is left halfway
+        _db.SetEpisodesWatched(bb, [second], true);
+        Assert.Equal(first.Id, _db.GetStartedEpisodes()[bb.Id].EpisodeId);
+        Assert.Equal(first.Id, EpisodeOrder.ToPlay(_db.GetEpisodes(bb.Id), second.Id)!.Id);
+
+        _db.SetSeriesPlayed(bb.Id);
+        Assert.True(_db.GetSeriesPlayed().ContainsKey(bb.Id));
+        _db.ClearSeriesPlayed(bb.Id);
+        Assert.Empty(_db.GetSeriesPlayed());
     }
 
     [Fact]

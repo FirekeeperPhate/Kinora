@@ -125,7 +125,7 @@
                             <Button Classes="accent" Command="{Binding PlayCommand}">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Path Data="M7,4.5 L19,12 L7,19.5 Z" Fill="White" Stretch="Uniform" Width="13" Height="14" />
-                                    <TextBlock Text="Play" />
+                                    <TextBlock Text="{Binding PlayText}" />
                                 </StackPanel>
                             </Button>
                             <DropDownButton Classes="pill" Content="Versions" IsVisible="{Binding HasVersions}"

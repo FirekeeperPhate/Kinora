@@ -13,7 +13,10 @@ public enum PlaybackKind
 public sealed record PlaybackPosition(long PositionMs, long LengthMs, long Updated = 0);
 
 /// <summary>The episode of a show that was left halfway most recently.</summary>
-public sealed record StartedEpisode(long SeriesId, long EpisodeId, PlaybackPosition Position);
+public sealed record StartedEpisode(long SeriesId, long EpisodeId, PlaybackPosition Position, int? Season = null, int? Number = null)
+{
+    public string Code => new Models.Episode { Season = Season, Number = Number }.Code;
+}
 
 /// <summary>The audio or subtitle track last chosen: its name in the menu, and its language.</summary>
 public sealed record TrackMemory(string Name, string? Language);
@@ -45,17 +48,17 @@ public sealed partial class LibraryDatabase
                 .ToDictionary(r => r.Id, r => new PlaybackPosition(r.PositionMs, r.LengthMs, r.Updated));
     }
 
-    /// <summary>For each show, the episode left halfway most recently.</summary>
+    /// <summary>For each show, the episode not watched yet that was left halfway most recently.</summary>
     public Dictionary<long, StartedEpisode> GetStartedEpisodes()
     {
         using var c = Open();
         var result = new Dictionary<long, StartedEpisode>();
-        foreach (var (series, episode, position, length, updated) in c.Query<(long, long, long, long, long)>("""
-            SELECT e.series_id, p.item_id, p.position_ms, p.length_ms, p.updated
+        foreach (var (series, episode, position, length, updated, season, number) in c.Query<(long, long, long, long, long, int?, int?)>("""
+            SELECT e.series_id, p.item_id, p.position_ms, p.length_ms, p.updated, e.season, e.number
             FROM playback p JOIN episodes e ON e.id = p.item_id
-            WHERE p.kind = 'episode' ORDER BY p.updated DESC
+            WHERE p.kind = 'episode' AND e.watched = 0 ORDER BY p.updated DESC
             """))
-            result.TryAdd(series, new StartedEpisode(series, episode, new PlaybackPosition(position, length, updated)));
+            result.TryAdd(series, new StartedEpisode(series, episode, new PlaybackPosition(position, length, updated), season, number));
         return result;
     }
 
@@ -84,6 +87,13 @@ public sealed partial class LibraryDatabase
             INSERT INTO series_played (series_id, updated) VALUES (@seriesId, @now)
             ON CONFLICT (series_id) DO UPDATE SET updated = excluded.updated
             """, new { seriesId, now = DateTimeOffset.UtcNow.ToUnixTimeSeconds() });
+    }
+
+    /// <summary>Marked unwatched from the start: it isn't being followed any more.</summary>
+    public void ClearSeriesPlayed(long seriesId)
+    {
+        using var c = Open();
+        c.Execute("DELETE FROM series_played WHERE series_id = @seriesId", new { seriesId });
     }
 
     /// <summary>When each show was last played, Unix seconds.</summary>

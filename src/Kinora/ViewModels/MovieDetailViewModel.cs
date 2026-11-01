@@ -3,7 +3,9 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Kinora.Core;
 using Kinora.Core.Imaging;
+using Kinora.Core.Data;
 using Kinora.Core.Models;
+using Kinora.Core.Playback;
 using Kinora.Core.Online;
 using Kinora.Services;
 
@@ -192,6 +194,14 @@ public partial class MovieDetailViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(Watched));
         OnPropertyChanged(nameof(WatchedText));
     }
+
+    /// <summary>"Resume from 32:10" where the built-in player would start from there.</summary>
+    public string PlayText => _s.Settings.UseBuiltInPlayer && _s.Database.GetPlayback(PlaybackKind.Movie, Movie.Id) is { } kept
+                              && PlaybackRules.WorthResuming(kept.PositionMs, kept.LengthMs)
+        ? $"Resume from {PlaybackRules.Clock(kept.PositionMs)}"
+        : "Play";
+
+    public void NotifyStartedChanged() => OnPropertyChanged(nameof(PlayText));
 
     [RelayCommand]
     private void Play() => _owner.Play(Card, null);

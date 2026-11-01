@@ -7,6 +7,7 @@ public enum NavKind
 {
     Header,
     AllMovies,
+    Continue,
     Unwatched,
     RecentlyAdded,
     NeedsMetadata,

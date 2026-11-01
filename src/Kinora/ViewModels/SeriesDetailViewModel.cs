@@ -168,7 +168,7 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
                 WatchedCount = group.Count(e => e.Watched),
             });
         }
-        var next = EpisodeOrder.FirstToWatch(_episodes);
+        var next = EpisodeOrder.ToPlay(_episodes, card.Resume?.EpisodeId);
         SelectedSeason = Seasons.FirstOrDefault(t => season is not null && t.Number == season)
                          ?? Seasons.FirstOrDefault(t => t.Number == next?.Season) ?? Seasons.FirstOrDefault();
         _ = LoadImagesAsync();
@@ -204,8 +204,8 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
 
     public string SeasonWatchedText => SelectedSeason is { } t && t.WatchedCount >= t.Count ? "Mark season unwatched" : "Mark season watched";
 
-    public string PlayNextText => EpisodeOrder.FirstToWatch(_episodes) is { } e
-        ? e.Code.Length > 0 ? $"Play {e.Code}" : "Play"
+    public string PlayNextText => EpisodeOrder.ToPlay(_episodes, Card.Resume?.EpisodeId) is { } e
+        ? $"{(e.Id == Card.Resume?.EpisodeId ? "Resume" : "Play")} {e.Code}".Trim()
         : "Play";
 
     [ObservableProperty]
@@ -412,6 +412,7 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
     {
         if (Episodes.FirstOrDefault(r => r.Episode?.Id == episodeId) is { } row)
             row.Started = seen;
+        OnPropertyChanged(nameof(PlayNextText));
     }
     public bool HasOpenSubtitlesKey => _owner.HasOpenSubtitlesKey;
     public void SetWatched(IReadOnlyCollection<Episode> episodes, bool watched) => _owner.SetEpisodesWatched(Card, episodes, watched);

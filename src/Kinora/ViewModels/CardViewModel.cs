@@ -106,7 +106,13 @@ public abstract partial class CardViewModel : ViewModelBase, IPosterHolder
     /// <summary>The ring's arc; a sliver at least, so a few minutes still show.</summary>
     public double StartedAngle => Math.Max(14, (Started ?? 0) * 360);
 
-    public string StartedText => Started is { } f ? $"Started: {f:P0} seen" : "";
+    public virtual string StartedText => Started is { } f ? $"Started: {f:P0} seen" : "";
+
+    /// <summary>When it was last played, Unix seconds: the order of "Continue watching".</summary>
+    public long LastPlayed { get; set; }
+
+    /// <summary>Belongs in "Continue watching".</summary>
+    public virtual bool InProgress => IsStarted;
 
     public void NotifyWatchedChanged()
     {
@@ -157,6 +163,9 @@ public abstract partial class CardViewModel : ViewModelBase, IPosterHolder
 
     [RelayCommand]
     protected abstract void Play();
+
+    [RelayCommand]
+    protected abstract void Details();
 
     [RelayCommand]
     protected abstract void Reveal();

@@ -634,11 +634,11 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
             {
                 _s.Database.ClearPlayback(_request.Kind, _request.ItemId);
             }
+            _request.Kept?.Invoke(watched);
         }
         catch (Exception e) when (e is Microsoft.Data.Sqlite.SqliteException or IOException)
         {
         }
-        _request.Kept?.Invoke(watched);
     }
 
     /// <summary>Back to Kinora: the position is kept (or the title marked watched), the page goes.</summary>
