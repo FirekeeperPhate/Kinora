@@ -43,19 +43,22 @@ public sealed class MediaServerSync(LibraryDatabase db, MediaServerClient client
     public async Task<SyncPlan> PlanAsync(CancellationToken ct)
     {
         var items = await client.GetItemsAsync(user, ct);
-        var shows = items.Where(i => i.Type == "Series").ToDictionary(i => i.Id);
+        var shows = new Dictionary<string, ServerItem>();
+        foreach (var show in items.Where(i => i.Type == "Series"))
+            shows.TryAdd(show.Id, show);   // a library changing during the paging can repeat one
         var titles = items.Where(i => i.Type is "Movie" or "Episode" && i.Path is not null).ToList();
 
         var locals = ReadLocals();
         var byFile = locals.ToLookup(l => FileName(l.Path));
         var byKey = new Dictionary<string, List<Local>>();
+        var byName = new Dictionary<string, List<Local>>();
         foreach (var local in locals)
+        {
             foreach (var key in LocalKeys(local))
-            {
-                if (!byKey.TryGetValue(key, out var list))
-                    byKey[key] = list = [];
-                list.Add(local);
-            }
+                Add(byKey, key, local);
+            if (LocalName(local) is { } name)
+                Add(byName, name, local);
+        }
 
         var pairs = new Dictionary<(PlaybackKind, long), (Local Local, ServerItem Item)>();
         var unknown = 0;
@@ -73,10 +76,11 @@ public sealed class MediaServerSync(LibraryDatabase db, MediaServerClient client
         }
         foreach (var item in rest)
         {
-            var hits = ServerKeys(item, shows).Select(k => byKey.GetValueOrDefault(k)).FirstOrDefault(h => h is not null);
-            if (hits is null)
+            var hits = ServerKeys(item, shows).Select(k => byKey.GetValueOrDefault(k)).FirstOrDefault(h => h is not null)
+                       ?? Namesakes(item, shows, byName);
+            if (hits.Count == 0)
                 unknown++;
-            foreach (var hit in hits ?? [])
+            foreach (var hit in hits)
                 pairs.TryAdd((hit.Kind, hit.Id), (hit, item));
         }
 
@@ -113,41 +117,75 @@ public sealed class MediaServerSync(LibraryDatabase db, MediaServerClient client
 
     private static string FileName(string path) => path[(path.LastIndexOf('/') + 1)..];
 
+    private static void Add(Dictionary<string, List<Local>> index, string key, Local local)
+    {
+        if (!index.TryGetValue(key, out var list))
+            index[key] = list = [];
+        list.Add(local);
+    }
+
+    /// <summary>The ids a title goes by: for an episode, its show's.</summary>
+    private static TitleIds? LocalIds(Local local) =>
+        local.Movie is { } m ? new TitleIds(m.ImdbId, m.TmdbId, null, m.Title, m.Year)
+        : local.Series is { } s ? new TitleIds(s.ImdbId, s.TmdbId, s.TvdbId, s.Title, s.Year)
+        : null;
+
+    private static TitleIds? ServerIds(ServerItem item, Dictionary<string, ServerItem> shows) =>
+        item.Type == "Movie" ? new TitleIds(item.ImdbId, item.TmdbId, null, item.Name, item.Year)
+        : item.SeriesId is { } id && shows.TryGetValue(id, out var show) ? new TitleIds(show.ImdbId, show.TmdbId, show.TvdbId, show.Name, show.Year)
+        : null;
+
+    private static string? NameKey(TitleIds? ids, int? season, int? number) =>
+        ids is not { Year: { } year } ? null
+        : season is null && number is null ? $"{SearchText.Normalize(ids.Title)}|{year}"
+        : $"{SearchText.Normalize(ids.Title)}|{year}|{season}|{number}";
+
     private static IEnumerable<string> LocalKeys(Local local)
     {
-        if (local.Movie is { } m)
-        {
-            foreach (var key in new TitleIds(m.ImdbId, m.TmdbId, null, m.Title, m.Year).Keys)
+        if (LocalIds(local) is not { } ids)
+            yield break;
+        if (local.Movie is not null)
+            foreach (var key in ids.Keys)
                 yield return key;
-            if (m.Year is { } year)
-                yield return $"name:{SearchText.Normalize(m.Title)}|{year}";
-        }
-        else if (local.Series is { } s && local.Episode is { Season: { } season, Number: { } number })
-        {
-            foreach (var key in new TitleIds(s.ImdbId, s.TmdbId, s.TvdbId, s.Title, s.Year).Keys)
+        else if (local.Episode is { Season: { } season, Number: { } number })
+            foreach (var key in ids.Keys)
                 yield return $"{key}|{season}|{number}";
-            yield return $"name:{SearchText.Normalize(s.Title)}|{season}|{number}";
-        }
     }
+
+    private static string? LocalName(Local local) =>
+        local.Movie is not null ? NameKey(LocalIds(local), null, null)
+        : local.Episode is { Season: { } season, Number: { } number } ? NameKey(LocalIds(local), season, number)
+        : null;
 
     private static IEnumerable<string> ServerKeys(ServerItem item, Dictionary<string, ServerItem> shows)
     {
+        if (ServerIds(item, shows) is not { } ids)
+            yield break;
         if (item.Type == "Movie")
-        {
-            foreach (var key in new TitleIds(item.ImdbId, item.TmdbId, null, item.Name, item.Year).Keys)
+            foreach (var key in ids.Keys)
                 yield return key;
-            if (item.Year is { } year)
-                yield return $"name:{SearchText.Normalize(item.Name)}|{year}";
-        }
         else if (item is { Season: { } season, Number: { } number })
-        {
-            if (item.SeriesId is { } id && shows.TryGetValue(id, out var show))
-                foreach (var key in new TitleIds(show.ImdbId, show.TmdbId, show.TvdbId, show.Name, show.Year).Keys)
-                    yield return $"{key}|{season}|{number}";
-            if (item.SeriesName is { } name)
-                yield return $"name:{SearchText.Normalize(name)}|{season}|{number}";
-        }
+            foreach (var key in ids.Keys)
+                yield return $"{key}|{season}|{number}";
     }
+
+    /// <summary>
+    /// Same name and year, when the ids can't tell. An id of the same kind on both sides that
+    /// didn't match says they are two titles: Doctor Who and Doctor Who.
+    /// </summary>
+    private static List<Local> Namesakes(ServerItem item, Dictionary<string, ServerItem> shows, Dictionary<string, List<Local>> byName)
+    {
+        var ids = ServerIds(item, shows);
+        var name = item.Type == "Movie" ? NameKey(ids, null, null) : NameKey(ids, item.Season, item.Number);
+        if (ids is null || name is null || !byName.TryGetValue(name, out var same))
+            return [];
+        return same.Where(l => LocalIds(l) is { } local && !Differ(local, ids)).ToList();
+    }
+
+    private static bool Differ(TitleIds a, TitleIds b) =>
+        (a.ImdbId is { Length: > 0 } && b.ImdbId is { Length: > 0 })
+        || (a.TmdbId is { Length: > 0 } && b.TmdbId is { Length: > 0 })
+        || (a.TvdbId is { Length: > 0 } && b.TvdbId is { Length: > 0 });
 
     /// <summary>Kinora first, then the server. A title the server refuses is tried again next time.</summary>
     public async Task<SyncResult> ApplyAsync(SyncPlan plan, IProgress<(int Done, int Total)>? progress, CancellationToken ct)
@@ -167,7 +205,8 @@ public sealed class MediaServerSync(LibraryDatabase db, MediaServerClient client
                 if (pair.Decision.Position == PositionMove.ToServer)
                     await client.SetPositionAsync(user, pair.Server.Id, pair.Decision.FinalPositionMs, token);
             }
-            catch (Exception e) when (e is MediaServerException or HttpRequestException or TaskCanceledException && !token.IsCancellationRequested)
+            catch (Exception e) when (e is MediaServerException or HttpRequestException or System.Text.Json.JsonException
+                                      or TaskCanceledException && !token.IsCancellationRequested)
             {
                 failed[pair] = e.Message;
             }

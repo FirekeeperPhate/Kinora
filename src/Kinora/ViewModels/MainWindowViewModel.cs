@@ -659,8 +659,7 @@ public partial class MainWindowViewModel : ViewModelBase
             var plan = await Task.Run(() => sync.PlanAsync(token));
             if (!plan.HasChanges)
             {
-                if (plan.FirstTime)
-                    await Task.Run(() => sync.ApplyAsync(plan, null, token));
+                await Task.Run(() => sync.ApplyAsync(plan, null, token));   // keeps what the two agree on
                 text = $"In step with {product}: {Format.Count(plan.Pairs.Count, "title", "titles")} on both sides"
                        + (plan.NotFound > 0 ? $", {plan.NotFound:N0} only on the server" : "");
             }
@@ -681,8 +680,8 @@ public partial class MainWindowViewModel : ViewModelBase
                     ScanProgress = 100.0 * p.Done / p.Total;
                     ScanStatus = $"Telling {product}  {p.Done:N0} of {p.Total:N0}";
                 });
-                var result = await Task.Run(() => sync.ApplyAsync(plan, progress, token));
                 touched = true;
+                var result = await Task.Run(() => sync.ApplyAsync(plan, progress, token));
                 text = $"Synced with {product}: {SyncSummary(plan)}"
                        + (result.Failed > 0 ? $" · {Format.Count(result.Failed, "title", "titles")} refused: {result.FirstError}" : "");
             }
@@ -692,11 +691,10 @@ public partial class MainWindowViewModel : ViewModelBase
             text = "Sync cancelled";
             touched = true;
         }
-        catch (Exception e) when (e is MediaServerException or HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+        catch (Exception e)
         {
-            text = asked || e is MediaServerException { Message: "The server refused this API key." }
-                ? $"Sync with {product} stopped: {e.Message}"
-                : "";
+            // At startup a server that isn't there (the laptop away from home) isn't news
+            text = !asked && e is HttpRequestException or TaskCanceledException ? "" : $"Sync with {product} stopped: {e.Message}";
         }
         finally
         {

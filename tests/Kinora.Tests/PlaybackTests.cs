@@ -94,6 +94,7 @@ public sealed class PlaybackTests : IDisposable
             c.Open();
             using var cmd = c.CreateCommand();
             cmd.CommandText = """
+                DROP TRIGGER movie_gone; DROP TRIGGER episode_gone;
                 DROP TABLE playback; DROP TABLE tmdb_credits; ALTER TABLE cast_members DROP COLUMN thumb; ALTER TABLE series_cast DROP COLUMN thumb;
                 DROP TABLE track_choices; DROP TABLE series_played; DROP TABLE server_sync; ALTER TABLE roots DROP COLUMN watched_move_root; ALTER TABLE movies DROP COLUMN hdr;
                 PRAGMA user_version = 4;

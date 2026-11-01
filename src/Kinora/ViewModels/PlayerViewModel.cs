@@ -77,6 +77,9 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
     private long _subtitleDelayMs;
     private int _scaleVersion;
     private long? _reopeningAt;
+    private int _video;
+    private bool _played;
+    private readonly List<string> _loadedSubtitles = [];
 
     public PlayerViewModel(AppServices s, LibVLC vlc, PlayRequest request, Action<PlayerViewModel> closed)
     {
@@ -195,9 +198,10 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
         // VLC's events come on its own threads, and nothing may call it back from there
         player.Playing += (_, _) => Post(() =>
         {
+            if (_closing)
+                return;   // queued while it was being closed: the player may be gone
             IsPlaying = true;
             IsBuffering = false;
-            _reopeningAt = null;
             Player.Volume = Volume;   // the audio output exists only now
             Player.Mute = IsMuted;
             if (_subtitleDelayMs != 0)
@@ -209,7 +213,16 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
         player.LengthChanged += (_, e) => Post(() => LengthMs = e.Length);
         player.ESAdded += (_, _) => Post(RefreshTracks);
         player.ESDeleted += (_, _) => Post(RefreshTracks);
-        player.EndReached += (_, _) => Post(OnEnded);
+        player.EndReached += (_, _) =>
+        {
+            // The end of the video that was playing, not of the one that has taken its place
+            var video = Volatile.Read(ref _video);
+            Post(() =>
+            {
+                if (video == _video)
+                    OnEnded();
+            });
+        };
         player.EncounteredError += (_, _) => Post(() =>
         {
             IsBuffering = false;
@@ -237,6 +250,9 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
         _kept = false;
         _subtitleDelayMs = 0;
         _reopeningAt = null;
+        _played = false;
+        _loadedSubtitles.Clear();
+        Interlocked.Increment(ref _video);
         Message = null;
         IsPlaying = false;
         IsBuffering = true;
@@ -268,6 +284,8 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
             using var media = new Media(_vlc, new Uri(_request.Path));
             if (fromMs > 0)
                 media.AddOption(string.Create(CultureInfo.InvariantCulture, $":start-time={fromMs / 1000.0:0.###}"));
+            foreach (var file in _loadedSubtitles)
+                media.AddSlave(MediaSlaveType.Subtitle, 4, new Uri(file).AbsoluteUri);
             Player.Play(media);
             if (ResumeText is { } shown)
                 DispatcherTimer.RunOnce(() => { if (ResumeText == shown) ResumeText = null; }, TimeSpan.FromSeconds(10));
@@ -284,6 +302,11 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
         if (_closing || _ended)
             return;
         TimeMs = Math.Max(0, Player.Time);
+        if (TimeMs > 0)
+        {
+            _played = true;
+            _reopeningAt = null;
+        }
         if (LengthMs <= 0 && Player.Length > 0)
             LengthMs = Player.Length;
         if (!IsSeeking && LengthMs > 0)
@@ -486,26 +509,54 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
 
     /// <summary>The subtitle search; what it saves starts right away.</summary>
     [RelayCommand]
-    private Task FindSubtitles() =>
-        _request.FindSubtitles is { } find ? WhilePaused(() => find(AddSubtitleFile)) : Task.CompletedTask;
+    private Task FindSubtitles()
+    {
+        if (_request.FindSubtitles is not { } find)
+            return Task.CompletedTask;
+        var request = _request;
+        return WhilePaused(() => find(file =>
+        {
+            if (request == _request)
+                AddSubtitleFile(file);
+        }));
+    }
 
-    /// <summary>A window over the video: it waits for the user.</summary>
-    public async Task WhilePaused(Func<Task> work)
+    /// <summary>A file chosen by the user, for this viewing.</summary>
+    public Task LoadSubtitles(Func<Task<string?>> choose)
+    {
+        var request = _request;
+        return WhilePaused(async () =>
+        {
+            if (await choose() is { } file && request == _request)
+                AddSubtitleFile(file);
+        });
+    }
+
+    /// <summary>A window over the video: it waits for the user, and so does the next episode.</summary>
+    private async Task WhilePaused(Func<Task> work)
     {
         var wasPlaying = Player.IsPlaying;
         if (wasPlaying)
             Player.SetPause(true);
+        _countdown.Stop();
         await work();
-        if (wasPlaying && !_closing)
+        if (_closing)
+            return;
+        if (wasPlaying)
             Player.SetPause(false);
+        if (NextCountdown > 0)
+            _countdown.Start();
     }
 
     /// <summary>A subtitle file for this video, shown at once.</summary>
-    public void AddSubtitleFile(string file)
+    private void AddSubtitleFile(string file)
     {
         if (_closing)
             return;
         _subtitleSettled = true;
+        // VLC finds by itself what is next to the video; the rest is given again if it reopens
+        if (!string.Equals(Path.GetDirectoryName(file), Path.GetDirectoryName(_request.Path), StringComparison.OrdinalIgnoreCase))
+            _loadedSubtitles.Add(file);
         Player.AddSlave(MediaSlaveType.Subtitle, new Uri(file).AbsoluteUri, true);
         ShowToast($"Subtitles: {Path.GetFileName(file)}");
     }
@@ -556,25 +607,34 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
         if (version != _scaleVersion || _closing || _ended || !_started)
             return;
 
-        _reopeningAt = Math.Max(0, Player.Time);
-        _rememberedAudio = Selected(AudioTracks) ?? _rememberedAudio;
-        _rememberedSubtitle = Selected(SubtitleTracks) ?? _rememberedSubtitle;
-        _audioSettled = _rememberedAudio is null;
-        _subtitleSettled = _rememberedSubtitle is null;
+        // A click while it is still reopening: the place and the tracks are the ones already taken
+        if (_reopeningAt is null)
+        {
+            _reopeningAt = Math.Max(0, Player.Time);
+            _rememberedAudio = Selected(AudioTracks) ?? _rememberedAudio;
+            _rememberedSubtitle = Selected(SubtitleTracks) ?? _rememberedSubtitle;
+            _audioSettled = _rememberedAudio is null;
+            _subtitleSettled = _rememberedSubtitle is null;
+        }
+        var request = _request;
         Player.Stop();
         IsPlaying = false;
         IsBuffering = true;
         var (vlc, _) = await _s.Video.GetAsync(_s.Settings.SubtitleScale);
-        if (_closing || _ended)
+        if (_closing || _ended || version != _scaleVersion)
             return;
-        if (vlc is not null && vlc != _vlc)
+        var sameVideo = request == _request;   // another episode may have started meanwhile
+        var newEngine = vlc is not null && vlc != _vlc;
+        if (newEngine)
         {
-            _vlc = vlc;
+            _vlc = vlc!;
             var old = Player;
+            old.Stop();
             Player = NewPlayer();
             old.Dispose();
         }
-        PlayCurrent(_reopeningAt ?? 0);
+        if (sameVideo || newEngine)
+            PlayCurrent(sameVideo ? _reopeningAt ?? 0 : _resumeFrom);
 
         static TrackMemory? Selected(ObservableCollection<TrackChoice> list) =>
             list.FirstOrDefault(t => t.IsSelected) is { } t ? new TrackMemory(t.Name, t.Language) : null;
@@ -630,7 +690,7 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
             {
                 _s.Database.SavePlayback(_request.Kind, _request.ItemId, position, length);
             }
-            else if (Message is null)
+            else if (Message is null && _played)   // gone before it showed anything: the place stays
             {
                 _s.Database.ClearPlayback(_request.Kind, _request.ItemId);
             }

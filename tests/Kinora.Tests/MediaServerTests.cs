@@ -368,6 +368,65 @@ public sealed class MediaServerTests : IDisposable
         Assert.True(_db.GetEpisodes(_db.GetSeries().Single().Id).Single().Watched);
     }
 
+    [Fact]
+    public async Task Two_shows_with_the_same_name_keep_their_marks()
+    {
+        var root = _db.AddRoot(LibraryKind.Series, "TV", "I:/");
+        var show = new Series { RootId = root.Id, Folder = "Doctor Who", Title = "Doctor Who", Year = 2005, TvdbId = "78804" };
+        _db.SaveSeries(show, [], [], [new Episode { Season = 1, Number = 1, Title = "Rose", VideoFile = "Doctor Who/S01E01.mkv" }]);
+        var server = new FakeMediaServer();
+        var classic = FakeMediaServer.Show("old", "Doctor Who", "76107");
+        classic["ProductionYear"] = 2005;   // the same year too, and still another show
+        server.Items.Add(classic);
+        server.Items.Add(FakeMediaServer.Episode("e", "/tv/classic/An Unearthly Child.mkv", "Doctor Who", 1, 1, played: true, seriesId: "old"));
+
+        var (plan, _) = await PlanAsync(server);
+
+        Assert.Empty(plan.Pairs);
+        Assert.Equal(1, plan.NotFound);
+    }
+
+    [Fact]
+    public async Task A_show_by_name_needs_the_year_too()
+    {
+        var root = _db.AddRoot(LibraryKind.Series, "TV", "I:/");
+        var show = new Series { RootId = root.Id, Folder = "Lost", Title = "Lost", Year = 2004 };
+        _db.SaveSeries(show, [], [], [new Episode { Season = 1, Number = 1, Title = "Pilot", VideoFile = "Lost/S01E01.mkv" }]);
+        var same = FakeMediaServer.Show("a", "Lost", null);
+        same["ProductionYear"] = 2004;
+        var other = FakeMediaServer.Show("b", "Lost", null);
+        other["ProductionYear"] = 1999;
+        var server = new FakeMediaServer();
+        server.Items.Add(same);
+        server.Items.Add(other);
+        server.Items.Add(FakeMediaServer.Episode("x", "/tv/b/one.mkv", "Lost", 1, 1, seriesId: "b"));
+        server.Items.Add(FakeMediaServer.Episode("y", "/tv/a/two.mkv", "Lost", 1, 1, seriesId: "a"));
+
+        var (plan, _) = await PlanAsync(server);
+
+        Assert.Equal("y", plan.Pairs.Single().Server.Id);
+    }
+
+    [Fact]
+    public async Task Movies_with_the_same_name_and_different_ids_are_two_movies()
+    {
+        AddMovie("Local/Dune.mkv", "Dune", 2021, imdb: "tt1");
+        var server = new FakeMediaServer();
+        server.Items.Add(FakeMediaServer.Movie("a", "/m/other.mkv", "Dune", 2021, imdb: "tt2", played: true));
+
+        Assert.Empty((await PlanAsync(server)).Plan.Pairs);
+    }
+
+    [Fact]
+    public async Task A_show_listed_twice_by_the_paging_is_no_problem()
+    {
+        var server = new FakeMediaServer();
+        server.Items.Add(FakeMediaServer.Show("s", "Lost", null));
+        server.Items.Add(FakeMediaServer.Show("s", "Lost", null));
+
+        Assert.Empty((await PlanAsync(server)).Plan.Pairs);
+    }
+
     // ---- both ways ----
 
     [Fact]
@@ -451,6 +510,61 @@ public sealed class MediaServerTests : IDisposable
         Assert.Equal(1, plan.WatchedThere);
         await sync.ApplyAsync(plan, null, _ct);
         Assert.Contains(("POST", "/Users/u1/PlayedItems/a"), server.Written);
+    }
+
+    [Fact]
+    public async Task What_is_agreed_goes_with_the_title()
+    {
+        var movie = AddMovie("A/M.mkv", watched: true);
+        var root = _db.AddRoot(LibraryKind.Series, "TV", "I:/");
+        var show = new Series { RootId = root.Id, Folder = "Lost", Title = "Lost" };
+        _db.SaveSeries(show, [], [], [new Episode { Season = 1, Number = 1, Title = "Pilot", VideoFile = "Lost/S01E01.mkv" }]);
+        var episode = _db.GetEpisodes(show.Id).Single();
+        _db.SaveSyncStates([(PlaybackKind.Movie, movie.Id, true, 0), (PlaybackKind.Episode, episode.Id, false, 0)]);
+        _db.SavePlayback(PlaybackKind.Movie, movie.Id, 5 * Minute, 90 * Minute);
+        _db.SavePlayback(PlaybackKind.Episode, episode.Id, 5 * Minute, 40 * Minute);
+
+        _db.DeleteMovies([movie.Id]);
+        _db.DeleteSeries([show.Id]);   // the episodes go with it
+
+        Assert.Empty(_db.GetSyncStates());
+        Assert.Empty(_db.GetPlaybackPositions(PlaybackKind.Movie));
+        Assert.Empty(_db.GetPlaybackPositions(PlaybackKind.Episode));
+
+        // Nor does a folder taken out leave anything for the next title that gets its id
+        var other = AddMovie("B/M.mkv", watched: true);
+        _db.SaveSyncStates([(PlaybackKind.Movie, other.Id, true, 0)]);
+        _db.RemoveRoot(_root.Id);
+        Assert.Empty(_db.GetSyncStates());
+    }
+
+    [Fact]
+    public async Task A_title_added_later_is_agreed_on_even_if_nothing_changes()
+    {
+        var movie = AddMovie("A/M.mkv", watched: true);
+        var server = new FakeMediaServer();
+        server.Items.Add(FakeMediaServer.Movie("a", "/m/A/M.mkv", played: true));
+
+        var (plan, sync) = await PlanAsync(server);
+        Assert.False(plan.HasChanges);
+        await sync.ApplyAsync(plan, null, _ct);
+
+        Assert.True(_db.GetSyncStates().ContainsKey((PlaybackKind.Movie, movie.Id)));
+    }
+
+    [Fact]
+    public async Task Jellyfin_positions_work_on_the_old_routes_too()
+    {
+        var server = new FakeMediaServer("Jellyfin Server");
+        server.Gone.Add("/UserItems");
+        using var client = Client(server);
+        await client.ConnectAsync(_ct);
+
+        await client.SetPositionAsync("u1", "m1", 5 * Minute, _ct);
+
+        var body = JsonNode.Parse(server.Bodies["/Users/u1/Items/m1/UserData"])!;
+        Assert.Equal(5 * Minute * 10_000, body["PlaybackPositionTicks"]!.GetValue<long>());
+        Assert.True(body["IsFavorite"]!.GetValue<bool>());
     }
 
     [Fact]

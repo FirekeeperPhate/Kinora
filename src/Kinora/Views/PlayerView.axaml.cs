@@ -200,15 +200,14 @@ public partial class PlayerView : UserControl
         SubtitlesButton.Flyout?.Hide();
         if (_window is not { } window || _vm is not { } vm)
             return;
-        await vm.WhilePaused(async () =>
+        await vm.LoadSubtitles(async () =>
         {
             var files = await window.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
                 Title = "Load subtitles",
                 FileTypeFilter = [new FilePickerFileType("Subtitles") { Patterns = ["*.srt", "*.ass", "*.ssa", "*.sub", "*.vtt"] }],
             });
-            if (files.Count > 0 && files[0].TryGetLocalPath() is { } path)
-                vm.AddSubtitleFile(path);
+            return files.Count > 0 ? files[0].TryGetLocalPath() : null;
         });
     }
 

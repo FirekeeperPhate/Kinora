@@ -112,7 +112,7 @@ public sealed class MediaServerClient : IDisposable
     /// <summary>Every movie, episode and show of the library, a page at a time.</summary>
     public async Task<List<ServerItem>> GetItemsAsync(string user, CancellationToken ct)
     {
-        const string query = "Recursive=true&IncludeItemTypes=Movie,Episode,Series&Fields=Path,ProviderIds&EnableUserData=true&EnableImages=false";
+        const string query = "Recursive=true&IncludeItemTypes=Movie,Episode,Series&Fields=Path,ProviderIds&EnableUserData=true&EnableImages=false&SortBy=SortName,Id";
         var id = Uri.EscapeDataString(user);
         var items = new List<ServerItem>();
         while (true)
@@ -158,33 +158,29 @@ public sealed class MediaServerClient : IDisposable
     public async Task SetPositionAsync(string user, string item, long positionMs, CancellationToken ct)
     {
         var (u, i) = (Uri.EscapeDataString(user), Uri.EscapeDataString(item));
-        string[] data = _kind == MediaServerKind.Jellyfin
-            ? [$"/UserItems/{i}/UserData?userId={u}", $"/Users/{u}/Items/{i}/UserData"]
-            : [$"/Users/{u}/Items/{i}/UserData"];
+        var itemRoute = $"/Users/{u}/Items/{i}";
+        string[] reads = _kind == MediaServerKind.Jellyfin ? [$"/UserItems/{i}/UserData?userId={u}", itemRoute] : [itemRoute];
+        string[] writes = _kind == MediaServerKind.Jellyfin ? [$"/UserItems/{i}/UserData?userId={u}", itemRoute + "/UserData"] : [itemRoute + "/UserData"];
 
         JsonObject current;
-        if (_kind == MediaServerKind.Jellyfin)
+        using (var read = await SendAsync(HttpMethod.Get, reads, null, ct))
         {
-            using var read = await SendAsync(HttpMethod.Get, data[..1], null, ct);
-            current = JsonNode.Parse(await read.Content.ReadAsStringAsync(ct)) as JsonObject ?? [];
-        }
-        else
-        {
-            using var read = await SendAsync(HttpMethod.Get, [$"/Users/{u}/Items/{i}"], null, ct);
-            current = (JsonNode.Parse(await read.Content.ReadAsStringAsync(ct)) as JsonObject)?["UserData"] as JsonObject ?? [];
-            current = current.DeepClone().AsObject();
+            // The data alone, or the item with the data inside
+            var root = JsonNode.Parse(await read.Content.ReadAsStringAsync(ct)) as JsonObject ?? [];
+            current = root["UserData"] is JsonObject data ? data.DeepClone().AsObject() : root;
         }
         current["PlaybackPositionTicks"] = positionMs * TicksPerMs;
-        using var body = new StringContent(current.ToJsonString(), Encoding.UTF8, "application/json");
-        using var response = await SendAsync(HttpMethod.Post, data, body, ct);
+        using var response = await SendAsync(HttpMethod.Post, writes, current.ToJsonString(), ct);
     }
 
     /// <summary>The routes in order: a 404 means this version has the next one.</summary>
-    private async Task<HttpResponseMessage> SendAsync(HttpMethod method, IReadOnlyList<string> routes, HttpContent? body, CancellationToken ct)
+    private async Task<HttpResponseMessage> SendAsync(HttpMethod method, IReadOnlyList<string> routes, string? json, CancellationToken ct)
     {
         for (var n = 0; ; n++)
         {
-            using var request = new HttpRequestMessage(method, _base + _prefix + routes[n]) { Content = body };
+            using var request = new HttpRequestMessage(method, _base + _prefix + routes[n]);
+            if (json is not null)
+                request.Content = new StringContent(json, Encoding.UTF8, "application/json");
             var response = await _http.SendAsync(request, ct);
             if (response.IsSuccessStatusCode)
                 return response;

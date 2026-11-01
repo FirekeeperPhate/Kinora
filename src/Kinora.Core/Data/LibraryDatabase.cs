@@ -316,6 +316,15 @@ public sealed partial class LibraryDatabase
                     position_ms INTEGER NOT NULL,
                     PRIMARY KEY (kind, item_id)
                 );
+                -- What is kept about a title goes with it: SQLite gives the highest ids again
+                CREATE TRIGGER movie_gone AFTER DELETE ON movies BEGIN
+                    DELETE FROM playback WHERE kind = 'movie' AND item_id = old.id;
+                    DELETE FROM server_sync WHERE kind = 'movie' AND item_id = old.id;
+                END;
+                CREATE TRIGGER episode_gone AFTER DELETE ON episodes BEGIN
+                    DELETE FROM playback WHERE kind = 'episode' AND item_id = old.id;
+                    DELETE FROM server_sync WHERE kind = 'episode' AND item_id = old.id;
+                END;
                 """, transaction: tx);
         }
         c.Execute($"PRAGMA user_version = {SchemaVersion};", transaction: tx);

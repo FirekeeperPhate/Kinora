@@ -342,8 +342,13 @@ public partial class SettingsViewModel : ViewModelBase
             var info = await client.ConnectAsync(CancellationToken.None);
             var users = await client.GetUsersAsync(CancellationToken.None);
             var wanted = _s.Settings.MediaServerUserId;
+            // A new list empties the box for a moment: that isn't the user changing
+            _loadingServer = true;
             ServerUsers = users;
             ServerUser = users.FirstOrDefault(u => u.Id == wanted) ?? (users.Count == 1 ? users[0] : null);
+            _loadingServer = false;
+            if (ServerUser is { } user)
+                OnServerUserChanged(user);
             _s.Settings.MediaServerProduct = info.Kind.ToString();
             ServerStatus = $"{info.Kind} {info.Version} answers{(info.Name.Length > 0 ? $": {info.Name}" : "")}."
                            + (ServerUser is null ? " Choose whose watched list to sync." : "");

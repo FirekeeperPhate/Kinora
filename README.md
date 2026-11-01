@@ -38,6 +38,12 @@ engine), or, if you prefer, in the player the OS associates with it. Windows, Li
 - **Watched** flags survive rescans, and a movie moved outside Kinora keeps it (by IMDb/TMDB id).
 - Search across title, original title, year, director, collection and cast; accents and
   punctuation don't matter. Sort by title (articles ignored), year, date added, rating.
+- **Filters** in the toolbar: resolution, HDR, decade, rating, collection (for shows decade and
+  rating). The collection on a movie's page opens the other movies in it. HDR comes from the nfo's
+  `hdrtype` or the file name; for what is already in the library the nfo is read by a full scan.
+- **Duplicates**, in the sidebar when there are any: the same movie or show more than once, in the
+  same folder or in two (an id in common, or the same name and year without ids), side by side
+  with the size, the resolution and the folder of each copy.
 - Folders that are mounted somewhere else later (another drive letter, another OS): change the
   root's path in Settings, nothing is scanned again. Paths are stored relative to the root.
 - Names that Windows normally tidies up, ending with a dot or a space (`S.W.A.T.`), are read,
@@ -86,18 +92,30 @@ decoding, 4K and HDR included: a 4K HDR10 HEVC movie from the NAS takes 7% of on
 controls sit over it and go away after three seconds without moving the mouse.
 
 - Play/pause, back 10 s, forward 30 s, the seek bar, volume and mute, full screen; the audio track
-  and the subtitles (the ones in the file and the `.srt` files next to it) from two menus.
+  and the subtitles (the ones in the file and the `.srt` files next to it) from two panels.
+- Episodes go on by themselves: at the end the next one starts after ten seconds in the same window
+  (Play now or Cancel; off in Settings → Playback), and next and previous are on the bar too.
+- The audio and subtitles you choose are remembered, for the show and in general: the next title
+  starts on the same track, or on one in the same language; "Off" counts as a choice.
+- The subtitle panel has the delay, the size of text subtitles, Find subtitles (OpenSubtitles, with
+  the video paused; what you download starts right away) and Load a file. Changing the size restarts
+  VLC's engine: the picture goes black for a moment and comes back where it was.
 - Keys: Space or K play/pause, ← →  back 10 s / forward 30 s (Ctrl+→ a minute), ↑ ↓ volume, M mute,
-  F or a double click full screen, A and S the next audio track or subtitle, Esc leaves full screen,
-  then the player.
-- Media keys (Windows): play/pause, stop, and the forward and rewind buttons of remotes work even
-  when Kinora is minimized or another window is in front, and so do the buttons of Bluetooth
-  headphones. Windows' media panel shows the title and the poster. Windows sends the keys to the
-  app that played last: while a video plays that is Kinora, not the music paused for it.
+  F or a double click full screen, A and S the next audio track or subtitle, G and H subtitles
+  earlier or later, N and P next and previous episode, Esc leaves full screen, then the player.
+- Media keys (Windows): play/pause, stop, next and previous, and the forward and rewind buttons of
+  remotes work even when Kinora is minimized or another window is in front, and so do the buttons
+  of Bluetooth headphones. Windows' media panel shows the title and the poster. Windows sends the
+  keys to the app that played last: while a video plays that is Kinora, not the music paused for it.
 - It starts again where you stopped (past the first minute; "Start over" goes back to the
   beginning), and marks the movie or episode watched once 90% is behind or it reaches the end.
   Until then a started movie has a ring on its poster instead of the check, as full as what was
-  seen; a started episode has a bar under its picture.
+  seen; a show has the same ring next to the episodes left, a started episode a bar under its
+  picture. Pages say so: Resume from 32:10, Resume S01E03.
+- **Continue watching**, in the sidebar when there is something in it: what you are in the middle
+  of, last played first. A click goes on with it; the page is in the menu of the right click.
+- A movie folder can have a rule (Settings → Library folders): after watching a movie from
+  MoviesToWatch, Kinora offers to move it to Movies. It always asks.
 - VLC's engine starts in the background a couple of seconds after Kinora opens, so the first
   Play doesn't wait for it. The Windows packages carry VLC's module cache (`plugins.dat`, written
   by `build.ps1`): without it VLC loads all of its ~280 modules at every start (from a slow disk
@@ -107,6 +125,25 @@ controls sit over it and go away after three seconds without moving the mouse.
 On Windows VLC's engine comes with Kinora (64-bit libvlc 3.0; the setup is about 58 MB). On
 macOS and Linux Kinora uses the VLC installed on the computer (`/Applications/VLC.app`, or the
 `vlc` package); without it, Play opens the system's player and says why.
+
+## Emby and Jellyfin
+
+Kinora keeps watched marks and places to resume the same as on an Emby or Jellyfin server, both
+ways. Settings → Media server: the address, an API key from the server's dashboard, Test, and whose
+watched list it is. The sync is in the Scan menu, and can run at every start. Only those marks
+travel: files, posters and metadata are not touched, on either side.
+
+- Titles are found by the end of their path (the server may see the same folders under another
+  name), then by the ids (IMDb, TMDB, TheTVDB; for an episode the show's, with season and number),
+  then by name and year.
+- The sync shows what it would do and waits for a yes. The first one only adds: what is watched on
+  one side becomes watched on the other, nothing is unmarked. After that Kinora remembers what the
+  two sides agreed on, so it knows which one changed: unmarking something travels too. For a place to
+  resume, the side that moved wins, or the latest if both did.
+- The sync at startup goes on alone, but never the first time, and it stops and tells you when it
+  would unmark more than 20 titles: more likely a wiped server than a change of mind.
+- A title the server refuses is tried again next time. Changing the server or the user starts again
+  from a first sync.
 
 ## Subtitles (OpenSubtitles)
 
