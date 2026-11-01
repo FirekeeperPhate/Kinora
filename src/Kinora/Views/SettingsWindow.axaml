@@ -45,6 +45,7 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:RootItem">
                                     <Border BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1" Padding="0,10">
+                                        <StackPanel Spacing="8">
                                         <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                                             <Path Classes="icon" Data="{x:Static k:Icons.Folder}" Margin="0,0,14,0" VerticalAlignment="Center"
                                                   Stroke="{DynamicResource SubtleText}" />
@@ -63,6 +64,11 @@
                                                     Command="{Binding $parent[Window].((vm:SettingsViewModel)DataContext).RemoveRootCommand}"
                                                     CommandParameter="{Binding}" />
                                         </Grid>
+                                        <StackPanel Orientation="Horizontal" Spacing="10" Margin="36,0,0,0" IsVisible="{Binding CanOfferMove}">
+                                            <TextBlock Text="A movie watched from here" Classes="subtle" FontSize="12" VerticalAlignment="Center" />
+                                            <ComboBox ItemsSource="{Binding MoveRules}" SelectedItem="{Binding WatchedMove}" MinWidth="220" />
+                                        </StackPanel>
+                                        </StackPanel>
                                     </Border>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>

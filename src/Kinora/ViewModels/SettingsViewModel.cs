@@ -9,8 +9,16 @@ using Kinora.Services;
 
 namespace Kinora.ViewModels;
 
-public partial class RootItem(LibraryRoot root) : ObservableObject
+/// <summary>What happens to a movie of a folder once it has been watched.</summary>
+public sealed record MoveRule(long? RootId, string Text)
 {
+    public override string ToString() => Text;
+}
+
+public partial class RootItem(LibraryRoot root, Action<RootItem> moveRuleChanged) : ObservableObject
+{
+    private bool _filling;
+
     public LibraryRoot Root { get; } = root;
     public string Name => Root.Name;
     public string KindText => Root.Kind == LibraryKind.Movies ? "Movies" : "TV shows";
@@ -23,6 +31,31 @@ public partial class RootItem(LibraryRoot root) : ObservableObject
             Root.Path = value;
             OnPropertyChanged();
         }
+    }
+
+    public IReadOnlyList<MoveRule> MoveRules { get; private set; } = [];
+    public bool CanOfferMove => MoveRules.Count > 1;
+
+    [ObservableProperty]
+    public partial MoveRule? WatchedMove { get; set; }
+
+    partial void OnWatchedMoveChanged(MoveRule? value)
+    {
+        if (_filling || value is null)
+            return;
+        Root.WatchedMoveRoot = value.RootId;
+        moveRuleChanged(this);
+    }
+
+    /// <summary>The other movie folders, when the list of folders changes.</summary>
+    public void SetMoveTargets(IEnumerable<LibraryRoot> others)
+    {
+        _filling = true;
+        MoveRules = [new MoveRule(null, "Stays here"), .. others.Select(r => new MoveRule(r.Id, $"Offer to move it to {r.Name}"))];
+        OnPropertyChanged(nameof(MoveRules));
+        OnPropertyChanged(nameof(CanOfferMove));
+        WatchedMove = MoveRules.FirstOrDefault(r => r.RootId == Root.WatchedMoveRoot) ?? MoveRules[0];
+        _filling = false;
     }
 }
 
@@ -40,7 +73,8 @@ public partial class SettingsViewModel : ViewModelBase
         _checkUpdates = checkUpdates;
         CheckForUpdates = _s.Settings.CheckForUpdates;
         foreach (var root in _s.Database.GetRoots())
-            Roots.Add(new RootItem(root));
+            Roots.Add(new RootItem(root, SaveMoveRule));
+        RefreshMoveRules();
         ThemeIndex = (int)_s.Settings.Theme;
         WriteToMediaFolders = _s.Settings.WriteToMediaFolders;
         ScanOnStartup = _s.Settings.ScanOnStartup;
@@ -345,7 +379,8 @@ public partial class SettingsViewModel : ViewModelBase
         }
         var name = NewRootName.Trim().Length > 0 ? NewRootName.Trim() : DefaultName(path);
         var root = _s.Database.AddRoot(NewRootIsShows ? LibraryKind.Series : LibraryKind.Movies, name, path);
-        Roots.Add(new RootItem(root));
+        Roots.Add(new RootItem(root, SaveMoveRule));
+        RefreshMoveRules();
         RootsChanged = true;
         NewRootPath = "";
         NewRootName = "";
@@ -362,7 +397,17 @@ public partial class SettingsViewModel : ViewModelBase
             return;
         _s.Database.RemoveRoot(item.Root.Id);
         Roots.Remove(item);
+        RefreshMoveRules();
         RootsChanged = true;
+    }
+
+    private void SaveMoveRule(RootItem item) => _s.Database.SetWatchedMoveRoot(item.Root.Id, item.Root.WatchedMoveRoot);
+
+    private void RefreshMoveRules()
+    {
+        foreach (var item in Roots)
+            item.SetMoveTargets(item.Root.Kind != LibraryKind.Movies ? []
+                : Roots.Where(r => r != item && r.Root.Kind == LibraryKind.Movies).Select(r => r.Root).OrderBy(r => r.Name, StringComparer.CurrentCultureIgnoreCase));
     }
 
     /// <summary>For a share that is now mounted somewhere else: the library stays as it is.</summary>

@@ -160,6 +160,23 @@ public sealed class PlaybackTests : IDisposable
     }
 
     [Fact]
+    public void The_rule_for_watched_movies_survives_a_scan_and_goes_with_its_target()
+    {
+        var db = new LibraryDatabase(Path.Combine(_dir, "t.db"));
+        var toWatch = db.AddRoot(LibraryKind.Movies, "MoviesToWatch", "M:/ToWatch");
+        var movies = db.AddRoot(LibraryKind.Movies, "Movies", "H:/");
+        Assert.Null(toWatch.WatchedMoveRoot);
+
+        db.SetWatchedMoveRoot(toWatch.Id, movies.Id);
+        toWatch.LastScan = 5;
+        db.UpdateRoot(toWatch);   // a scan with the copy it had before the rule was set
+        Assert.Equal(movies.Id, db.GetRoots().Single(r => r.Id == toWatch.Id).WatchedMoveRoot);
+
+        db.RemoveRoot(movies.Id);
+        Assert.Null(db.GetRoots().Single(r => r.Id == toWatch.Id).WatchedMoveRoot);
+    }
+
+    [Fact]
     public void Choices_are_remembered_for_the_show_and_in_general()
     {
         var db = new LibraryDatabase(Path.Combine(_dir, "t.db"));

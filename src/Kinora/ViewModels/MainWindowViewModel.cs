@@ -791,7 +791,7 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         PlayFile(new PlayRequest(RelPath.ToFull(root.Path, videoFile ?? card.Movie.VideoFile), card.Title,
                                  card.Movie.Year?.ToString(CultureInfo.InvariantCulture), PlaybackKind.Movie, card.Movie.Id,
-                                 () => SetWatched(card, true), _ => MovieKept(card), PosterPath(card.Movie.ThumbKey),
+                                 () => SetWatched(card, true), watched => MovieKept(card, watched), PosterPath(card.Movie.ThumbKey),
                                  FindSubtitles: added => FindSubtitlesAsync(card, added)));
     }
 
@@ -866,11 +866,31 @@ public partial class MainWindowViewModel : ViewModelBase
             Player = null;
         player.Dispose();
         AfterProgressChange();
+        if (_justWatched is { } movie)
+        {
+            _justWatched = null;
+            // Once the player's windows have gone
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => _ = OfferMoveAsync(movie), Avalonia.Threading.DispatcherPriority.Background);
+        }
+    }
+
+    private MovieCardViewModel? _justWatched;
+
+    /// <summary>The folder's rule in Settings: seen here, it may go there (MoviesToWatch to Movies). Always asked.</summary>
+    private async Task OfferMoveAsync(MovieCardViewModel card)
+    {
+        var from = _s.Database.GetRoots().FirstOrDefault(r => r.Id == card.RootId);
+        if (from?.WatchedMoveRoot is not { } target || !_roots.TryGetValue(target, out var to) || to.Kind != from.Kind
+            || to.Id == from.Id || _unavailable.Contains(to.Id) || _unavailable.Contains(from.Id))
+            return;
+        await MoveManyAsync([card], to, $"You have watched “{card.Title}”. Move it from {from.Name} to {to.Name}?");
     }
 
     /// <summary>The "started" ring follows where it stopped (or goes, once watched).</summary>
-    private void MovieKept(MovieCardViewModel card)
+    private void MovieKept(MovieCardViewModel card, bool watched)
     {
+        if (watched)
+            _justWatched = card;
         var kept = _s.Database.GetPlayback(PlaybackKind.Movie, card.Movie.Id);
         card.Started = PlaybackRules.SeenFraction(kept);
         card.LastPlayed = kept?.Updated ?? 0;
@@ -1244,7 +1264,8 @@ public partial class MainWindowViewModel : ViewModelBase
     /// (it stays where it was) and the ones after it; a title whose name is already there is
     /// skipped and the others go on.
     /// </summary>
-    public async Task MoveManyAsync(IReadOnlyList<CardViewModel> cards, LibraryRoot to)
+    /// <param name="question">The question, when it isn't the plain "Move this?".</param>
+    public async Task MoveManyAsync(IReadOnlyList<CardViewModel> cards, LibraryRoot to, string? question = null)
     {
         if (Dialogs is null || IsBusy("move"))
             return;
@@ -1276,7 +1297,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 : $"{Format.Size(size)} will be copied to {to.Path}. Each original is deleted only after its copy has been checked.";
             var what = items.Count == 1 ? $"“{items[0].Card.Title}” from {items[0].From.Name}" : Format.Count(items.Count, "title", "titles");
             ScanStatus = "Move: waiting for your answer";
-            go = await Dialogs.ConfirmAsync("Move", $"Move {what} to {to.Name}?\n\n{how}", "Move");
+            go = await Dialogs.ConfirmAsync("Move", $"{question ?? $"Move {what} to {to.Name}?"}\n\n{how}", "Move");
         }
         catch (Exception e)
         {

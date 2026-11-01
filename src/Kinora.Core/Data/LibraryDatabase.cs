@@ -339,13 +339,21 @@ public sealed partial class LibraryDatabase
     public void UpdateRoot(LibraryRoot root)
     {
         using var c = Open();
-        c.Execute("UPDATE roots SET name = @Name, path = @Path, last_scan = @LastScan, watched_move_root = @WatchedMoveRoot WHERE id = @Id", root);
+        c.Execute("UPDATE roots SET name = @Name, path = @Path, last_scan = @LastScan WHERE id = @Id", root);
+    }
+
+    /// <summary>A column of its own: scans write their root back, and that copy may be older than this choice.</summary>
+    public void SetWatchedMoveRoot(long rootId, long? target)
+    {
+        using var c = Open();
+        c.Execute("UPDATE roots SET watched_move_root = @target WHERE id = @rootId", new { rootId, target });
     }
 
     public void RemoveRoot(long rootId)
     {
         using var c = Open();
         c.Execute("DELETE FROM roots WHERE id = @rootId", new { rootId });
+        c.Execute("UPDATE roots SET watched_move_root = NULL WHERE watched_move_root = @rootId", new { rootId });
     }
 
     // ---- movies ----
