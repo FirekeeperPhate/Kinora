@@ -32,6 +32,11 @@ public sealed class MovieCardViewModel : CardViewModel
     public override bool Watched => Movie.Watched;
     public override string WatchedMenuText => Movie.Watched ? "Mark as unwatched" : "Mark as watched";
 
+    public override TitleIds Ids => new(Movie.ImdbId, Movie.TmdbId, null, Movie.Title, Movie.Year);
+
+    public override string CopyText =>
+        string.Join("  ·  ", new[] { Movie.Resolution, Movie.IsHdr ? "HDR" : null, Format.Size(Movie.VideoSize) }.OfType<string>());
+
     public override string Subtitle
     {
         get

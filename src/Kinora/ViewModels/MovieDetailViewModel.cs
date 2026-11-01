@@ -204,6 +204,13 @@ public partial class MovieDetailViewModel : ViewModelBase, IDisposable
     public void NotifyStartedChanged() => OnPropertyChanged(nameof(PlayText));
 
     [RelayCommand]
+    private void ShowCollection()
+    {
+        if (Collection is { } name)
+            _owner.ShowCollection(name);
+    }
+
+    [RelayCommand]
     private void Play() => _owner.Play(Card, null);
 
     [RelayCommand]

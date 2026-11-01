@@ -108,6 +108,16 @@ public abstract partial class CardViewModel : ViewModelBase, IPosterHolder
 
     public virtual string StartedText => Started is { } f ? $"Started: {f:P0} seen" : "";
 
+    /// <summary>What tells it apart from its duplicates.</summary>
+    public abstract TitleIds Ids { get; }
+
+    /// <summary>What this copy is, for the Duplicates view.</summary>
+    public abstract string CopyText { get; }
+
+    /// <summary>A third line under the poster, in the Duplicates view.</summary>
+    [ObservableProperty]
+    public partial string? Note { get; set; }
+
     /// <summary>When it was last played, Unix seconds: the order of "Continue watching".</summary>
     public long LastPlayed { get; set; }
 

@@ -91,7 +91,7 @@
                     </StackPanel>
                     <StackPanel Grid.Column="1" Classes="toolbar" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                         <StackPanel.Styles>
-                            <Style Selector="StackPanel.toolbar > TextBox, StackPanel.toolbar > ComboBox, StackPanel.toolbar > Button, StackPanel.toolbar > ToggleButton, StackPanel.toolbar > SplitButton">
+                            <Style Selector="StackPanel.toolbar > TextBox, StackPanel.toolbar > ComboBox, StackPanel.toolbar > Button, StackPanel.toolbar > ToggleButton, StackPanel.toolbar > SplitButton, StackPanel.toolbar > DropDownButton">
                                 <Setter Property="Height" Value="38" />
                                 <Setter Property="MinHeight" Value="38" />
                                 <Setter Property="VerticalAlignment" Value="Center" />
@@ -115,6 +115,35 @@
                         <ToggleButton IsChecked="{Binding SortDescending}" ToolTip.Tip="Reverse the order" Padding="10,0">
                             <Path Classes="icon" Data="{x:Static k:Icons.Sort}" Width="16" Height="16" />
                         </ToggleButton>
+                        <DropDownButton ToolTip.Tip="Filter this view" Padding="10,0">
+                            <Panel>
+                                <Path Classes="icon" Data="{x:Static k:Icons.Filter}" Width="16" Height="16" />
+                                <Ellipse Width="8" Height="8" Margin="0,-4,-4,0" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                         Fill="{DynamicResource AccentBrush}" IsVisible="{Binding HasFilter}" />
+                            </Panel>
+                            <DropDownButton.Flyout>
+                                <Flyout Placement="BottomEdgeAlignedRight">
+                                    <Grid ColumnDefinitions="Auto,12,220" RowDefinitions="Auto,8,Auto,8,Auto,8,Auto,8,Auto,12,Auto">
+                                        <TextBlock Text="Resolution" VerticalAlignment="Center" IsVisible="{Binding IsMoviesMode}" />
+                                        <ComboBox Grid.Column="2" HorizontalAlignment="Stretch" ItemsSource="{Binding FilterResolutions}"
+                                                  SelectedItem="{Binding SelectedResolution}" IsVisible="{Binding IsMoviesMode}" />
+                                        <CheckBox Grid.Row="2" Grid.Column="2" Content="Only HDR" IsChecked="{Binding OnlyHdr}" IsVisible="{Binding IsMoviesMode}"
+                                                  ToolTip.Tip="By the nfo or the file name. A full scan reads the nfo of what is already in the library." />
+                                        <TextBlock Grid.Row="4" Text="Decade" VerticalAlignment="Center" />
+                                        <ComboBox Grid.Row="4" Grid.Column="2" HorizontalAlignment="Stretch" ItemsSource="{Binding FilterDecades}"
+                                                  SelectedItem="{Binding SelectedDecade}" />
+                                        <TextBlock Grid.Row="6" Text="Rating" VerticalAlignment="Center" />
+                                        <ComboBox Grid.Row="6" Grid.Column="2" HorizontalAlignment="Stretch" ItemsSource="{Binding FilterRatings}"
+                                                  SelectedItem="{Binding SelectedRating}" />
+                                        <TextBlock Grid.Row="8" Text="Collection" VerticalAlignment="Center" IsVisible="{Binding IsMoviesMode}" />
+                                        <ComboBox Grid.Row="8" Grid.Column="2" HorizontalAlignment="Stretch" ItemsSource="{Binding FilterCollections}"
+                                                  SelectedItem="{Binding SelectedCollection}" IsVisible="{Binding IsMoviesMode}" />
+                                        <Button Grid.Row="10" Grid.Column="2" HorizontalAlignment="Right" Content="Clear" Command="{Binding ClearFiltersCommand}"
+                                                IsEnabled="{Binding HasFilter}" />
+                                    </Grid>
+                                </Flyout>
+                            </DropDownButton.Flyout>
+                        </DropDownButton>
                         <SplitButton Command="{Binding ScanCommand}" ToolTip.Tip="Look for new, changed and removed movies (F5)">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <Path Classes="icon" Data="{x:Static k:Icons.Refresh}" Width="15" Height="15" />
@@ -271,6 +300,8 @@
                                                     <TextBlock Classes="cardTitle" Text="{Binding Title}" Margin="2,10,2,0"
                                                                FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                                                     <TextBlock Text="{Binding Subtitle}" Margin="2,2,2,0" FontSize="12" Classes="subtle" />
+                                                    <TextBlock Text="{Binding Note}" Margin="2,2,2,0" FontSize="12" Classes="subtle" TextWrapping="Wrap"
+                                                               IsVisible="{Binding Note, Converter={x:Static ObjectConverters.IsNotNull}}" />
                                                 </StackPanel>
                                             </Button>
                                         </DataTemplate>
@@ -295,7 +326,7 @@
                 <StackPanel Grid.Row="2" IsVisible="{Binding HasNoResults}" VerticalAlignment="Center"
                             HorizontalAlignment="Center" Spacing="8" Margin="0,0,0,80">
                     <TextBlock Text="Nothing here" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center" />
-                    <TextBlock Text="No movie matches this view or search." Classes="subtle" HorizontalAlignment="Center" />
+                    <TextBlock Text="Nothing matches this view, search or filter." Classes="subtle" HorizontalAlignment="Center" />
                 </StackPanel>
 
                 <!-- Scan status -->

@@ -11,6 +11,7 @@ public enum NavKind
     Unwatched,
     RecentlyAdded,
     NeedsMetadata,
+    Duplicates,
     Root,
     Genre,
 }

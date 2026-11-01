@@ -33,6 +33,7 @@ public sealed class NfoData
 
     public int? VideoWidth { get; set; }
     public int? VideoHeight { get; set; }
+    public string? VideoHdr { get; set; }
     public string? VideoCodec { get; set; }
     public string? AudioCodec { get; set; }
     public int? AudioChannels { get; set; }
@@ -73,6 +74,7 @@ public sealed class NfoData
         {
             VideoWidth = other.VideoWidth;
             VideoHeight = other.VideoHeight;
+            VideoHdr = other.VideoHdr;
             VideoCodec = other.VideoCodec;
         }
         if (AudioCodec is null)

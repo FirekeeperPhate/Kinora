@@ -210,7 +210,9 @@
                             <TextBlock Grid.Row="2" Classes="label" Text="Country" IsVisible="{Binding Countries, Converter={x:Static ObjectConverters.IsNotNull}}" />
                             <TextBlock Grid.Row="2" Grid.Column="1" Classes="value" Text="{Binding Countries}" IsVisible="{Binding Countries, Converter={x:Static ObjectConverters.IsNotNull}}" />
                             <TextBlock Grid.Row="3" Classes="label" Text="Collection" IsVisible="{Binding Collection, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                            <TextBlock Grid.Row="3" Grid.Column="1" Classes="value" Text="{Binding Collection}" IsVisible="{Binding Collection, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                            <Button Grid.Row="3" Grid.Column="1" Classes="link" Content="{Binding Collection}" Command="{Binding ShowCollectionCommand}"
+                                    ToolTip.Tip="See the movies of this collection" HorizontalAlignment="Left"
+                                    IsVisible="{Binding Collection, Converter={x:Static ObjectConverters.IsNotNull}}" />
                             <TextBlock Grid.Row="4" Classes="label" Text="Subtitles" IsVisible="{Binding Subtitles, Converter={x:Static ObjectConverters.IsNotNull}}" />
                             <TextBlock Grid.Row="4" Grid.Column="1" Classes="value" Text="{Binding Subtitles}" IsVisible="{Binding Subtitles, Converter={x:Static ObjectConverters.IsNotNull}}" />
                             <TextBlock Grid.Row="5" Classes="label" Text="Video" />

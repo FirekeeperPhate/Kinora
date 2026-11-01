@@ -1,10 +1,12 @@
+using System.Text.RegularExpressions;
+
 namespace Kinora.Core.Models;
 
 /// <summary>
 /// A movie as the library keeps it. Paths are relative to the root; list fields are stored
 /// joined with <see cref="ListSeparator"/> and read through the <c>…List</c> helpers.
 /// </summary>
-public sealed class Movie
+public sealed partial class Movie
 {
     public const char ListSeparator = '|';
 
@@ -49,6 +51,16 @@ public sealed class Movie
     public string? OnlineLogo { get; set; }
 
     public string? Resolution { get; set; }
+
+    /// <summary>The kind of HDR the nfo says; empty or null when it says none.</summary>
+    public string? Hdr { get; set; }
+
+    /// <summary>By the nfo or by the file's name, which is known without reading the folder again.</summary>
+    public bool IsHdr => !string.IsNullOrEmpty(Hdr) || HdrName().IsMatch(Path.GetFileName(VideoFile));
+
+    [GeneratedRegex(@"(?<![a-z0-9])(hdr(10)?(\+|plus)?|dovi|dolby[ ._-]?vision)(?![a-z0-9])|2160p.*[ ._-]dv[ ._-]", RegexOptions.IgnoreCase)]
+    private static partial Regex HdrName();
+
     public string? VideoCodec { get; set; }
     public string? AudioCodec { get; set; }
     public int? AudioChannels { get; set; }

@@ -299,6 +299,7 @@ public sealed class MovieScanner(LibraryDatabase db, ImageCache posters)
             FanartFile = art.Fanart is null ? null : RelPath.Combine(rel, art.Fanart),
             LogoFile = art.Logo is null ? null : RelPath.Combine(rel, art.Logo),
             Resolution = ResolutionLabel(nfo?.VideoWidth, nfo?.VideoHeight),
+            Hdr = nfo?.VideoHdr,
             VideoCodec = nfo?.VideoCodec,
             AudioCodec = nfo?.AudioCodec,
             AudioChannels = nfo?.AudioChannels,

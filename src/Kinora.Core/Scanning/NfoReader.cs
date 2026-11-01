@@ -109,6 +109,7 @@ public static partial class NfoReader
         {
             data.VideoWidth = Int(Str(video, "width"));
             data.VideoHeight = Int(Str(video, "height"));
+            data.VideoHdr = Str(video, "hdrtype");
             data.VideoCodec = Str(video, "codec");
         }
         if (streams?.Element("audio") is { } audio)

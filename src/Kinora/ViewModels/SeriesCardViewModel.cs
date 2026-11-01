@@ -37,6 +37,9 @@ public sealed class SeriesCardViewModel : CardViewModel
     public override int UnwatchedCount => Series.EpisodeCount - Series.WatchedCount;
     public override string WatchedMenuText => Watched ? "Mark all as unwatched" : "Mark all as watched";
 
+    public override TitleIds Ids => new(Series.ImdbId, Series.TmdbId, Series.TvdbId, Series.Title, Series.Year);
+    public override string CopyText => Format.Count(Series.EpisodeCount, "episode", "episodes");
+
     public override string Subtitle
     {
         get

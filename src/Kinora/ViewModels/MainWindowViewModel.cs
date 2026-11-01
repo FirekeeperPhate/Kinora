@@ -157,6 +157,7 @@ public partial class MainWindowViewModel : ViewModelBase
         ClearSelection();
         _s.Settings.ShowTvShows = value == LibraryMode.Shows;
         SearchText = "";
+        ClearFilters();
         SelectedNav = null;
         RebuildNav();
         ScrollToTopRequested?.Invoke();
@@ -271,6 +272,10 @@ public partial class MainWindowViewModel : ViewModelBase
         var missing = cards.Count(c => c.NeedsMatch);
         if (missing > 0)
             NavItems.Add(new NavItem(NavKind.NeedsMetadata, "Not identified", Icons.Question) { Count = missing });
+        FindDuplicates();
+        if (_duplicates.Count > 0)
+            NavItems.Add(new NavItem(NavKind.Duplicates, "Duplicates", Icons.Copies) { Count = _duplicates.Count });
+        RefreshFilterChoices();
 
         var roots = _roots.Values.Where(r => r.Kind == CurrentKind).OrderBy(r => r.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
         if (roots.Count > 0)
@@ -314,6 +319,7 @@ public partial class MainWindowViewModel : ViewModelBase
             NavKind.Unwatched => cards.Where(c => !c.Watched),
             NavKind.RecentlyAdded => cards.OrderByDescending(c => c.DateAdded).Take(RecentCount),
             NavKind.NeedsMetadata => cards.Where(c => c.NeedsMatch),
+            NavKind.Duplicates => cards.Where(_duplicates.ContainsKey),
             NavKind.Root => cards.Where(c => c.RootId == nav.RootId),
             NavKind.Genre => cards.Where(c => c.Genres.Contains(nav.Genre!, StringComparer.CurrentCultureIgnoreCase)),
             _ => cards,
@@ -329,7 +335,9 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
 
         var query = Core.SearchText.Normalize(SearchText);
-        var items = InView(nav).Where(c => Core.SearchText.Matches(c.SearchKey, query));
+        var filter = CurrentFilter;
+        var items = InView(nav).Where(c => Core.SearchText.Matches(c.SearchKey, query))
+                               .Where(c => c is MovieCardViewModel m ? filter.Allows(m.Movie) : filter.Allows(c.Year, c.Rating));
 
         IEnumerable<CardViewModel> sorted;
         if (nav.Kind == NavKind.RecentlyAdded)
@@ -339,6 +347,10 @@ public partial class MainWindowViewModel : ViewModelBase
         else if (nav.Kind == NavKind.Continue)
         {
             sorted = items.OrderByDescending(c => c.LastPlayed);
+        }
+        else if (nav.Kind == NavKind.Duplicates)
+        {
+            sorted = items.OrderBy(c => _duplicates[c]);   // each title next to its copies
         }
         else
         {
@@ -362,6 +374,9 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         _filtered = sorted.ToList();
+        foreach (var card in _duplicates.Keys)
+            card.Note = nav.Kind != NavKind.Duplicates ? null
+                : _roots.TryGetValue(card.RootId, out var root) ? $"{card.CopyText}  ·  {root.Name}" : card.CopyText;
         ViewTitle = nav.Title;
         var (one, many) = Mode == LibraryMode.Movies ? ("movie", "movies") : ("show", "shows");
         CountText = query.Length > 0
@@ -371,6 +386,120 @@ public partial class MainWindowViewModel : ViewModelBase
         LayoutRows();
         if (toTop)
             ScrollToTopRequested?.Invoke();
+    }
+
+    // ---- duplicates ----
+
+    private readonly Dictionary<CardViewModel, int> _duplicates = [];
+
+    /// <summary>The cards that have a copy, with the place of their group: by title, each group together.</summary>
+    private void FindDuplicates()
+    {
+        foreach (var card in _duplicates.Keys)
+            card.Note = null;
+        _duplicates.Clear();
+        var groups = DuplicateFinder.Groups(CurrentCards, c => c.Ids).OrderBy(g => g[0].SortKey, StringComparer.Ordinal);
+        var place = 0;
+        foreach (var group in groups)
+        {
+            foreach (var card in group)
+                _duplicates[card] = place;
+            place++;
+        }
+    }
+
+    // ---- filters ----
+
+    private const string AnyFilter = "Any";
+
+    public IReadOnlyList<string> FilterResolutions { get; } = [AnyFilter, "4K", "1080p", "720p", LibraryFilter.LowerResolution];
+    public IReadOnlyList<string> FilterRatings { get; } = [AnyFilter, "6+", "7+", "8+"];
+
+    [ObservableProperty]
+    public partial IReadOnlyList<string> FilterDecades { get; private set; } = [AnyFilter];
+
+    [ObservableProperty]
+    public partial IReadOnlyList<string> FilterCollections { get; private set; } = [AnyFilter];
+
+    [ObservableProperty]
+    public partial string? SelectedResolution { get; set; } = AnyFilter;
+
+    [ObservableProperty]
+    public partial string? SelectedDecade { get; set; } = AnyFilter;
+
+    [ObservableProperty]
+    public partial string? SelectedRating { get; set; } = AnyFilter;
+
+    [ObservableProperty]
+    public partial string? SelectedCollection { get; set; } = AnyFilter;
+
+    [ObservableProperty]
+    public partial bool OnlyHdr { get; set; }
+
+    partial void OnSelectedResolutionChanged(string? value) => FilterChanged();
+    partial void OnSelectedDecadeChanged(string? value) => FilterChanged();
+    partial void OnSelectedRatingChanged(string? value) => FilterChanged();
+    partial void OnSelectedCollectionChanged(string? value) => FilterChanged();
+    partial void OnOnlyHdrChanged(bool value) => FilterChanged();
+
+    private void FilterChanged()
+    {
+        OnPropertyChanged(nameof(HasFilter));
+        ApplyFilter(toTop: true);
+    }
+
+    private static string? Chosen(string? value) => value is null or AnyFilter ? null : value;
+
+    public bool HasFilter => CurrentFilter != new LibraryFilter();
+
+    private LibraryFilter CurrentFilter => new()
+    {
+        Resolution = Chosen(SelectedResolution),
+        Hdr = OnlyHdr,
+        Decade = Chosen(SelectedDecade) is { } decade ? int.Parse(decade.TrimEnd('s'), CultureInfo.InvariantCulture) : null,
+        MinRating = Chosen(SelectedRating) is { } rating ? double.Parse(rating.TrimEnd('+'), CultureInfo.InvariantCulture) : null,
+        Collection = Chosen(SelectedCollection),
+    };
+
+    [RelayCommand]
+    private void ClearFilters()
+    {
+        var suppressed = _suppressFilter;
+        _suppressFilter = true;
+        SelectedResolution = SelectedDecade = SelectedRating = SelectedCollection = AnyFilter;
+        OnlyHdr = false;
+        _suppressFilter = suppressed;
+        ApplyFilter(toTop: true);
+    }
+
+    /// <summary>The decades and collections there are in this mode; a choice that has gone goes back to Any.</summary>
+    private void RefreshFilterChoices()
+    {
+        List<string> decades = [AnyFilter, .. CurrentCards.Where(c => c.Year is not null).Select(c => c.Year!.Value / 10 * 10)
+                                                          .Distinct().OrderDescending().Select(d => $"{d}s")];
+        List<string> collections = [AnyFilter, .. _movies.Select(c => c.Movie.Collection).OfType<string>().Where(n => n.Length > 0)
+                                                         .Distinct(StringComparer.CurrentCultureIgnoreCase).Order(StringComparer.CurrentCultureIgnoreCase)];
+        var decade = SelectedDecade;
+        var collection = SelectedCollection;
+        if (!FilterDecades.SequenceEqual(decades))
+            FilterDecades = decades;
+        if (!FilterCollections.SequenceEqual(collections))
+            FilterCollections = collections;
+        SelectedDecade = decades.Contains(decade ?? "") ? decade : AnyFilter;
+        SelectedCollection = collections.Contains(collection ?? "") ? collection : AnyFilter;
+    }
+
+    /// <summary>From a movie's page: the other movies of its collection.</summary>
+    public void ShowCollection(string name)
+    {
+        CloseDetail();
+        ClosePerson();
+        ClearSelection();
+        Mode = LibraryMode.Movies;
+        ClearFilters();
+        SearchText = "";
+        SelectedNav = NavItems[0];
+        SelectedCollection = name;
     }
 
     /// <summary>Another view, search or order: start from the top, not where the last one was.</summary>
@@ -428,6 +557,7 @@ public partial class MainWindowViewModel : ViewModelBase
         int added = 0, updated = 0, removed = 0;
         var notes = new List<string>();
         var cancelled = false;
+        string? stopped = null;
         try
         {
             foreach (var root in _roots.Values.OrderBy(r => r.Kind))
@@ -460,6 +590,11 @@ public partial class MainWindowViewModel : ViewModelBase
                 await Task.Run(() => _s.Posters.Prune(keys));
             }
         }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            // Said on screen: left to the task it would just stop, with "Saving" still in the status bar
+            stopped = $"The scan stopped: {e.Message}";
+        }
         finally
         {
             IsScanning = false;
@@ -471,12 +606,12 @@ public partial class MainWindowViewModel : ViewModelBase
             ? "no changes"
             : string.Join(", ", new[] { (added, "added"), (updated, "updated"), (removed, "removed") }
                                     .Where(x => x.Item1 > 0).Select(x => $"{x.Item1:N0} {x.Item2}"));
-        var text = cancelled ? "Scan cancelled" : $"Library scanned in {watch.Elapsed.TotalSeconds:0.0} s · {changes}";
+        var text = stopped ?? (cancelled ? "Scan cancelled" : $"Library scanned in {watch.Elapsed.TotalSeconds:0.0} s · {changes}");
         if (notes.Count > 0)
             text += " · " + string.Join(" · ", notes);
-        ShowStatusFor(text, notes.Count > 0 ? 20 : 8);
+        ShowStatusFor(text, notes.Count > 0 || stopped is not null ? 20 : 8);
 
-        if (!cancelled && _s.Settings.FetchAfterScan && _s.Settings.HasTmdbKey)
+        if (!cancelled && stopped is null && _s.Settings.FetchAfterScan && _s.Settings.HasTmdbKey)
             await RunFetchAsync(retryNotFound: false, asked: false);
     }
 

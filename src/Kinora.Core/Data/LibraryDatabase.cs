@@ -305,6 +305,8 @@ public sealed partial class LibraryDatabase
                 );
                 -- After watching a movie here: offer the move to this library folder
                 ALTER TABLE roots ADD COLUMN watched_move_root INTEGER;
+                -- The nfo's hdrtype: HDR10, DolbyVision...
+                ALTER TABLE movies ADD COLUMN hdr TEXT;
                 -- What Kinora and the Emby or Jellyfin server agreed on at the last sync,
                 -- to tell which of the two changed since
                 CREATE TABLE server_sync (
@@ -530,7 +532,7 @@ public sealed partial class LibraryDatabase
         "root_id", "folder", "video_file", "video_size", "stamp", "title", "original_title", "sort_title", "year",
         "plot", "tagline", "runtime", "rating", "critic_rating", "mpaa", "premiered", "imdb_id", "tmdb_id",
         "collection", "genres", "studios", "directors", "countries", "poster_file", "fanart_file", "logo_file",
-        "thumb_key", "resolution", "video_codec", "audio_codec", "audio_channels", "subtitles", "other_videos", "watched", "date_added", "online_poster", "online_fanart", "online_logo",
+        "thumb_key", "resolution", "video_codec", "audio_codec", "audio_channels", "subtitles", "other_videos", "watched", "date_added", "online_poster", "online_fanart", "online_logo", "hdr",
     ];
 
     private static string ToProperty(string column) =>

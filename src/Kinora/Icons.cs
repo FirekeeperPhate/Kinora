@@ -13,6 +13,8 @@ public static class Icons
     public static Geometry Clock { get; } = Geometry.Parse("M12,3 A9,9 0 1 0 12.01,3 Z M12,7.5 V12 L15,14");
     public static Geometry Question { get; } = Geometry.Parse("M12,3 A9,9 0 1 0 12.01,3 Z M9.6,9.4 A2.5,2.5 0 1 1 13.2,11.7 C12.5,12.1 12,12.6 12,13.4 V14 M12,17 V17.2");
     public static Geometry Folder { get; } = Geometry.Parse("M3,7 A1.5,1.5 0 0 1 4.5,5.5 H9 L11,7.5 H19.5 A1.5,1.5 0 0 1 21,9 V17.5 A1.5,1.5 0 0 1 19.5,19 H4.5 A1.5,1.5 0 0 1 3,17.5 Z");
+    public static Geometry Copies { get; } = Geometry.Parse("M9,9 H20 V20 H9 Z M5,15 H4 V4 H15 V5");
+    public static Geometry Filter { get; } = Geometry.Parse("M4,5 H20 L14,12.5 V19 L10,17 V12.5 Z");
     public static Geometry Tag { get; } = Geometry.Parse("M3.5,11.5 V4.5 A1,1 0 0 1 4.5,3.5 H11.5 L20.5,12.5 L12.5,20.5 Z M8,7 A1,1 0 1 0 8.01,7 Z");
     public static Geometry Sliders { get; } = Geometry.Parse("M4,6 H20 M4,12 H20 M4,18 H20 M9,4 V8 M15,10 V14 M7,16 V20");
     public static Geometry Refresh { get; } = Geometry.Parse("M20,12 A8,8 0 1 1 17.7,6.3 M20,3.5 V8.5 H15");
