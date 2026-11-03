@@ -131,6 +131,60 @@ public sealed class MediaServerClient : IDisposable
         }
     }
 
+    /// <summary>Some titles by their id on the server: what a sync of one page needs. Titles gone from the server are left out.</summary>
+    public async Task<List<ServerItem>> GetItemsByIdsAsync(string user, IReadOnlyCollection<string> ids, CancellationToken ct)
+    {
+        const string query = "Fields=Path,ProviderIds&EnableUserData=true&EnableImages=false";
+        var u = Uri.EscapeDataString(user);
+        var items = new List<ServerItem>();
+        foreach (var chunk in ids.Distinct().Chunk(100))   // the address stays short enough for any proxy
+        {
+            var list = string.Join(',', chunk.Select(Uri.EscapeDataString));
+            string[] routes = _kind == MediaServerKind.Jellyfin
+                ? [$"/Items?userId={u}&ids={list}&{query}", $"/Users/{u}/Items?Ids={list}&{query}"]
+                : [$"/Users/{u}/Items?Ids={list}&{query}"];
+            using var response = await SendAsync(HttpMethod.Get, routes, null, ct);
+            var page = JsonSerializer.Deserialize<PageDto>(await response.Content.ReadAsStringAsync(ct), Json);
+            items.AddRange((page?.Items ?? []).Select(ToItem));
+        }
+        return items;
+    }
+
+    /// <summary>
+    /// Where the intro is, when the server has found it: Emby keeps it in hidden chapter markers
+    /// (IntroStart, IntroEnd), Jellyfin 10.10 in media segments. Null when it doesn't know.
+    /// </summary>
+    public async Task<(long StartMs, long EndMs)?> GetIntroAsync(string user, string item, CancellationToken ct)
+    {
+        var (u, i) = (Uri.EscapeDataString(user), Uri.EscapeDataString(item));
+        if (_kind == MediaServerKind.Jellyfin)
+        {
+            try
+            {
+                using var segments = await SendAsync(HttpMethod.Get, [$"/MediaSegments/{i}?includeSegmentTypes=Intro"], null, ct);
+                var root = JsonNode.Parse(await segments.Content.ReadAsStringAsync(ct));
+                foreach (var segment in root?["Items"]?.AsArray() ?? [])
+                    if (segment?["Type"]?.GetValue<string>() is "Intro" && Ticks(segment["StartTicks"]) is { } start && Ticks(segment["EndTicks"]) is { } end && end > start)
+                        return (start / TicksPerMs, end / TicksPerMs);
+                return null;
+            }
+            catch (MediaServerException)
+            {
+                return null;   // older than 10.10
+            }
+        }
+
+        string[] routes = [$"/Users/{u}/Items/{i}?Fields=Chapters"];
+        using var response = await SendAsync(HttpMethod.Get, routes, null, ct);
+        var chapters = (JsonNode.Parse(await response.Content.ReadAsStringAsync(ct))?["Chapters"]?.AsArray() ?? []).ToList();
+        long? Marker(string type) => chapters.Where(c => c?["MarkerType"]?.GetValue<string>() == type)
+                                             .Select(c => Ticks(c!["StartPositionTicks"])).FirstOrDefault();
+        return Marker("IntroStart") is { } from && Marker("IntroEnd") is { } to && to > from ? (from / TicksPerMs, to / TicksPerMs) : null;
+    }
+
+    private static long? Ticks(JsonNode? node) =>
+        node is JsonValue v && v.TryGetValue<long>(out var ticks) ? ticks : null;
+
     private static ServerItem ToItem(ItemDto d)
     {
         var ids = new Dictionary<string, string>(d.ProviderIds ?? [], StringComparer.OrdinalIgnoreCase);

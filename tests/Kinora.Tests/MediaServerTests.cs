@@ -23,6 +23,12 @@ internal sealed class FakeMediaServer(string product = "") : HttpMessageHandler
     public HashSet<string> Refused { get; } = [];
     public HashSet<string> Gone { get; } = [];
 
+    /// <summary>Hidden chapter markers by item: Emby's IntroStart and IntroEnd, in ticks.</summary>
+    public Dictionary<string, JsonArray> Chapters { get; } = [];
+
+    /// <summary>Jellyfin's media segments by item.</summary>
+    public Dictionary<string, JsonArray> Segments { get; } = [];
+
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         var path = request.RequestUri!.PathAndQuery;
@@ -41,6 +47,23 @@ internal sealed class FakeMediaServer(string product = "") : HttpMessageHandler
 
         if (path == "/Users")
             return Answer(HttpStatusCode.OK, """[{"Id":"u2","Name":"Zoe"},{"Id":"u1","Name":"Ann"}]""");
+        if (request.Method == HttpMethod.Get && path.Contains("/Items?", StringComparison.Ordinal)
+            && System.Web.HttpUtility.ParseQueryString(request.RequestUri.Query) is var byIds && (byIds["Ids"] ?? byIds["ids"]) is { } ids)
+        {
+            var wanted = ids.Split(',').ToHashSet();
+            var found = new JsonArray(Items.Where(i => wanted.Contains((string)i["Id"]!)).Select(i => (JsonNode)i.DeepClone()).ToArray());
+            return Answer(HttpStatusCode.OK, new JsonObject { ["Items"] = found, ["TotalRecordCount"] = found.Count }.ToJsonString());
+        }
+        if (request.Method == HttpMethod.Get && path.StartsWith("/MediaSegments/", StringComparison.Ordinal))
+        {
+            var id = path["/MediaSegments/".Length..].Split('?')[0];
+            return Answer(HttpStatusCode.OK, new JsonObject { ["Items"] = Segments.GetValueOrDefault(id)?.DeepClone() ?? new JsonArray() }.ToJsonString());
+        }
+        if (request.Method == HttpMethod.Get && path.StartsWith("/Users/u1/Items/", StringComparison.Ordinal) && path.Contains("Fields=Chapters", StringComparison.Ordinal))
+        {
+            var id = path["/Users/u1/Items/".Length..].Split('?')[0];
+            return Answer(HttpStatusCode.OK, new JsonObject { ["Id"] = id, ["Chapters"] = Chapters.GetValueOrDefault(id)?.DeepClone() ?? new JsonArray() }.ToJsonString());
+        }
         if (request.Method == HttpMethod.Get && path.Contains("/Items?", StringComparison.Ordinal))
         {
             var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri.Query);
@@ -520,7 +543,7 @@ public sealed class MediaServerTests : IDisposable
         var show = new Series { RootId = root.Id, Folder = "Lost", Title = "Lost" };
         _db.SaveSeries(show, [], [], [new Episode { Season = 1, Number = 1, Title = "Pilot", VideoFile = "Lost/S01E01.mkv" }]);
         var episode = _db.GetEpisodes(show.Id).Single();
-        _db.SaveSyncStates([(PlaybackKind.Movie, movie.Id, true, 0), (PlaybackKind.Episode, episode.Id, false, 0)]);
+        _db.SaveSyncStates([(PlaybackKind.Movie, movie.Id, true, 0, null), (PlaybackKind.Episode, episode.Id, false, 0, null)]);
         _db.SavePlayback(PlaybackKind.Movie, movie.Id, 5 * Minute, 90 * Minute);
         _db.SavePlayback(PlaybackKind.Episode, episode.Id, 5 * Minute, 40 * Minute);
 
@@ -533,7 +556,7 @@ public sealed class MediaServerTests : IDisposable
 
         // Nor does a folder taken out leave anything for the next title that gets its id
         var other = AddMovie("B/M.mkv", watched: true);
-        _db.SaveSyncStates([(PlaybackKind.Movie, other.Id, true, 0)]);
+        _db.SaveSyncStates([(PlaybackKind.Movie, other.Id, true, 0, null)]);
         _db.RemoveRoot(_root.Id);
         Assert.Empty(_db.GetSyncStates());
     }
@@ -579,5 +602,184 @@ public sealed class MediaServerTests : IDisposable
         _db.ClearSyncStates();
 
         Assert.True((await PlanAsync(server)).Plan.FirstTime);
+    }
+
+    // ---- a few titles on their own ----
+
+    private async Task<(SyncPlan Plan, MediaServerSync Sync)> PlanForAsync(FakeMediaServer server, params SyncTitle[] titles)
+    {
+        var client = Client(server);
+        await client.ConnectAsync(_ct);
+        var sync = new MediaServerSync(_db, client, "u1");
+        return (await sync.PlanForAsync(titles, _ct), sync);
+    }
+
+    [Fact]
+    public async Task A_whole_sync_keeps_the_server_id_of_each_title()
+    {
+        var movie = AddMovie("A/M.mkv", watched: true);
+        var server = new FakeMediaServer();
+        server.Items.Add(FakeMediaServer.Movie("a", "/m/A/M.mkv", played: true));
+        await RunAsync(server);
+        Assert.Equal("a", _db.GetServerId(PlaybackKind.Movie, movie.Id));
+
+        // A later save without an id keeps the one known
+        _db.SaveSyncStates([(PlaybackKind.Movie, movie.Id, false, 0, null)]);
+        Assert.Equal("a", _db.GetServerId(PlaybackKind.Movie, movie.Id));
+    }
+
+    [Fact]
+    public async Task Watched_here_goes_to_the_server_alone_and_only_that()
+    {
+        var movie = AddMovie("A/M.mkv");
+        AddMovie("B/N.mkv", watched: true);   // not asked about: not touched
+        var server = new FakeMediaServer();
+        server.Items.Add(FakeMediaServer.Movie("a", "/m/A/M.mkv"));
+        server.Items.Add(FakeMediaServer.Movie("b", "/m/B/N.mkv"));
+        _db.SaveSyncStates([(PlaybackKind.Movie, movie.Id, false, 0, "a")]);
+
+        _db.SetWatched(movie, true);
+        var (plan, sync) = await PlanForAsync(server, SyncTitle.Of(movie));
+        Assert.Equal(1, plan.WatchedThere);
+        await sync.ApplyAsync(plan, null, _ct);
+
+        Assert.Equal([("POST", "/Users/u1/PlayedItems/a")], server.Written);
+        Assert.Contains(server.Requests, r => r.Contains("Ids=a", StringComparison.Ordinal));
+        Assert.DoesNotContain(server.Requests, r => r.Contains("StartIndex", StringComparison.Ordinal));   // no whole library read
+        Assert.True(_db.GetSyncStates()[(PlaybackKind.Movie, movie.Id)].Watched);
+    }
+
+    [Fact]
+    public async Task Watched_elsewhere_comes_here_when_the_page_opens()
+    {
+        var movie = AddMovie("A/M.mkv");
+        var server = new FakeMediaServer();
+        server.Items.Add(FakeMediaServer.Movie("a", "/m/A/M.mkv", played: true));
+        _db.SaveSyncStates([(PlaybackKind.Movie, movie.Id, false, 0, "a")]);
+
+        var (plan, sync) = await PlanForAsync(server, SyncTitle.Of(movie));
+        Assert.Equal(1, plan.WatchedHere);
+        await sync.ApplyAsync(plan, null, _ct);
+
+        Assert.True(_db.GetMovies().Single(m => m.Id == movie.Id).Watched);
+        Assert.Empty(server.Written);
+    }
+
+    [Fact]
+    public async Task A_title_never_paired_waits_for_the_whole_sync()
+    {
+        var movie = AddMovie("A/M.mkv", watched: true);
+        var server = new FakeMediaServer();
+        server.Items.Add(FakeMediaServer.Movie("a", "/m/A/M.mkv"));
+
+        var (plan, _) = await PlanForAsync(server, SyncTitle.Of(movie));
+
+        Assert.Empty(plan.Pairs);
+        Assert.DoesNotContain(server.Requests, r => r.Contains("/Items", StringComparison.Ordinal));   // not even asked
+    }
+
+    [Fact]
+    public async Task A_title_gone_from_the_server_is_left_alone()
+    {
+        var movie = AddMovie("A/M.mkv", watched: true);
+        var server = new FakeMediaServer();
+        _db.SaveSyncStates([(PlaybackKind.Movie, movie.Id, false, 0, "a")]);
+
+        var (plan, sync) = await PlanForAsync(server, SyncTitle.Of(movie));
+        await sync.ApplyAsync(plan, null, _ct);
+
+        Assert.Empty(plan.Pairs);
+        Assert.Empty(server.Written);
+        Assert.False(_db.GetSyncStates()[(PlaybackKind.Movie, movie.Id)].Watched);   // still to do next time
+    }
+
+    [Fact]
+    public async Task The_place_where_it_stopped_goes_to_the_server()
+    {
+        var root = _db.AddRoot(LibraryKind.Series, "TV", "I:/");
+        var show = new Series { RootId = root.Id, Folder = "Lost", Title = "Lost" };
+        _db.SaveSeries(show, [], [], [new Episode { Season = 1, Number = 1, Title = "Pilot", VideoFile = "Lost/S01E01.mkv" }]);
+        var episode = _db.GetEpisodes(show.Id).Single();
+        var server = new FakeMediaServer();
+        server.Items.Add(FakeMediaServer.Episode("e1", "/tv/Lost/S01E01.mkv", "Lost", 1, 1));
+        _db.SaveSyncStates([(PlaybackKind.Episode, episode.Id, false, 0, "e1")]);
+        _db.SavePlayback(PlaybackKind.Episode, episode.Id, 12 * Minute, 40 * Minute);
+
+        var (plan, sync) = await PlanForAsync(server, SyncTitle.Of(show, episode));
+        await sync.ApplyAsync(plan, null, _ct);
+
+        Assert.Equal(1, plan.PositionsThere);
+        Assert.Contains(("POST", "/Users/u1/Items/e1/UserData"), server.Written);
+        Assert.Contains("\"PlaybackPositionTicks\":" + 12 * Minute * 10_000, server.Bodies["/Users/u1/Items/e1/UserData"]);
+    }
+
+    [Fact]
+    public async Task Jellyfin_is_asked_by_ids_on_its_own_route()
+    {
+        var movie = AddMovie("A/M.mkv");
+        var server = new FakeMediaServer("Jellyfin Server");
+        server.Items.Add(FakeMediaServer.Movie("a", "/m/A/M.mkv", played: true));
+        _db.SaveSyncStates([(PlaybackKind.Movie, movie.Id, false, 0, "a")]);
+
+        var (plan, _) = await PlanForAsync(server, SyncTitle.Of(movie));
+
+        Assert.Equal(1, plan.WatchedHere);
+        Assert.Contains(server.Requests, r => r.StartsWith("GET /Items?userId=u1&ids=a", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void A_library_synced_by_the_version_before_keeps_what_was_agreed()
+    {
+        var movie = AddMovie("A/M.mkv", watched: true);
+        _db.SaveSyncStates([(PlaybackKind.Movie, movie.Id, true, 0, null)]);
+        var path = Path.Combine(_dir, "t.db");
+        SqliteConnection.ClearAllPools();
+        // As Kinora 0.1.8 left it: schema 7, no server ids
+        using (var c = new SqliteConnection($"Data Source={path};Pooling=False"))
+        {
+            c.Open();
+            using var cmd = c.CreateCommand();
+            cmd.CommandText = "ALTER TABLE server_sync DROP COLUMN server_id; PRAGMA user_version = 7;";
+            cmd.ExecuteNonQuery();
+        }
+
+        var db = new LibraryDatabase(path);
+        Assert.True(db.GetSyncStates()[(PlaybackKind.Movie, movie.Id)].Watched);
+        Assert.Null(db.GetServerId(PlaybackKind.Movie, movie.Id));   // paired again by the next whole sync
+        db.SaveSyncStates([(PlaybackKind.Movie, movie.Id, true, 0, "a")]);
+        Assert.Equal("a", db.GetServerId(PlaybackKind.Movie, movie.Id));
+    }
+
+    // ---- the intro ----
+
+    [Fact]
+    public async Task Emby_says_where_the_intro_is_with_hidden_markers()
+    {
+        var server = new FakeMediaServer();
+        server.Chapters["e1"] = new JsonArray(
+            new JsonObject { ["Name"] = "Chapter 1", ["StartPositionTicks"] = 0, ["MarkerType"] = "Chapter" },
+            new JsonObject { ["Name"] = "Intro", ["StartPositionTicks"] = 30 * 10_000_000L, ["MarkerType"] = "IntroStart" },
+            new JsonObject { ["Name"] = "Intro end", ["StartPositionTicks"] = 85 * 10_000_000L, ["MarkerType"] = "IntroEnd" });
+        server.Chapters["e2"] = new JsonArray(new JsonObject { ["Name"] = "Chapter 1", ["StartPositionTicks"] = 0, ["MarkerType"] = "Chapter" });
+        using var client = Client(server);
+        await client.ConnectAsync(_ct);
+
+        Assert.Equal((30_000L, 85_000L), await client.GetIntroAsync("u1", "e1", _ct));
+        Assert.Null(await client.GetIntroAsync("u1", "e2", _ct));
+    }
+
+    [Fact]
+    public async Task Jellyfin_says_it_with_media_segments_and_an_old_one_says_nothing()
+    {
+        var server = new FakeMediaServer("Jellyfin Server");
+        server.Segments["e1"] = new JsonArray(
+            new JsonObject { ["Type"] = "Outro", ["StartTicks"] = 2000 * 10_000_000L, ["EndTicks"] = 2100 * 10_000_000L },
+            new JsonObject { ["Type"] = "Intro", ["StartTicks"] = 10 * 10_000_000L, ["EndTicks"] = 70 * 10_000_000L });
+        using var client = Client(server);
+        await client.ConnectAsync(_ct);
+        Assert.Equal((10_000L, 70_000L), await client.GetIntroAsync("u1", "e1", _ct));
+
+        server.Gone.Add("/MediaSegments");
+        Assert.Null(await client.GetIntroAsync("u1", "e1", _ct));
     }
 }

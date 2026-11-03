@@ -1,7 +1,12 @@
+using System.Text.RegularExpressions;
+
 namespace Kinora.Core.Playback;
 
+/// <summary>A chapter of a video, as the player shows it.</summary>
+public sealed record PlayerChapter(string Name, long StartMs, long DurationMs);
+
 /// <summary>When a stop counts as "seen", and when it is worth starting from there next time.</summary>
-public static class PlaybackRules
+public static partial class PlaybackRules
 {
     /// <summary>Less than this from the start: nothing to resume.</summary>
     public static readonly TimeSpan MinimumResume = TimeSpan.FromMinutes(1);
@@ -65,4 +70,31 @@ public static class PlaybackRules
         var t = TimeSpan.FromMilliseconds(Math.Max(0, ms));
         return t.TotalHours >= 1 ? $"{(int)t.TotalHours}:{t.Minutes:00}:{t.Seconds:00}" : $"{t.Minutes}:{t.Seconds:00}";
     }
+
+    /// <summary>VLC's chapters, in order, each with a name ("Chapter 3" when the file has none).</summary>
+    public static List<PlayerChapter> Chapters(IReadOnlyList<(string? Name, long StartMs, long DurationMs)> found) =>
+        found.OrderBy(c => c.StartMs)
+             .Select((c, i) => new PlayerChapter(string.IsNullOrWhiteSpace(c.Name) ? $"Chapter {i + 1}" : c.Name.Trim(), Math.Max(0, c.StartMs), Math.Max(0, c.DurationMs)))
+             .ToList();
+
+    /// <summary>
+    /// A chapter called Intro, Opening, OP or Title sequence, in the first part of the video, is
+    /// the intro. More than five minutes is a part of the story with an unlucky name.
+    /// </summary>
+    public static (long StartMs, long EndMs)? IntroChapter(IReadOnlyList<PlayerChapter> chapters)
+    {
+        for (var i = 0; i < chapters.Count; i++)
+        {
+            var c = chapters[i];
+            if (!IntroName().IsMatch(c.Name) || c.StartMs > 15 * 60_000)
+                continue;
+            var end = c.DurationMs > 0 ? c.StartMs + c.DurationMs : i + 1 < chapters.Count ? chapters[i + 1].StartMs : 0;
+            if (end > c.StartMs && end - c.StartMs <= 5 * 60_000)
+                return (c.StartMs, end);
+        }
+        return null;
+    }
+
+    [GeneratedRegex(@"^\s*(intro|introduction|opening( credits| titles)?|op|title sequence|main titles?|sigla( iniziale)?)\s*$", RegexOptions.IgnoreCase)]
+    private static partial Regex IntroName();
 }

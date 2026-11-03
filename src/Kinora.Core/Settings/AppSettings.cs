@@ -83,6 +83,12 @@ public sealed class AppSettings
     /// <summary>After the first sync, done by hand, every start syncs by itself.</summary>
     public bool SyncOnStartup { get; set; }
 
+    /// <summary>
+    /// While Kinora is open: what was just played, and the page just opened, are synced on their
+    /// own (only titles a whole sync has already paired).
+    /// </summary>
+    public bool LiveSync { get; set; } = true;
+
     [JsonIgnore]
     public string MediaServerKey
     {
@@ -124,6 +130,13 @@ public sealed class AppSettings
 
     /// <summary>The size of text subtitles, in percent of VLC's normal one.</summary>
     public int SubtitleScale { get; set; } = 100;
+
+    /// <summary>The player's skip buttons and arrow keys, in seconds.</summary>
+    public int SkipBackSeconds { get; set; } = 10;
+    public int SkipForwardSeconds { get; set; } = 30;
+
+    /// <summary>The last time TMDB was asked which episodes the shows have; once a week by itself.</summary>
+    public DateTime? LastEpisodeCheck { get; set; }
 
     public double WindowWidth { get; set; } = 1280;
     public double WindowHeight { get; set; } = 820;

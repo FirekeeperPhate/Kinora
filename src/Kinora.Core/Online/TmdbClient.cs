@@ -262,8 +262,14 @@ public sealed class TmdbClient : IDisposable
             };
             if (r.TryGetProperty("seasons", out var seasons))
                 foreach (var s in seasons.EnumerateArray())
-                    if (s.TryGetProperty("season_number", out var n) && n.ValueKind == JsonValueKind.Number && Str(s, "poster_path") is { } poster)
+                {
+                    if (!s.TryGetProperty("season_number", out var n) || n.ValueKind != JsonValueKind.Number)
+                        continue;
+                    if (Str(s, "poster_path") is { } poster)
                         series.SeasonPosters[n.GetInt32()] = poster;
+                    var count = s.TryGetProperty("episode_count", out var ec) && ec.ValueKind == JsonValueKind.Number ? ec.GetInt32() : 0;
+                    series.Seasons.Add(new TmdbSeasonInfo(n.GetInt32(), count, Str(s, "air_date")));
+                }
             if (r.TryGetProperty("aggregate_credits", out var credits))
                 foreach (var c in credits.GetProperty("cast").EnumerateArray().Take(30))
                     if (Str(c, "name") is { } name)

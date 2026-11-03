@@ -27,7 +27,14 @@ public partial class SeasonTab : ObservableObject
     [NotifyPropertyChangedFor(nameof(CountText))]
     public partial int WatchedCount { get; set; }
 
-    public string CountText => Count == 0 ? ""
+    /// <summary>A season TMDB has and the folder doesn't, at all.</summary>
+    public bool IsMissing { get; init; }
+
+    /// <summary>Where it goes among the tabs: specials and "Other" last.</summary>
+    public int Order => Number is 0 ? 9999 : Number ?? 10000;
+
+    public string CountText => IsMissing ? "not in the folder"
+        : Count == 0 ? ""
         : WatchedCount >= Count ? $"✓ {Count}"
         : WatchedCount == 0 ? Count.ToString(CultureInfo.InvariantCulture)
         : $"{Count - WatchedCount} of {Count} left";
@@ -135,7 +142,8 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
     private readonly CancellationTokenSource _photos = new();
     private readonly LibraryRoot? _root;
     private readonly bool _rootUnavailable;
-    private readonly Dictionary<int, TmdbSeason> _tmdbSeasons;
+    private Dictionary<int, TmdbSeason> _tmdbSeasons;
+    private ShowGaps? _gaps;
     private List<Episode> _episodes;
     private CancellationTokenSource _thumbs = new();
     private bool _disposed;
@@ -168,6 +176,8 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
                 WatchedCount = group.Count(e => e.Watched),
             });
         }
+        _gaps = owner.GapsFor(card);
+        AddMissingSeasons();
         var next = EpisodeOrder.ToPlay(_episodes, card.Resume?.EpisodeId);
         SelectedSeason = Seasons.FirstOrDefault(t => season is not null && t.Number == season)
                          ?? Seasons.FirstOrDefault(t => t.Number == next?.Season) ?? Seasons.FirstOrDefault();
@@ -202,6 +212,37 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
     [NotifyPropertyChangedFor(nameof(SeasonWatchedText))]
     public partial SeasonTab? SelectedSeason { get; set; }
 
+    /// <summary>What TMDB lists, aired, that the folder lacks.</summary>
+    public string? GapsText => _gaps is { } g
+        ? (g.NewCount == g.Count ? "New, not in the folder yet: " : "Not in the folder: ") + g.Describe(6)
+        : null;
+
+    public bool HasGaps => _gaps is not null;
+
+    /// <summary>The episode check found something new: the summary and the tabs follow.</summary>
+    public void SetGaps(ShowGaps? gaps)
+    {
+        _gaps = gaps;
+        if (Series.TmdbId is { } id)
+            _tmdbSeasons = _s.Database.GetTmdbSeasons(id).ToDictionary(x => x.Number);
+        AddMissingSeasons();
+        OnPropertyChanged(nameof(GapsText));
+        OnPropertyChanged(nameof(HasGaps));
+        ShowSeason(SelectedSeason);
+    }
+
+    private void AddMissingSeasons()
+    {
+        foreach (var number in _gaps?.WholeSeasons ?? [])
+        {
+            if (Seasons.Any(t => t.Number == number))
+                continue;
+            var tab = new SeasonTab { Number = number, IsMissing = true };
+            var at = Seasons.TakeWhile(t => t.Order < tab.Order).Count();
+            Seasons.Insert(at, tab);
+        }
+    }
+
     public string SeasonWatchedText => SelectedSeason is { } t && t.WatchedCount >= t.Count ? "Mark season unwatched" : "Mark season watched";
 
     public string PlayNextText => EpisodeOrder.ToPlay(_episodes, Card.Resume?.EpisodeId) is { } e
@@ -226,7 +267,12 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
     public bool HasLogo => Logo is not null;
     public bool ShowTitleText => Logo is null;
 
-    partial void OnSelectedSeasonChanged(SeasonTab? value) => ShowSeason(value);
+    partial void OnSelectedSeasonChanged(SeasonTab? value)
+    {
+        ShowSeason(value);
+        OnPropertyChanged(nameof(CanMarkSeason));
+        OnPropertyChanged(nameof(CanFindSeasonSubtitles));
+    }
 
     private void ShowSeason(SeasonTab? tab)
     {
@@ -235,6 +281,7 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
         foreach (var row in Episodes)
             row.Thumb?.Dispose();
         Episodes.Clear();
+        SeasonNote = null;
         if (tab is null)
             return;
 
@@ -253,8 +300,14 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
                 row.Started = Core.Playback.PlaybackRules.SeenFraction(started.GetValueOrDefault(e.Id));
             Episodes.Add(row);
         }
+        if (tab.IsMissing && Episodes.Count == 0 && _gaps?.Episodes.Count(e => e.Season == tab.Number) is > 0 and var aired)
+            SeasonNote = Format.Count(aired, "episode has aired", "episodes have aired") + ", and none is in the folder. Their titles come with the next episode check.";
         _ = LoadThumbsAsync(Episodes.ToList(), _thumbs.Token);
     }
+
+    /// <summary>A season not in the folder whose episodes TMDB hasn't listed one by one yet.</summary>
+    [ObservableProperty]
+    public partial string? SeasonNote { get; private set; }
 
     /// <summary>
     /// Episode pictures: the folder's own (-thumb.jpg) or TMDB's still, resized into the local
@@ -436,10 +489,20 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private void PlayNext() => _owner.PlayNextEpisode(Card);
 
+    public bool CanMarkSeason => SelectedSeason is { IsMissing: false };
+
+    public bool CanFindSeasonSubtitles => HasOpenSubtitlesKey && SelectedSeason is { IsMissing: false };
+
+    /// <summary>Subtitles for every episode of the season that has none in the chosen languages.</summary>
+    [RelayCommand]
+    private Task SeasonSubtitles() => SelectedSeason is { IsMissing: false } tab
+        ? _owner.SeasonSubtitlesAsync(Card, _episodes.Where(e => e.Season == tab.Number).ToList(), tab.Label)
+        : Task.CompletedTask;
+
     [RelayCommand]
     private void ToggleSeasonWatched()
     {
-        if (SelectedSeason is not { } tab)
+        if (SelectedSeason is not { IsMissing: false } tab)
             return;
         var episodes = _episodes.Where(e => e.Season == tab.Number).ToList();
         SetWatched(episodes, !(tab.WatchedCount >= tab.Count));

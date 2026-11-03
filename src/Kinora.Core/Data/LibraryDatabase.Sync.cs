@@ -9,20 +9,29 @@ public sealed partial class LibraryDatabase
     public Dictionary<(PlaybackKind Kind, long Id), SyncBase> GetSyncStates()
     {
         using var c = Open();
-        return c.Query<(string Kind, long Id, bool Watched, long PositionMs)>("SELECT kind, item_id, watched, position_ms FROM server_sync")
-                .ToDictionary(r => (r.Kind == "movie" ? PlaybackKind.Movie : PlaybackKind.Episode, r.Id), r => new SyncBase(r.Watched, r.PositionMs));
+        return c.Query<(string Kind, long Id, bool Watched, long PositionMs, string? ServerId)>("SELECT kind, item_id, watched, position_ms, server_id FROM server_sync")
+                .ToDictionary(r => (r.Kind == "movie" ? PlaybackKind.Movie : PlaybackKind.Episode, r.Id), r => new SyncBase(r.Watched, r.PositionMs, r.ServerId));
     }
 
-    public void SaveSyncStates(IEnumerable<(PlaybackKind Kind, long Id, bool Watched, long PositionMs)> states)
+    /// <param name="states">A null server id keeps the one known.</param>
+    public void SaveSyncStates(IEnumerable<(PlaybackKind Kind, long Id, bool Watched, long PositionMs, string? ServerId)> states)
     {
         using var c = Open();
         using var tx = c.BeginTransaction();
-        foreach (var (kind, id, watched, positionMs) in states)
+        foreach (var (kind, id, watched, positionMs, serverId) in states)
             c.Execute("""
-                INSERT INTO server_sync (kind, item_id, watched, position_ms) VALUES (@kind, @id, @watched, @positionMs)
-                ON CONFLICT (kind, item_id) DO UPDATE SET watched = excluded.watched, position_ms = excluded.position_ms
-                """, new { kind = KindText(kind), id, watched, positionMs }, tx);
+                INSERT INTO server_sync (kind, item_id, watched, position_ms, server_id) VALUES (@kind, @id, @watched, @positionMs, @serverId)
+                ON CONFLICT (kind, item_id) DO UPDATE SET watched = excluded.watched, position_ms = excluded.position_ms,
+                                                          server_id = COALESCE(excluded.server_id, server_sync.server_id)
+                """, new { kind = KindText(kind), id, watched, positionMs, serverId }, tx);
         tx.Commit();
+    }
+
+    /// <summary>The title's id on the server, once a sync has paired it.</summary>
+    public string? GetServerId(PlaybackKind kind, long id)
+    {
+        using var c = Open();
+        return c.QuerySingleOrDefault<string?>("SELECT server_id FROM server_sync WHERE kind = @kind AND item_id = @id", new { kind = KindText(kind), id });
     }
 
     /// <summary>Another server or another user: what was agreed with the old one says nothing about this one.</summary>

@@ -18,6 +18,10 @@ public sealed class ScanResult
     public int Removed { get; set; }
     public int Unchanged { get; set; }
     public List<string> Errors { get; } = [];
+
+    /// <summary>Folders of the root with no video anywhere inside (left behind by a move, or never filled).</summary>
+    public List<string> EmptyFolders { get; } = [];
+
     public TimeSpan Elapsed { get; set; }
 }
 
@@ -134,6 +138,11 @@ public sealed class MovieScanner(LibraryDatabase db, ImageCache posters)
 
         ct.ThrowIfCancellationRequested();
         progress?.Report(new ScanProgress("Saving", total, total, null));
+
+        // A folder with a movie is always visited or kept; one with an error can't be told
+        static string First(string rel) => rel.Split('/', 2)[0];
+        var filled = keep.Keys.Select(First).Concat(errors.Select(e => First(e.Split(':', 2)[0]))).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        result.EmptyFolders.AddRange(toVisit.Select(v => v.Rel).Where(rel => !filled.Contains(rel)).Order(StringComparer.CurrentCultureIgnoreCase));
 
         var items = found.ToList();
         foreach (var chunk in items.Chunk(200))

@@ -75,13 +75,18 @@ public partial class PlayerView : UserControl
                 vm.PreviewSeek();
         };
 
-        foreach (var button in new[] { AudioButton, SubtitlesButton })
+        foreach (var button in Menus)
         {
             button.Flyout!.Opened += (_, _) => { _menuOpen = true; ShowControls(); };
             button.Flyout!.Closed += (_, _) => { _menuOpen = false; ShowControls(); };
         }
-        AudioPanel.AddHandler(Button.ClickEvent, (_, _) => AudioButton.Flyout?.Hide());
+        // A choice closes its menu, once its command has run: closed at once, the rows lose
+        // their items and the click does nothing
+        foreach (var (panel, button) in new[] { (AudioPanel, AudioButton), (ChaptersPanel, ChaptersButton), (SpeedPanel, SpeedButton) })
+            panel.AddHandler(Button.ClickEvent, (_, _) => Dispatcher.UIThread.Post(() => button.Flyout?.Hide()));
     }
+
+    private DropDownButton[] Menus => [ChaptersButton, SpeedButton, AudioButton, SubtitlesButton];
 
     protected override void OnDataContextChanged(EventArgs e)
     {
@@ -107,6 +112,10 @@ public partial class PlayerView : UserControl
             {
                 ShowControls();
                 _mediaKeys?.SetPlaying(_vm?.IsPlaying == true);
+            }
+            else if (args.PropertyName == nameof(PlayerViewModel.IsOnTop))
+            {
+                KeepOnTop(_vm?.IsOnTop == true);
             }
         };
     }
@@ -174,10 +183,10 @@ public partial class PlayerView : UserControl
                 vm.Close();
                 break;
             case MediaKey.FastForward:
-                vm.SeekBy(30);
+                vm.SeekBy(vm.ForwardSeconds);
                 break;
             case MediaKey.Rewind:
-                vm.SeekBy(-10);
+                vm.SeekBy(-vm.BackSeconds);
                 break;
             case MediaKey.Next:
                 vm.PlayNext();
@@ -226,6 +235,7 @@ public partial class PlayerView : UserControl
         {
             _window.PositionChanged -= OnWindowMoved;
             _window.PropertyChanged -= OnWindowPropertyChanged;
+            _window.Topmost = false;
             if (_window.WindowState == WindowState.FullScreen)
                 _window.WindowState = _stateBeforeFullScreen;
             _window.Cursor = Cursor.Default;
@@ -300,6 +310,15 @@ public partial class PlayerView : UserControl
         OverlayRoot.Cursor = new Cursor(StandardCursorType.None);
     }
 
+    /// <summary>Over the other windows: Kinora's, and the controls' over it.</summary>
+    private void KeepOnTop(bool onTop)
+    {
+        if (_window is not null)
+            _window.Topmost = onTop;
+        if (_overlay is not null)
+            _overlay.Topmost = onTop;
+    }
+
     // ---- full screen ----
 
     private void ToggleFullScreen()
@@ -327,8 +346,8 @@ public partial class PlayerView : UserControl
         // With a track menu open, Esc closes the menu, not the player
         if (_menuOpen && e.Key == Key.Escape)
         {
-            AudioButton.Flyout?.Hide();
-            SubtitlesButton.Flyout?.Hide();
+            foreach (var button in Menus)
+                button.Flyout?.Hide();
             return true;
         }
         // Where Windows' media controls are on, the media keys come from there (once, focused or not)
@@ -343,10 +362,26 @@ public partial class PlayerView : UserControl
                 vm.Close();
                 break;
             case Key.Left or Key.J:
-                vm.SeekBy(-10);
+                vm.SeekBy(-vm.BackSeconds);
                 break;
             case Key.Right or Key.L:
-                vm.SeekBy(e.KeyModifiers.HasFlag(KeyModifiers.Control) ? 60 : 30);
+                vm.SeekBy(e.KeyModifiers.HasFlag(KeyModifiers.Control) ? 60 : vm.ForwardSeconds);
+                break;
+            case Key.I:
+                vm.SkipIntro();
+                break;
+            case Key.C when vm.HasChapters:
+                ChaptersButton.Flyout?.ShowAt(ChaptersButton);
+                break;
+            // Keys of their own on every layout (brackets need AltGr on some)
+            case Key.OemMinus or Key.Subtract:
+                vm.ChangeSpeed(-1);
+                break;
+            case Key.OemPlus or Key.Add:
+                vm.ChangeSpeed(1);
+                break;
+            case Key.T:
+                vm.ToggleOnTop();
                 break;
             case Key.Up:
                 vm.ChangeVolume(5);

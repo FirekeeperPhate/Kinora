@@ -186,6 +186,11 @@
                                       MinWidth="240" Margin="0,8,0,0" PlaceholderText="Press Test to see them" />
                         </Grid>
                         <CheckBox IsChecked="{Binding SyncOnStartup}" Content="Sync when Kinora starts" />
+                        <StackPanel Spacing="2">
+                            <CheckBox IsChecked="{Binding LiveSync}" Content="Keep in step while Kinora is open" />
+                            <TextBlock Classes="subtle" FontSize="12" TextWrapping="Wrap" Margin="28,0,0,0"
+                                       Text="What you have just watched goes to the server when the video closes, and a page you open asks the server first. Only titles a sync has already paired; the intro the server has found can be skipped in the player." />
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 
@@ -230,6 +235,13 @@
                         <RadioButton GroupName="Player" IsChecked="{Binding UseSystemPlayer}" Content="{Binding SystemPlayerText}" />
                         <CheckBox IsChecked="{Binding AutoPlayNextEpisode}" IsEnabled="{Binding UseBuiltInPlayer}"
                                   Content="At the end of an episode, start the next one after 10 seconds" />
+                        <StackPanel Orientation="Horizontal" Spacing="8" IsEnabled="{Binding UseBuiltInPlayer}">
+                            <TextBlock Text="Skip back" VerticalAlignment="Center" />
+                            <ComboBox ItemsSource="{Binding SkipChoices}" SelectedItem="{Binding SkipBackSeconds}" MinWidth="80" />
+                            <TextBlock Text="and forward" VerticalAlignment="Center" Margin="8,0,0,0" />
+                            <ComboBox ItemsSource="{Binding SkipChoices}" SelectedItem="{Binding SkipForwardSeconds}" MinWidth="80" />
+                            <TextBlock Text="seconds (the buttons and ← →)" VerticalAlignment="Center" />
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 

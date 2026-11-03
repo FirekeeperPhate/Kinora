@@ -97,7 +97,7 @@
                                 <Setter Property="VerticalAlignment" Value="Center" />
                             </Style>
                         </StackPanel.Styles>
-                        <Button Command="{Binding RandomCommand}" ToolTip.Tip="Open a title picked at random from this view" Padding="12,0">
+                        <Button Command="{Binding RandomCommand}" ToolTip.Tip="What to watch: a title you haven&#x27;t seen, picked at random from this view and its filters" Padding="12,0">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <Path Classes="icon" Data="{x:Static k:Icons.Dice}" Width="16" Height="16" />
                                 <TextBlock Text="Random" VerticalAlignment="Center" />
@@ -154,6 +154,7 @@
                                     <MenuItem Header="Full scan (read every folder again)" Command="{Binding FullScanCommand}" />
                                     <MenuItem Header="Download missing metadata from TMDB" Command="{Binding FetchMissingCommand}" />
                                     <MenuItem Header="{Binding SyncMenuText}" Command="{Binding SyncMediaServerCommand}" IsVisible="{Binding HasMediaServer}" />
+                                    <MenuItem Header="Check TV shows for new episodes" Command="{Binding CheckEpisodesCommand}" />
                                 </MenuFlyout>
                             </SplitButton.Flyout>
                         </SplitButton>
@@ -172,6 +173,31 @@
                             <Button Content="Later" Command="{Binding DismissUpdateCommand}" />
                         </StackPanel>
                     </Grid>
+                </Border>
+
+                <!-- Needs attention: the folders of the library with no video in them -->
+                <Border IsVisible="{Binding ShowEmptyFolders}" Margin="32,0,32,12" Padding="16,10" CornerRadius="12"
+                        Background="{DynamicResource SurfaceBackground}" BoxShadow="0 4 14 0 #22000000">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{Binding EmptyFoldersTitle}" FontWeight="SemiBold" />
+                        <ItemsControl ItemsSource="{Binding EmptyFolders}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:FolderLink">
+                                    <Button Classes="pill" Margin="0,0,8,6" Padding="12,5" Command="{Binding Command}" ToolTip.Tip="{Binding Path}">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <Path Classes="icon" Data="{x:Static k:Icons.Folder}" Width="14" Height="14" />
+                                            <TextBlock Text="{Binding Name}" />
+                                        </StackPanel>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
                 </Border>
 
                 <!-- What to do with the selected titles -->

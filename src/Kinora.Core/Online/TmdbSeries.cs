@@ -28,6 +28,9 @@ public sealed class TmdbSeries
     /// <summary>Season number → poster path, from the show's own answer (no extra call).</summary>
     public Dictionary<int, string> SeasonPosters { get; set; } = [];
 
+    /// <summary>Every season with its number of episodes, from the same answer; empty in what older versions kept.</summary>
+    public List<TmdbSeasonInfo> Seasons { get; set; } = [];
+
     [JsonIgnore]
     public int? Year => FirstAirDate is { Length: >= 4 } d && int.TryParse(d[..4], out var y) ? y : null;
 
@@ -61,5 +64,8 @@ public sealed class TmdbSeason
         catch (JsonException) { return null; }
     }
 }
+
+/// <param name="AirDate">Of its first episode.</param>
+public sealed record TmdbSeasonInfo(int Number, int EpisodeCount, string? AirDate);
 
 public sealed record TmdbEpisode(int Number, string Name, string? Overview, string? AirDate, int? Runtime, double? VoteAverage, string? StillPath);

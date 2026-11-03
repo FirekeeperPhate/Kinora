@@ -11,7 +11,7 @@ namespace Kinora.Core.Data;
 /// </summary>
 public sealed partial class LibraryDatabase
 {
-    private const int SchemaVersion = 7;
+    private const int SchemaVersion = 8;
 
     private readonly string _connectionString;
 
@@ -325,6 +325,13 @@ public sealed partial class LibraryDatabase
                     DELETE FROM playback WHERE kind = 'episode' AND item_id = old.id;
                     DELETE FROM server_sync WHERE kind = 'episode' AND item_id = old.id;
                 END;
+                """, transaction: tx);
+        }
+        if (version < 8)
+        {
+            c.Execute("""
+                -- The title's id on the server, to ask it about one title without a whole sync
+                ALTER TABLE server_sync ADD COLUMN server_id TEXT;
                 """, transaction: tx);
         }
         c.Execute($"PRAGMA user_version = {SchemaVersion};", transaction: tx);

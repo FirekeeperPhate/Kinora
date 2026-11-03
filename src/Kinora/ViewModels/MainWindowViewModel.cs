@@ -204,6 +204,9 @@ public partial class MainWindowViewModel : ViewModelBase
             await RunScanAsync(full: false);
         if (_s.Settings is { SyncOnStartup: true, HasMediaServer: true })
             await SyncMediaServerAsync(asked: false);
+        if (_s.Settings.HasTmdbKey && _shows.Count > 0
+            && (_s.Settings.LastEpisodeCheck is not { } last || DateTime.UtcNow - last > TimeSpan.FromDays(7)))
+            await CheckEpisodesAsync(asked: false);
     }
 
     /// <summary>
@@ -240,6 +243,11 @@ public partial class MainWindowViewModel : ViewModelBase
             _movies.Add(card);
         }
 
+        _attention.Clear();
+        foreach (var card in _movies)
+            if (LibraryHealth.Problems(card.Movie) is { Count: > 0 } problems)
+                _attention[card] = LibraryHealth.Describe(problems);
+
         var shows = _s.Database.GetSeries().Where(s => _roots.ContainsKey(s.RootId)).ToList();
         var showCast = _s.Database.GetSeriesCastNames();
         var startedEpisodes = _s.Database.GetStartedEpisodes();
@@ -257,6 +265,11 @@ public partial class MainWindowViewModel : ViewModelBase
             card.SetProgress(startedEpisodes.GetValueOrDefault(show.Id), played.GetValueOrDefault(show.Id));
             _shows.Add(card);
         }
+        var numbers = _s.Database.GetEpisodeNumbers();
+        foreach (var card in _shows)
+            if (LibraryHealth.Problems(card.Series, numbers.GetValueOrDefault(card.Series.Id) ?? []) is { Count: > 0 } problems)
+                _attention[card] = LibraryHealth.Describe(problems);
+        _ = RefreshGapsAsync();
 
         OnPropertyChanged(nameof(ShowEmptyLibrary));
         OnPropertyChanged(nameof(EmptyLibraryText));
@@ -283,6 +296,12 @@ public partial class MainWindowViewModel : ViewModelBase
         FindDuplicates();
         if (_duplicates.Count > 0)
             NavItems.Add(new NavItem(NavKind.Duplicates, "Duplicates", Icons.Copies) { Count = _duplicates.Count });
+        var lacking = movies ? 0 : _shows.Count(c => _gaps.ContainsKey(c.Series.Id));
+        if (lacking > 0)
+            NavItems.Add(new NavItem(NavKind.MissingEpisodes, "Missing episodes", Icons.Missing) { Count = lacking });
+        var attention = cards.Count(_attention.ContainsKey) + EmptyFolders.Count;
+        if (attention > 0)
+            NavItems.Add(new NavItem(NavKind.NeedsAttention, "Needs attention", Icons.Wrench) { Count = attention });
         RefreshFilterChoices();
 
         var roots = _roots.Values.Where(r => r.Kind == CurrentKind).OrderBy(r => r.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
@@ -328,6 +347,8 @@ public partial class MainWindowViewModel : ViewModelBase
             NavKind.RecentlyAdded => cards.OrderByDescending(c => c.DateAdded).Take(RecentCount),
             NavKind.NeedsMetadata => cards.Where(c => c.NeedsMatch),
             NavKind.Duplicates => cards.Where(_duplicates.ContainsKey),
+            NavKind.MissingEpisodes => cards.Where(c => c is SeriesCardViewModel s && _gaps.ContainsKey(s.Series.Id)),
+            NavKind.NeedsAttention => cards.Where(_attention.ContainsKey),
             NavKind.Root => cards.Where(c => c.RootId == nav.RootId),
             NavKind.Genre => cards.Where(c => c.Genres.Contains(nav.Genre!, StringComparer.CurrentCultureIgnoreCase)),
             _ => cards,
@@ -382,9 +403,19 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         _filtered = sorted.ToList();
-        foreach (var card in _duplicates.Keys)
-            card.Note = nav.Kind != NavKind.Duplicates ? null
-                : _roots.TryGetValue(card.RootId, out var root) ? $"{card.CopyText}  ·  {root.Name}" : card.CopyText;
+        // What the view is about, under each poster
+        foreach (var card in CurrentCards)
+            card.Note = nav.Kind switch
+            {
+                NavKind.Duplicates when _duplicates.ContainsKey(card) =>
+                    _roots.TryGetValue(card.RootId, out var root) ? $"{card.CopyText}  ·  {root.Name}" : card.CopyText,
+                NavKind.MissingEpisodes when card is SeriesCardViewModel s && _gaps.TryGetValue(s.Series.Id, out var gaps) => gaps.Note,
+                NavKind.NeedsAttention => _attention.GetValueOrDefault(card),
+                _ => null,
+            };
+        OnPropertyChanged(nameof(EmptyFolders));
+        OnPropertyChanged(nameof(EmptyFoldersTitle));
+        OnPropertyChanged(nameof(ShowEmptyFolders));
         ViewTitle = nav.Title;
         var (one, many) = Mode == LibraryMode.Movies ? ("movie", "movies") : ("show", "shows");
         CountText = query.Length > 0
@@ -414,6 +445,126 @@ public partial class MainWindowViewModel : ViewModelBase
                 _duplicates[card] = place;
             place++;
         }
+    }
+
+    // ---- needs attention, missing episodes ----
+
+    private readonly Dictionary<CardViewModel, string> _attention = [];
+    private readonly Dictionary<long, List<string>> _emptyFolders = [];
+    private Dictionary<long, ShowGaps> _gaps = [];
+    private int _gapsVersion;
+
+    /// <summary>The folders of this mode's library folders with no video, as the last scan found them.</summary>
+    public IReadOnlyList<FolderLink> EmptyFolders =>
+        _roots.Values.Where(r => r.Kind == CurrentKind && _emptyFolders.ContainsKey(r.Id))
+              .SelectMany(r => _emptyFolders[r.Id].Select(rel =>
+              {
+                  var path = RelPath.ToFull(r.Path, rel);
+                  return new FolderLink(rel, path, new RelayCommand(() => RevealPath(path)));
+              }))
+              .ToList();
+
+    public bool ShowEmptyFolders => SelectedNav?.Kind == NavKind.NeedsAttention && EmptyFolders.Count > 0;
+
+    public string EmptyFoldersTitle => Format.Count(EmptyFolders.Count, "folder without a video", "folders without a video") + " (a click opens it)";
+
+    /// <summary>What a show lacks by TMDB, for its page; null when nothing or not known.</summary>
+    public ShowGaps? GapsFor(SeriesCardViewModel card) => _gaps.GetValueOrDefault(card.Series.Id);
+
+    /// <summary>Worked out again from what TMDB said last time, in the background: no request.</summary>
+    private async Task RefreshGapsAsync()
+    {
+        var version = ++_gapsVersion;
+        var shows = _shows.Select(c => c.Series).ToList();
+        Dictionary<long, ShowGaps> gaps;
+        try
+        {
+            gaps = await Task.Run(() =>
+            {
+                var checker = new EpisodeChecker(_s.Database);
+                return checker.Gaps(checker.Identified(shows), DateTime.Today);
+            });
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException)
+        {
+            return;
+        }
+        if (version != _gapsVersion)
+            return;
+        var changed = gaps.Count != _gaps.Count || gaps.Any(g => !_gaps.TryGetValue(g.Key, out var old) || old.Note != g.Value.Note);
+        _gaps = gaps;
+        if (!changed)
+            return;
+        if (Mode == LibraryMode.Shows)
+            RebuildNav();
+        if (SeriesDetail is { } page)
+            page.SetGaps(GapsFor(page.Card));
+    }
+
+    [RelayCommand]
+    private Task CheckEpisodes() => CheckEpisodesAsync(asked: true);
+
+    /// <summary>Asks TMDB which episodes the shows have: by hand from the Scan menu, by itself once a week.</summary>
+    private async Task CheckEpisodesAsync(bool asked)
+    {
+        if (asked ? IsBusy("check") : IsScanning)
+            return;
+        using var client = _s.CreateTmdbClient();
+        if (client is null)
+        {
+            if (asked)
+                ShowStatusFor("Add a TMDB API key in Settings first.", 12);
+            return;
+        }
+        var checker = new EpisodeChecker(_s.Database);
+        var shows = checker.Identified(_shows.Select(c => c.Series).ToList());
+        if (shows.Count == 0)
+        {
+            if (asked)
+                ShowStatusFor("No show is identified on TMDB yet: download the metadata first.", 12);
+            return;
+        }
+
+        BeginBusy("Asking TMDB about the episodes…");
+        _scanCts = new CancellationTokenSource();
+        EpisodeCheckResult result;
+        try
+        {
+            var progress = new Progress<(int Done, int Total)>(p =>
+            {
+                ScanIndeterminate = false;
+                ScanProgress = 100.0 * p.Done / p.Total;
+                ScanStatus = $"Checking episodes  {p.Done:N0} of {p.Total:N0}";
+            });
+            var token = _scanCts.Token;
+            result = await Task.Run(() => checker.CheckAsync(shows, client, progress, token));
+        }
+        catch (Exception e) when (e is Microsoft.Data.Sqlite.SqliteException or System.Text.Json.JsonException or IOException)
+        {
+            result = new EpisodeCheckResult(0, 0, e.Message, false);
+        }
+        finally
+        {
+            IsScanning = false;
+            _scanCts.Dispose();
+            _scanCts = null;
+        }
+        if (result.Error is null && !result.Cancelled)
+        {
+            _s.Settings.LastEpisodeCheck = DateTime.UtcNow;
+            _s.SaveSettings();
+        }
+        await RefreshGapsAsync();
+        var lacking = _gaps.Count;
+        var news = _gaps.Values.Sum(g => g.NewCount);
+        var text = result.Error is { } error ? $"Episode check stopped: {error}"
+            : result.Cancelled ? "Episode check cancelled"
+            : lacking == 0 ? $"Episodes checked: every show has all of them ({Format.Count(result.Shows, "show", "shows")})"
+            : $"Episodes checked: {Format.Count(lacking, "show lacks", "shows lack")} some" + (news > 0 ? $", {Format.Count(news, "episode is", "episodes are")} new" : "")
+              + ". See Missing episodes.";
+        // At startup a TMDB that can't be reached (no network) isn't news; it is asked again next time
+        if (asked || (result.Error is null ? lacking > 0 : !result.Offline))
+            ShowStatusFor(text, 14);
     }
 
     // ---- filters ----
@@ -553,6 +704,8 @@ public partial class MainWindowViewModel : ViewModelBase
 
         IsScanning = true;
         _statusVersion++;
+        // Both write the watched marks: the scan from what it read before
+        await _liveSync.WaitAsync();
         _scanCts = new CancellationTokenSource();
         var watch = Stopwatch.StartNew();
         var progress = new Progress<ScanProgress>(p =>
@@ -573,6 +726,8 @@ public partial class MainWindowViewModel : ViewModelBase
                 var result = root.Kind == LibraryKind.Movies
                     ? await Task.Run(() => _s.Scanner.ScanAsync(root, full, progress, _scanCts.Token))
                     : await Task.Run(() => _s.SeriesScanner.ScanAsync(root, full, progress, _scanCts.Token));
+                if (result.RootAvailable && !result.Cancelled && root.Kind == LibraryKind.Movies)
+                    _emptyFolders[root.Id] = result.EmptyFolders;
                 if (result.RootAvailable)
                     _unavailable.Remove(root.Id);
                 else
@@ -608,6 +763,7 @@ public partial class MainWindowViewModel : ViewModelBase
             IsScanning = false;
             _scanCts.Dispose();
             _scanCts = null;
+            _liveSync.Release();
         }
 
         var changes = added + updated + removed == 0
@@ -648,6 +804,7 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
 
         BeginBusy($"Asking {product}…");
+        await _liveSync.WaitAsync();   // a few titles going on their own finish first
         _scanCts = new CancellationTokenSource();
         string text;
         var touched = false;
@@ -703,6 +860,7 @@ public partial class MainWindowViewModel : ViewModelBase
             ScanStatus = "";
             _scanCts.Dispose();
             _scanCts = null;
+            _liveSync.Release();
         }
 
         if (touched)
@@ -717,6 +875,148 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         if (text.Length > 0)
             ShowStatusFor(text, 14);
+    }
+
+    // ---- Emby or Jellyfin, a few titles at a time ----
+
+    private readonly Dictionary<(PlaybackKind, long), SyncTitle> _toSync = [];
+    private readonly SemaphoreSlim _liveSync = new(1, 1);
+    private bool _syncQueued;
+
+    /// <summary>
+    /// More titles than this unmarked (or their place cleared) by the server in one go is left to
+    /// the sync of the Scan menu, which shows it first: a server reinstalled, or a library added
+    /// again, keeps Jellyfin's ids and forgets what was watched.
+    /// </summary>
+    private const int MostUnmarkedLive = 3;
+
+    /// <summary>
+    /// What was just played or marked, or the page just opened: synced on their own a moment
+    /// later, together with whatever else comes meanwhile. Quiet: the next whole sync does what
+    /// this one can't.
+    /// </summary>
+    private void QueueSync(IEnumerable<SyncTitle> titles, double seconds = 1.5)
+    {
+        if (!_s.Settings.LiveSync || !_s.Settings.HasMediaServer)
+            return;
+        foreach (var title in titles)
+            _toSync[(title.Kind, title.LocalId)] = title;
+        if (_syncQueued || _toSync.Count == 0)
+            return;
+        _syncQueued = true;
+        Avalonia.Threading.DispatcherTimer.RunOnce(() =>
+        {
+            _syncQueued = false;
+            _ = SyncQueuedAsync();
+        }, TimeSpan.FromSeconds(seconds));
+    }
+
+    private async Task SyncQueuedAsync()
+    {
+        if (IsScanning)
+        {
+            QueueSync([], 10);   // after the scan or the whole sync
+            return;
+        }
+        await _liveSync.WaitAsync();
+        try
+        {
+            var titles = Fresh(_toSync.Values.ToList());
+            _toSync.Clear();
+            using var client = _s.CreateMediaServerClient();
+            if (client is null || _s.Settings.MediaServerUserId is not { } user || titles.Count == 0)
+                return;
+            var url = _s.Settings.MediaServerUrl;
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            await client.ConnectAsync(cts.Token);
+            var sync = new MediaServerSync(_s.Database, client, user);
+            var plan = await Task.Run(() => sync.PlanForAsync(titles, cts.Token));
+            if (plan.Pairs.Count == 0)
+                return;
+            static bool Takes(SyncPair p) => p.Decision is { WatchedToKinora: true, Watched: false } || p.Decision.Position == PositionMove.ClearKinora;
+            var taken = plan.Pairs.Count(Takes);
+            if (taken > MostUnmarkedLive)
+            {
+                // Only what adds goes on; the rest stays to do, for the sync that asks first
+                plan = new SyncPlan { Pairs = plan.Pairs.Where(p => !Takes(p)).ToList() };
+                ShowStatusFor($"{_s.Settings.MediaServerProduct} has {taken:N0} of these as not watched: left as they are here. The sync in the Scan menu shows them.", 16);
+            }
+            // The settings may have changed meanwhile: another server or user starts from a whole sync
+            if (_s.Settings.MediaServerUserId != user || _s.Settings.MediaServerUrl != url)
+                return;
+            await Task.Run(() => sync.ApplyAsync(plan, null, cts.Token));
+            if (plan.WatchedHere + plan.UnwatchedHere + plan.PositionsHere > 0)
+                ShowServerChanges(plan);
+        }
+        catch (Exception e) when (e is MediaServerException or HttpRequestException or OperationCanceledException or System.Text.Json.JsonException
+                                  or Microsoft.Data.Sqlite.SqliteException)
+        {
+        }
+        finally
+        {
+            _liveSync.Release();
+        }
+    }
+
+    /// <summary>Episodes as they are now: a page may have given older copies.</summary>
+    private List<SyncTitle> Fresh(List<SyncTitle> titles)
+    {
+        var shows = new Dictionary<long, Dictionary<long, Episode>>();
+        var result = new List<SyncTitle>();
+        foreach (var title in titles)
+        {
+            if (title is { Series: { } series, Episode: { } episode })
+            {
+                if (!shows.TryGetValue(series.Id, out var episodes))
+                    shows[series.Id] = episodes = _s.Database.GetEpisodes(series.Id).ToDictionary(e => e.Id);
+                if (episodes.TryGetValue(episode.Id, out var now))
+                    result.Add(SyncTitle.Of(series, now));
+            }
+            else if (title.Movie is { } movie && _movies.FirstOrDefault(c => c.Movie.Id == movie.Id) is { } card)
+            {
+                result.Add(SyncTitle.Of(card.Movie));   // a scan may have given the card a new copy
+            }
+        }
+        return result;
+    }
+
+    /// <summary>The server had something newer: the posters and the open page follow.</summary>
+    private void ShowServerChanges(SyncPlan plan)
+    {
+        var changed = plan.Pairs.Where(p => p.Decision.WatchedToKinora || p.Decision.Position is PositionMove.ToKinora or PositionMove.ClearKinora).ToList();
+        foreach (var pair in changed.Where(p => p.Movie is not null))
+        {
+            if (_movies.FirstOrDefault(c => c.Movie.Id == pair.LocalId) is not { } card)
+                continue;
+            if (pair.Decision.WatchedToKinora)
+                card.Movie.Watched = pair.Decision.Watched;   // a scan meanwhile may have given the card another copy
+            card.NotifyWatchedChanged();
+            var kept = _s.Database.GetPlayback(PlaybackKind.Movie, card.Movie.Id);
+            card.Started = PlaybackRules.SeenFraction(kept);
+            card.LastPlayed = kept?.Updated ?? 0;
+            if (Detail?.Card == card)
+            {
+                Detail.NotifyWatchedChanged();
+                Detail.NotifyStartedChanged();
+            }
+        }
+        foreach (var group in changed.Where(p => p.Series is not null).GroupBy(p => p.Series!.Id))
+        {
+            if (_shows.FirstOrDefault(c => c.Series.Id == group.Key) is not { } card)
+                continue;
+            var all = _s.Database.GetEpisodes(card.Series.Id);
+            card.SetWatchedCount(all.Count(e => e.Watched));
+            ReadProgress(card);
+            if (SeriesDetail?.Card == card)
+            {
+                SeriesDetail.EpisodesChanged(all);
+                var started = _s.Database.GetPlaybackPositions(PlaybackKind.Episode);
+                foreach (var pair in group)
+                    SeriesDetail.SetStarted(pair.LocalId, PlaybackRules.SeenFraction(started.GetValueOrDefault(pair.LocalId)));
+            }
+        }
+        AfterWatchedChange();
+        ShowStatusFor($"From {_s.Settings.MediaServerProduct}: {Format.Count(changed.Count, "title", "titles")} brought up to date", 8);
     }
 
     private async Task<bool> ConfirmSyncAsync(SyncPlan plan, string product)
@@ -969,6 +1269,7 @@ public partial class MainWindowViewModel : ViewModelBase
         Detail = new MovieDetailViewModel(this, _s, card, root, _unavailable.Contains(card.RootId)) { FromRandom = fromRandom };
         old?.Dispose();
         CloseOthers(keepMovie: true);
+        QueueSync([SyncTitle.Of(card.Movie)]);
     }
 
     public void OpenSeries(SeriesCardViewModel card, int? season = null, bool fromRandom = false)
@@ -978,6 +1279,8 @@ public partial class MainWindowViewModel : ViewModelBase
         SeriesDetail = new SeriesDetailViewModel(this, _s, card, root, _unavailable.Contains(card.RootId), season) { FromRandom = fromRandom };
         old?.Dispose();
         CloseOthers(keepMovie: false);
+        if (_s.Settings is { LiveSync: true, HasMediaServer: true })
+            QueueSync(_s.Database.GetEpisodes(card.Series.Id).Select(e => SyncTitle.Of(card.Series, e)));
     }
 
     [RelayCommand]
@@ -1073,10 +1376,28 @@ public partial class MainWindowViewModel : ViewModelBase
                                TrackScope: $"series:{card.Series.Id}",
                                Next: () => Neighbour(EpisodeOrder.After),
                                Previous: () => Neighbour(EpisodeOrder.Before),
-                               FindSubtitles: added => FindSubtitlesAsync(card, episode, added));
+                               FindSubtitles: added => FindSubtitlesAsync(card, episode, added),
+                               Intro: IntroFor(episode));
 
         PlayRequest? Neighbour(Func<IEnumerable<Episode>, Episode, Episode?> pick) =>
             pick(_s.Database.GetEpisodes(card.Series.Id), episode) is { } other ? EpisodeRequest(card, other) : null;
+    }
+
+    /// <summary>Where the server found the intro of an episode (Emby and Jellyfin look for it in shows only).</summary>
+    private Func<CancellationToken, Task<(long StartMs, long EndMs)?>>? IntroFor(Episode episode)
+    {
+        if (_s.Settings is not { LiveSync: true, HasMediaServer: true })
+            return null;
+        return async ct =>
+        {
+            if (_s.Database.GetServerId(PlaybackKind.Episode, episode.Id) is not { } id || _s.Settings.MediaServerUserId is not { } user)
+                return null;
+            using var client = _s.CreateMediaServerClient();
+            if (client is null)
+                return null;
+            await client.ConnectAsync(ct);
+            return await client.GetIntroAsync(user, id, ct);
+        };
     }
 
     private string? PosterPath(string? key) => key is null ? null : _s.Posters.PathFor(key);
@@ -1157,6 +1478,7 @@ public partial class MainWindowViewModel : ViewModelBase
         card.LastPlayed = kept?.Updated ?? 0;
         if (Detail?.Card == card)
             Detail.NotifyStartedChanged();
+        QueueSync([SyncTitle.Of(card.Movie)]);
     }
 
     private void EpisodeKept(SeriesCardViewModel card, Episode episode, bool watched)
@@ -1167,6 +1489,7 @@ public partial class MainWindowViewModel : ViewModelBase
         ReadProgress(card);
         if (SeriesDetail?.Card == card)
             SeriesDetail.SetStarted(episode.Id, seen);
+        QueueSync([SyncTitle.Of(card.Series, episode)]);
     }
 
     private void ReadProgress(SeriesCardViewModel card) =>
@@ -1451,12 +1774,14 @@ public partial class MainWindowViewModel : ViewModelBase
                 case MovieCardViewModel m when m.Movie.Watched != watched:
                     _s.Database.SetWatched(m.Movie, watched);
                     m.NotifyWatchedChanged();
+                    QueueSync([SyncTitle.Of(m.Movie)]);
                     break;
                 case SeriesCardViewModel s:
                     var episodes = _s.Database.GetEpisodes(s.Series.Id).Where(e => e.Watched != watched).ToList();
                     if (episodes.Count == 0)
                         break;
                     _s.Database.SetEpisodesWatched(s.Series, episodes, watched);
+                    QueueSync(episodes.Select(e => SyncTitle.Of(s.Series, e)));
                     s.SetWatchedCount(watched ? s.Series.EpisodeCount : 0);
                     if (!watched)
                         ForgetProgress(s);
@@ -1484,19 +1809,29 @@ public partial class MainWindowViewModel : ViewModelBase
 
     // ---- random ----
 
-    private CardViewModel? _lastRandom;
+    private readonly List<CardViewModel> _randomShown = [];
 
-    /// <summary>Opens a title picked at random from the current view; again from its page for another.</summary>
+    /// <summary>
+    /// Something to watch: a title not seen yet, picked from the current view with its filters
+    /// (any title when all of them are seen). "Another one" doesn't come back to one already
+    /// offered until the others have all been.
+    /// </summary>
     [RelayCommand]
     private void Random()
     {
-        var pool = _filtered.Where(c => c != _lastRandom).ToList();
+        var unseen = _filtered.Where(c => !c.Watched).ToList();
+        var all = unseen.Count > 0 ? unseen : _filtered;
+        var pool = all.Where(c => !_randomShown.Contains(c)).ToList();
         if (pool.Count == 0)
-            pool = _filtered;
+        {
+            var last = _randomShown.Count > 0 && all.Count > 1 ? _randomShown[^1] : null;
+            _randomShown.Clear();
+            pool = all.Where(c => c != last).ToList();
+        }
         if (pool.Count == 0)
             return;
         var card = pool[System.Random.Shared.Next(pool.Count)];
-        _lastRandom = card;
+        _randomShown.Add(card);
         switch (card)
         {
             case MovieCardViewModel m: OpenDetail(m, fromRandom: true); break;
@@ -1932,9 +2267,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (Dialogs is null || !_roots.TryGetValue(card.RootId, out var root) || !CheckSubtitlesKey())
             return;
         var s = card.Series;
-        var query = episode.Season is not null && episode.Number is not null && (s.ImdbId is not null || s.TmdbId is not null)
-            ? new SubtitleQuery(ParentImdbId: s.ImdbId, ParentTmdbId: s.TmdbId, Season: episode.Season, Episode: episode.Number)
-            : new SubtitleQuery(ImdbId: episode.ImdbId, Title: $"{s.Title} {episode.Code}".Trim());
+        var query = EpisodeQuery(s, episode);
         var title = $"{s.Title} · {(episode.Code.Length > 0 ? episode.Code + " · " : "")}{episode.Title}";
         var video = RelPath.ToFull(root.Path, episode.VideoFile);
         using var vm = new SubtitlesViewModel(_s, Dialogs, title, video, query, async name =>
@@ -1948,6 +2281,141 @@ public partial class MainWindowViewModel : ViewModelBase
             ShowStatusFor($"Subtitle saved as {name}", 10);
         });
         await Dialogs.ShowSubtitlesAsync(vm);
+    }
+
+    /// <summary>By the show's ids with season and number, otherwise by the episode's own id and its name.</summary>
+    private static SubtitleQuery EpisodeQuery(Series s, Episode episode) =>
+        episode.Season is not null && episode.Number is not null && (s.ImdbId is not null || s.TmdbId is not null)
+            ? new SubtitleQuery(ParentImdbId: s.ImdbId, ParentTmdbId: s.TmdbId, Season: episode.Season, Episode: episode.Number)
+            : new SubtitleQuery(ImdbId: episode.ImdbId, Title: $"{s.Title} {episode.Code}".Trim());
+
+    /// <summary>
+    /// A subtitle for each episode of a season that has none in the languages of the settings:
+    /// says how many first, and each one counts against the daily quota.
+    /// </summary>
+    public async Task SeasonSubtitlesAsync(SeriesCardViewModel card, IReadOnlyList<Episode> episodes, string seasonName)
+    {
+        if (Dialogs is null || IsBusy("download subtitles") || !_roots.TryGetValue(card.RootId, out var root) || !CheckSubtitlesKey())
+            return;
+        if (_unavailable.Contains(root.Id))
+        {
+            ShowStatusFor($"{root.Name} is not reachable right now.", 10);
+            return;
+        }
+        if (string.IsNullOrEmpty(_s.Settings.OpenSubtitlesUser))
+        {
+            ShowStatusFor("Downloads need your OpenSubtitles user name and password: add them in Settings.", 14);
+            return;
+        }
+        var languages = SubtitleFiles.ParseLanguages(_s.Settings.SubtitleLanguages);
+        var languageText = languages.Count > 0 ? string.Join(", ", languages.Select(Format.Language)) : "any language";
+        var show = card.Series;
+
+        BeginBusy($"Looking at the subtitles of {seasonName}…");
+        List<SubtitleJob> jobs;
+        try
+        {
+            jobs = await Task.Run(() => episodes.OrderBy(e => e.Number ?? int.MaxValue)
+                .Select(e => new SubtitleJob(RelPath.ToFull(root.Path, e.VideoFile), e.Code.Length > 0 ? e.Code : Path.GetFileName(e.VideoFile),
+                                             EpisodeQuery(show, e), Movie.Split(e.Subtitles)))
+                .Where(j => SeasonSubtitles.Lacks(j, languages))
+                .ToList());
+        }
+        finally
+        {
+            IsScanning = false;
+            ScanStatus = "";
+        }
+        if (jobs.Count == 0)
+        {
+            ShowStatusFor($"Every episode of {seasonName} already has subtitles in {languageText}.", 10);
+            return;
+        }
+        var question = $"{Format.Count(jobs.Count, "episode", "episodes")} of {episodes.Count:N0} in {seasonName} of {show.Title} "
+                       + $"{(jobs.Count == 1 ? "has" : "have")} no subtitles in {languageText}.\n\n"
+                       + "Kinora picks the best one for each (made for that file when there is one) and saves it next to the video. "
+                       + "Each download counts against your OpenSubtitles daily quota.";
+        if (!await Dialogs.ConfirmAsync("Subtitles for the season", question, "Download"))
+            return;
+
+        BeginBusy("Logging in to OpenSubtitles…");
+        _scanCts = new CancellationTokenSource();
+        SeasonSubtitlesResult? result = null;
+        string? error = null;
+        using var client = new OpenSubtitlesClient(_s.Settings.OpenSubtitlesKey);
+        try
+        {
+            var token = _scanCts.Token;
+            var account = await client.LoginAsync(_s.Settings.OpenSubtitlesUser, _s.Settings.OpenSubtitlesPassword, token);
+            if (account.RemainingDownloads == 0)
+            {
+                error = "No downloads left today on OpenSubtitles.";
+            }
+            else
+            {
+                ScanIndeterminate = false;
+                var progress = new Progress<(int Done, int Total, string Label)>(p =>
+                {
+                    ScanProgress = 100.0 * p.Done / p.Total;
+                    ScanStatus = $"Subtitles  {Math.Min(p.Done + 1, p.Total):N0} of {p.Total:N0}  {p.Label}";
+                });
+                var batch = new SeasonSubtitles(client);
+                result = await Task.Run(() => batch.RunAsync(jobs, languages, _s.Settings.SkipMachineTranslated, null, progress, token));
+            }
+        }
+        catch (OperationCanceledException) when (_scanCts.IsCancellationRequested)
+        {
+            error = "Subtitle download cancelled.";
+        }
+        catch (Exception e)
+        {
+            // Whatever it was (a proxy's page instead of OpenSubtitles' answer...), said, and Kinora goes on
+            error = e.Message;
+        }
+        finally
+        {
+            _scanCts.Dispose();
+            _scanCts = null;
+        }
+
+        // What was saved before a cancel or an error is there: the show is read again in any case
+        try
+        {
+            ScanStatus = "Reading the folder again…";
+            await Task.Run(() => _s.SeriesScanner.RebuildAsync(root, [show], CancellationToken.None));
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
+        {
+            error ??= $"The folder could not be read again: {e.Message}";
+        }
+        finally
+        {
+            IsScanning = false;
+        }
+        var showing = SeriesDetail?.Card == card;
+        var season = SeriesDetail?.SelectedSeason?.Number;
+        Reload();
+        if (showing && _shows.Contains(card))
+            OpenSeries(card, season);
+
+        string text;
+        if (result is null)
+        {
+            text = error ?? "";
+        }
+        else
+        {
+            var parts = new List<string> { $"{Format.Count(result.Saved, "subtitle saved", "subtitles saved")}" };
+            if (result.NotFound > 0)
+                parts.Add($"{result.NotFound:N0} not found in {languageText}");
+            if (result.Failed > 0)
+                parts.Add($"{result.Failed:N0} failed");
+            if (result.Remaining >= 0)
+                parts.Add($"{result.Remaining:N0} downloads left today");
+            text = $"{seasonName}: {string.Join(", ", parts)}" + (result.Stopped is { } why ? $" · stopped: {why}" : "");
+        }
+        if (text.Length > 0)
+            ShowStatusFor(text, 20);
     }
 
     private bool CheckSubtitlesKey()
@@ -1966,6 +2434,7 @@ public partial class MainWindowViewModel : ViewModelBase
         card.NotifyWatchedChanged();
         Detail?.NotifyWatchedChanged();
         AfterWatchedChange();
+        QueueSync([SyncTitle.Of(card.Movie)]);
     }
 
     public void SetSeriesWatched(SeriesCardViewModel card, bool watched)
@@ -1977,6 +2446,7 @@ public partial class MainWindowViewModel : ViewModelBase
     public void SetEpisodesWatched(SeriesCardViewModel card, IReadOnlyCollection<Episode> episodes, bool watched)
     {
         _s.Database.SetEpisodesWatched(card.Series, episodes, watched);
+        QueueSync(episodes.Select(e => SyncTitle.Of(card.Series, e)));
         var all = _s.Database.GetEpisodes(card.Series.Id);
         card.SetWatchedCount(all.Count(e => e.Watched));
         if (!watched && all.All(e => !e.Watched))

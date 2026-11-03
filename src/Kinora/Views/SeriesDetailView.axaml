@@ -206,6 +206,12 @@
                                    IsVisible="{Binding IsUnavailable}" Foreground="{DynamicResource AccentBrush}" TextWrapping="Wrap" />
 
                         <TextBlock Text="{Binding Plot}" TextWrapping="Wrap" FontSize="15" LineHeight="23" MaxWidth="760" HorizontalAlignment="Left" />
+
+                        <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasGaps}" MaxWidth="760" HorizontalAlignment="Left">
+                            <Path Classes="icon" Data="{x:Static k:Icons.Missing}" Width="16" Height="16" VerticalAlignment="Top" Margin="0,2,0,0" />
+                            <TextBlock Text="{Binding GapsText}" TextWrapping="Wrap" Classes="subtle" MaxWidth="730"
+                                       ToolTip.Tip="By TMDB's list of the episodes that have aired. Scan menu: Check TV shows for new episodes." />
+                        </StackPanel>
                     </StackPanel>
                 </Grid>
 
@@ -227,9 +233,17 @@
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
-                        <Button Grid.Column="1" Classes="pill" Content="{Binding SeasonWatchedText}" VerticalAlignment="Top"
-                                Command="{Binding ToggleSeasonWatchedCommand}" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
+                            <Button Classes="pill" Content="Subtitles for the season…" Command="{Binding SeasonSubtitlesCommand}"
+                                    IsVisible="{Binding CanFindSeasonSubtitles}"
+                                    ToolTip.Tip="Downloads the best subtitle for each episode that has none in your languages" />
+                            <Button Classes="pill" Content="{Binding SeasonWatchedText}" IsVisible="{Binding CanMarkSeason}"
+                                    Command="{Binding ToggleSeasonWatchedCommand}" />
+                        </StackPanel>
                     </Grid>
+
+                    <TextBlock Text="{Binding SeasonNote}" Classes="subtle" TextWrapping="Wrap" Margin="4,4,0,0"
+                               IsVisible="{Binding SeasonNote, Converter={x:Static ObjectConverters.IsNotNull}}" />
 
                     <ItemsControl ItemsSource="{Binding Episodes}">
                         <ItemsControl.ItemsPanel>

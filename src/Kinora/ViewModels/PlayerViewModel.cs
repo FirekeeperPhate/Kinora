@@ -17,9 +17,11 @@ namespace Kinora.ViewModels;
 /// <param name="Next">The episode after this one, if any.</param>
 /// <param name="Previous">The episode before this one, if any.</param>
 /// <param name="FindSubtitles">Opens the subtitle search; what it gives is the file saved.</param>
+/// <param name="Intro">Where the intro is, if the media server knows.</param>
 public sealed record PlayRequest(string Path, string Title, string? Subtitle, PlaybackKind Kind, long ItemId, Action MarkWatched,
                                  Action<bool>? Kept = null, string? Picture = null, string? TrackScope = null, Func<PlayRequest?>? Next = null,
-                                 Func<PlayRequest?>? Previous = null, Func<Action<string>, Task>? FindSubtitles = null);
+                                 Func<PlayRequest?>? Previous = null, Func<Action<string>, Task>? FindSubtitles = null,
+                                 Func<CancellationToken, Task<(long StartMs, long EndMs)?>>? Intro = null);
 
 /// <summary>An audio or subtitle track in the player's menus.</summary>
 public sealed partial class TrackChoice : ObservableObject
@@ -43,6 +45,33 @@ public sealed partial class TrackChoice : ObservableObject
 
     [RelayCommand]
     private void Choose() => _choose(this);
+}
+
+/// <summary>A chapter of the video, in the player's menu.</summary>
+public sealed partial class ChapterChoice(string name, long startMs, Action<ChapterChoice> choose) : ObservableObject
+{
+    public string Name { get; } = name;
+    public long StartMs { get; } = startMs;
+    public string TimeText => PlaybackRules.Clock(StartMs);
+
+    [ObservableProperty]
+    public partial bool IsSelected { get; set; }
+
+    [RelayCommand]
+    private void Choose() => choose(this);
+}
+
+/// <summary>A speed in the player's menu.</summary>
+public sealed partial class SpeedChoice(float rate, Action<SpeedChoice> choose) : ObservableObject
+{
+    public float Rate { get; } = rate;
+    public string Name => Rate == 1 ? "Normal" : PlayerViewModel.SpeedText(Rate);
+
+    [ObservableProperty]
+    public partial bool IsSelected { get; set; }
+
+    [RelayCommand]
+    private void Choose() => choose(this);
 }
 
 /// <summary>
@@ -80,6 +109,11 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
     private int _video;
     private bool _played;
     private readonly List<string> _loadedSubtitles = [];
+    private (long StartMs, long EndMs)? _serverIntro;
+    private (long StartMs, long EndMs)? _intro;
+    private bool _introSkipped;
+    private CancellationTokenSource _introLookup = new();
+    private float _rate = 1;
 
     public PlayerViewModel(AppServices s, LibVLC vlc, PlayRequest request, Action<PlayerViewModel> closed)
     {
@@ -89,6 +123,8 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
         _closed = closed;
         Player = NewPlayer();
         Volume = Math.Clamp(s.Settings.PlayerVolume, 0, 100);
+        foreach (var rate in new[] { 0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f })
+            Speeds.Add(new SpeedChoice(rate, c => SetRate(c.Rate)) { IsSelected = rate == 1 });
         Prepare();
 
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
@@ -185,6 +221,31 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
 
     public string SubtitleScaleText => $"{_s.Settings.SubtitleScale}%";
 
+    public int BackSeconds => Math.Clamp(_s.Settings.SkipBackSeconds, 1, 600);
+    public int ForwardSeconds => Math.Clamp(_s.Settings.SkipForwardSeconds, 1, 600);
+    public string BackTip => $"Back {BackSeconds} seconds (←)";
+    public string ForwardTip => $"Forward {ForwardSeconds} seconds (→)";
+
+    public ObservableCollection<ChapterChoice> Chapters { get; } = [];
+
+    [ObservableProperty]
+    public partial bool HasChapters { get; private set; }
+
+    /// <summary>While the intro plays: a button to jump past it.</summary>
+    [ObservableProperty]
+    public partial bool ShowSkipIntro { get; private set; }
+
+    public ObservableCollection<SpeedChoice> Speeds { get; } = [];
+
+    public string RateText => SpeedText(_rate);
+    public bool IsRateChanged => _rate != 1;
+
+    public static string SpeedText(float rate) => rate.ToString("0.##", CultureInfo.InvariantCulture) + "×";
+
+    /// <summary>The window stays over the others (the page owns it).</summary>
+    [ObservableProperty]
+    public partial bool IsOnTop { get; set; }
+
     /// <summary>Asks the page to go full screen or back (it owns the window).</summary>
     public event Action? FullScreenToggleRequested;
 
@@ -206,11 +267,18 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
             Player.Mute = IsMuted;
             if (_subtitleDelayMs != 0)
                 Player.SetSpuDelay(_subtitleDelayMs * 1000);
+            if (_rate != 1)
+                Player.SetRate(_rate);
             RefreshTracks();
+            RefreshChapters();
         });
         player.Paused += (_, _) => Post(() => IsPlaying = false);
         player.Buffering += (_, e) => Post(() => IsBuffering = e.Cache < 100 && !IsPlaying);
-        player.LengthChanged += (_, e) => Post(() => LengthMs = e.Length);
+        player.LengthChanged += (_, e) => Post(() =>
+        {
+            LengthMs = e.Length;
+            RefreshChapters();
+        });
         player.ESAdded += (_, _) => Post(RefreshTracks);
         player.ESDeleted += (_, _) => Post(RefreshTracks);
         player.EndReached += (_, _) =>
@@ -252,6 +320,13 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
         _reopeningAt = null;
         _played = false;
         _loadedSubtitles.Clear();
+        _serverIntro = null;
+        _intro = null;
+        _introSkipped = false;
+        ShowSkipIntro = false;
+        Chapters.Clear();
+        HasChapters = false;
+        LookUpIntro();
         Interlocked.Increment(ref _video);
         Message = null;
         IsPlaying = false;
@@ -311,6 +386,13 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
             LengthMs = Player.Length;
         if (!IsSeeking && LengthMs > 0)
             Progress = Math.Clamp(TimeMs * 1000.0 / LengthMs, 0, 1000);
+        ShowSkipIntro = !_introSkipped && Message is null && _intro is { } intro && TimeMs >= intro.StartMs && TimeMs < intro.EndMs - 2000;
+        if (Chapters.Count > 0)
+        {
+            var current = Chapters.LastOrDefault(c => c.StartMs <= TimeMs + 500);
+            foreach (var c in Chapters)
+                c.IsSelected = c == current;
+        }
     }
 
     // ---- controls ----
@@ -324,10 +406,10 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
     }
 
     [RelayCommand]
-    public void Back() => SeekBy(-10);
+    public void Back() => SeekBy(-BackSeconds);
 
     [RelayCommand]
-    public void Forward() => SeekBy(30);
+    public void Forward() => SeekBy(ForwardSeconds);
 
     public void SeekBy(int seconds)
     {
@@ -375,6 +457,104 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
         ResumeText = null;
         Player.Time = 0;
     }
+
+    // ---- intro, chapters, speed ----
+
+    /// <summary>The media server's intro, asked in the background: the video doesn't wait for it.</summary>
+    private void LookUpIntro()
+    {
+        _introLookup.Cancel();
+        _introLookup = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        if (_request.Intro is not { } ask)
+            return;
+        var request = _request;
+        var token = _introLookup.Token;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var intro = await ask(token);
+                Post(() =>
+                {
+                    if (request != _request || _closing || intro is null)
+                        return;
+                    _serverIntro = intro;
+                    _intro = intro;
+                });
+            }
+            catch (Exception)
+            {
+                // Not known, the server away: no button, nothing else changes
+            }
+        }, token);
+    }
+
+    /// <summary>The file's chapters; one called Intro or Opening is the intro when the server doesn't say.</summary>
+    private void RefreshChapters()
+    {
+        if (_closing)
+            return;
+        var found = Array.Empty<(string? Name, long StartMs, long DurationMs)>();
+        try
+        {
+            found = Player.FullChapterDescriptions().Select(c => ((string?)c.Name, c.TimeOffset, c.Duration)).ToArray();
+        }
+        catch (Exception e) when (e is VLCException or InvalidOperationException)
+        {
+            return;
+        }
+        var chapters = PlaybackRules.Chapters(found);
+        if (Chapters.Select(c => (c.Name, c.StartMs)).SequenceEqual(chapters.Select(c => (c.Name, c.StartMs))))
+            return;
+        Chapters.Clear();
+        foreach (var c in chapters)
+            Chapters.Add(new ChapterChoice(c.Name, c.StartMs, GoToChapter));
+        HasChapters = Chapters.Count > 1;
+        _intro = _serverIntro ?? PlaybackRules.IntroChapter(chapters);
+    }
+
+    private void GoToChapter(ChapterChoice chapter)
+    {
+        if (!CanSeek || _ended)
+            return;
+        Player.Time = chapter.StartMs;
+        TimeMs = chapter.StartMs;
+        Progress = chapter.StartMs * 1000.0 / LengthMs;
+    }
+
+    [RelayCommand]
+    public void SkipIntro()
+    {
+        // Only while the intro plays: the key at any other moment would go back to its end
+        if (!ShowSkipIntro || _intro is not { } intro || !CanSeek || _ended)
+            return;
+        _introSkipped = true;
+        ShowSkipIntro = false;
+        Player.Time = intro.EndMs;
+        TimeMs = intro.EndMs;
+    }
+
+    /// <summary>Slower or faster from the keys: one step of the menu.</summary>
+    public void ChangeSpeed(int step)
+    {
+        var i = Speeds.ToList().FindIndex(c => c.Rate == _rate);
+        var next = Math.Clamp((i < 0 ? 2 : i) + step, 0, Speeds.Count - 1);
+        SetRate(Speeds[next].Rate);
+    }
+
+    private void SetRate(float rate)
+    {
+        _rate = rate;
+        Player.SetRate(rate);
+        foreach (var c in Speeds)
+            c.IsSelected = c.Rate == rate;
+        OnPropertyChanged(nameof(RateText));
+        OnPropertyChanged(nameof(IsRateChanged));
+        ShowToast(rate == 1 ? "Normal speed" : $"Speed {SpeedText(rate)}");
+    }
+
+    [RelayCommand]
+    public void ToggleOnTop() => IsOnTop = !IsOnTop;
 
     // ---- next and previous ----
 
@@ -723,6 +903,7 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
     {
         _timer.Stop();
         _countdown.Stop();
+        _introLookup.Cancel();
         Player.Dispose();
     }
 

@@ -12,6 +12,8 @@ public enum NavKind
     RecentlyAdded,
     NeedsMetadata,
     Duplicates,
+    MissingEpisodes,
+    NeedsAttention,
     Root,
     Genre,
 }

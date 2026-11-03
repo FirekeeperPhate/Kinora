@@ -6,8 +6,8 @@ public sealed record LocalState(bool Watched, long PositionMs, long LengthMs, lo
 
 public sealed record RemoteState(bool Played, long PositionMs, long RunTimeMs, long LastPlayed);
 
-/// <summary>What the two sides agreed on at the last sync.</summary>
-public sealed record SyncBase(bool Watched, long PositionMs);
+/// <summary>What the two sides agreed on at the last sync, and the title's id on the server then.</summary>
+public sealed record SyncBase(bool Watched, long PositionMs, string? ServerId = null);
 
 public enum PositionMove
 {

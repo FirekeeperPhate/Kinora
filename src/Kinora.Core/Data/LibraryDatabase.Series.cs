@@ -196,6 +196,46 @@ public sealed partial class LibraryDatabase
                 .Select(TmdbSeason.FromJson).OfType<TmdbSeason>().ToList();
     }
 
+    /// <summary>When each show was last asked of TMDB, Unix seconds.</summary>
+    public Dictionary<string, long> GetTmdbSeriesFetched()
+    {
+        using var c = Open();
+        return c.Query<(string Id, long Fetched)>("SELECT tmdb_id, fetched FROM tmdb_series").ToDictionary(r => r.Id, r => r.Fetched);
+    }
+
+    /// <summary>When each season of a show was last asked of TMDB, Unix seconds.</summary>
+    public Dictionary<int, long> GetTmdbSeasonsFetched(string tmdbId)
+    {
+        using var c = Open();
+        return c.Query<(int Season, long Fetched)>("SELECT season, fetched FROM tmdb_seasons WHERE tmdb_id = @tmdbId", new { tmdbId })
+                .ToDictionary(r => r.Season, r => r.Fetched);
+    }
+
+    /// <summary>Every season TMDB has described, by show.</summary>
+    public Dictionary<string, Dictionary<int, TmdbSeason>> GetAllTmdbSeasons()
+    {
+        using var c = Open();
+        var result = new Dictionary<string, Dictionary<int, TmdbSeason>>();
+        foreach (var (id, data) in c.Query<(string, string)>("SELECT tmdb_id, data FROM tmdb_seasons"))
+        {
+            if (TmdbSeason.FromJson(data) is not { } season)
+                continue;
+            if (!result.TryGetValue(id, out var seasons))
+                result[id] = seasons = [];
+            seasons[season.Number] = season;
+        }
+        return result;
+    }
+
+    /// <summary>Season and number of every episode on disk, by show: what the gaps are found from.</summary>
+    public Dictionary<long, List<(int? Season, int? Number, int? NumberEnd)>> GetEpisodeNumbers()
+    {
+        using var c = Open();
+        return c.Query<(long SeriesId, int? Season, int? Number, int? NumberEnd)>("SELECT series_id, season, number, number_end FROM episodes")
+                .GroupBy(r => r.SeriesId)
+                .ToDictionary(g => g.Key, g => g.Select(r => (r.Season, r.Number, r.NumberEnd)).ToList());
+    }
+
     private static readonly string[] SeriesColumns =
     [
         "root_id", "folder", "stamp", "title", "original_title", "sort_title", "year", "end_year", "plot", "rating", "mpaa",

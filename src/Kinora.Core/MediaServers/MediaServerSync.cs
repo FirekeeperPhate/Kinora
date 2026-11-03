@@ -6,6 +6,13 @@ namespace Kinora.Core.MediaServers;
 /// <summary>One title found on both sides, and what happens to it.</summary>
 public sealed record SyncPair(PlaybackKind Kind, long LocalId, Movie? Movie, Series? Series, Episode? Episode, ServerItem Server, SyncDecision Decision);
 
+/// <summary>A title of Kinora to sync on its own: the one just played, the page just opened.</summary>
+public sealed record SyncTitle(PlaybackKind Kind, long LocalId, Movie? Movie, Series? Series, Episode? Episode)
+{
+    public static SyncTitle Of(Movie movie) => new(PlaybackKind.Movie, movie.Id, movie, null, null);
+    public static SyncTitle Of(Series series, Episode episode) => new(PlaybackKind.Episode, episode.Id, null, series, episode);
+}
+
 public sealed class SyncPlan
 {
     public required IReadOnlyList<SyncPair> Pairs { get; init; }
@@ -101,6 +108,35 @@ public sealed class MediaServerSync(LibraryDatabase db, MediaServerClient client
             NotFound = unknown,
             FirstTime = last.Count == 0,
         };
+    }
+
+    /// <summary>
+    /// The same, for a few titles only, asked by their id on the server. Only titles a sync has
+    /// already paired: the others wait for the next whole sync.
+    /// </summary>
+    public async Task<SyncPlan> PlanForAsync(IReadOnlyCollection<SyncTitle> titles, CancellationToken ct)
+    {
+        var last = db.GetSyncStates();
+        var paired = titles.Select(t => (Title: t, Base: last.GetValueOrDefault((t.Kind, t.LocalId))))
+                           .Where(x => x.Base?.ServerId is not null)
+                           .ToList();
+        if (paired.Count == 0)
+            return new SyncPlan { Pairs = [] };
+        var items = (await client.GetItemsByIdsAsync(user, paired.Select(x => x.Base!.ServerId!).ToList(), ct))
+                    .GroupBy(i => i.Id).ToDictionary(g => g.Key, g => g.First());
+        var movies = db.GetPlaybackPositions(PlaybackKind.Movie);
+        var episodes = db.GetPlaybackPositions(PlaybackKind.Episode);
+        var pairs = new List<SyncPair>();
+        foreach (var (title, sync) in paired)
+        {
+            if (!items.TryGetValue(sync!.ServerId!, out var item) || KindOf(item) != title.Kind || (title.Movie ?? (object?)title.Episode) is null)
+                continue;   // gone from the server, or now something else there
+            var kept = (title.Kind == PlaybackKind.Movie ? movies : episodes).GetValueOrDefault(title.LocalId);
+            var here = new LocalState(title.Movie?.Watched ?? title.Episode!.Watched, kept?.PositionMs ?? 0, kept?.LengthMs ?? 0, kept?.Updated ?? 0);
+            var there = new RemoteState(item.Played, item.PositionMs, item.RunTimeMs, item.LastPlayed);
+            pairs.Add(new SyncPair(title.Kind, title.LocalId, title.Movie, title.Series, title.Episode, item, SyncMerge.Decide(here, there, sync)));
+        }
+        return new SyncPlan { Pairs = pairs };
     }
 
     private List<Local> ReadLocals()
@@ -214,7 +250,7 @@ public sealed class MediaServerSync(LibraryDatabase db, MediaServerClient client
         });
 
         db.SaveSyncStates(plan.Pairs.Where(p => !failed.ContainsKey(p))
-                              .Select(p => (p.Kind, p.LocalId, p.Decision.Watched, p.Decision.FinalPositionMs)));
+                              .Select(p => (p.Kind, p.LocalId, p.Decision.Watched, p.Decision.FinalPositionMs, (string?)p.Server.Id)));
         return new SyncResult(failed.Count, failed.Values.FirstOrDefault());
     }
 

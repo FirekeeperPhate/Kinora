@@ -36,5 +36,10 @@ public static class Icons
     public static Geometry Subtitles { get; } = Geometry.Parse("M3.5,5.5 H20.5 V18.5 H3.5 Z M7,12.5 H11 M13.5,12.5 H17 M7,15.5 H14 M16.5,15.5 H17");
     public static Geometry Audio { get; } = Geometry.Parse("M4,16 V12 A8,8 0 0 1 20,12 V16 M4,14 H7.5 V19.5 H4 Z M16.5,14 H20 V19.5 H16.5 Z");
     public static Geometry FullScreen { get; } = Geometry.Parse("M4,9 V4 H9 M15,4 H20 V9 M20,15 V20 H15 M9,20 H4 V15");
+    public static Geometry Chapters { get; } = Geometry.Parse("M4,6 H5 M8,6 H20 M4,12 H5 M8,12 H20 M4,18 H5 M8,18 H20");
+    public static Geometry Speed { get; } = Geometry.Parse("M4.5,17 A8,8 0 1 1 19.5,17 M12,13 L16,8.5 M12,13 V13.1");
+    public static Geometry Pin { get; } = Geometry.Parse("M9,3.5 H15 M10,3.5 V9.5 L6.5,13.5 H17.5 L14,9.5 V3.5 M12,13.5 V20.5");
+    public static Geometry Wrench { get; } = Geometry.Parse("M14.5,4 A4.5,4.5 0 0 0 10.2,9.8 L4,16 A2.1,2.1 0 0 0 7,19 L13.2,12.8 A4.5,4.5 0 0 0 19,8.5 L16.3,11.2 L13.8,10.2 L12.8,7.7 L15.5,5 A4.5,4.5 0 0 0 14.5,4 Z");
+    public static Geometry Missing { get; } = Geometry.Parse("M4,5.5 H20 V18.5 H4 Z M9,9.5 L15,14.5 M15,9.5 L9,14.5");
     public static Geometry ExitFullScreen { get; } = Geometry.Parse("M9,4 V9 H4 M20,9 H15 V4 M15,20 V15 H20 M4,15 H9 V20");
 }

@@ -81,6 +81,8 @@ public partial class SettingsViewModel : ViewModelBase
         ScanOnStartup = _s.Settings.ScanOnStartup;
         UseBuiltInPlayer = _s.Settings.UseBuiltInPlayer;
         AutoPlayNextEpisode = _s.Settings.AutoPlayNextEpisode;
+        SkipBackSeconds = SkipChoices.Contains(_s.Settings.SkipBackSeconds) ? _s.Settings.SkipBackSeconds : 10;
+        SkipForwardSeconds = SkipChoices.Contains(_s.Settings.SkipForwardSeconds) ? _s.Settings.SkipForwardSeconds : 30;
         CardWidth = _s.Settings.CardWidth;
         ScrollSpeed = _s.Settings.ScrollSpeed;
         TmdbKey = _s.Settings.TmdbKey;
@@ -280,12 +282,22 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     public partial bool SyncOnStartup { get; set; }
 
+    [ObservableProperty]
+    public partial bool LiveSync { get; set; }
+
+    partial void OnLiveSyncChanged(bool value)
+    {
+        if (!_loadingServer)
+            _s.Settings.LiveSync = value;
+    }
+
     private void LoadServerSettings()
     {
         _loadingServer = true;
         ServerUrl = _s.Settings.MediaServerUrl ?? "";
         ServerKey = _s.Settings.MediaServerKey;
         SyncOnStartup = _s.Settings.SyncOnStartup;
+        LiveSync = _s.Settings.LiveSync;
         if (_s.Settings is { MediaServerUserId: { } id, MediaServerUserName: { } name })
         {
             ServerUsers = [new ServerUser(id, name)];
@@ -419,6 +431,17 @@ public partial class SettingsViewModel : ViewModelBase
     public partial bool AutoPlayNextEpisode { get; set; }
 
     partial void OnAutoPlayNextEpisodeChanged(bool value) => _s.Settings.AutoPlayNextEpisode = value;
+
+    public IReadOnlyList<int> SkipChoices { get; } = [5, 10, 15, 30, 60];
+
+    [ObservableProperty]
+    public partial int SkipBackSeconds { get; set; }
+
+    [ObservableProperty]
+    public partial int SkipForwardSeconds { get; set; }
+
+    partial void OnSkipBackSecondsChanged(int value) => _s.Settings.SkipBackSeconds = value;
+    partial void OnSkipForwardSecondsChanged(int value) => _s.Settings.SkipForwardSeconds = value;
 
     public static string SystemPlayerText => OperatingSystem.IsWindows()
         ? "The app Windows opens videos with"

@@ -44,6 +44,11 @@ engine), or, if you prefer, in the player the OS associates with it. Windows, Li
 - **Duplicates**, in the sidebar when there are any: the same movie or show more than once, in the
   same folder or in two (an id in common, or the same name and year without ids), side by side
   with the size, the resolution and the folder of each copy.
+- **Needs attention**, in the sidebar when there is something in it: titles without a poster or a
+  plot, movies loose in the root, episode files without season and number, the same episode twice,
+  and the folders where the last scan found no video (a click opens one).
+- **Random** offers something not seen yet from the current view and its filters; **Another one** on
+  its page doesn't come back to a title already offered until the others have all been.
 - Folders that are mounted somewhere else later (another drive letter, another OS): change the
   root's path in Settings, nothing is scanned again. Paths are stored relative to the root.
 - Names that Windows normally tidies up, ending with a dot or a space (`S.W.A.T.`), are read,
@@ -59,7 +64,13 @@ engine), or, if you prefer, in the player the OS associates with it. Windows, Li
   episodes on a NAS: first scan about 20 s, the next 0.3 s.
 - The show page lists seasons and episodes with their pictures (made on demand), marks episodes
   watched one by one or a season at a time, and plays the next one not seen. With TMDB, episodes
-  missing from the folder are listed greyed out.
+  missing from the folder are listed greyed out, with a line that says which, and a season of which
+  there is nothing has its own tab.
+- **Missing episodes**, in the sidebar: the shows that lack aired episodes, by TMDB's list, and
+  those that have new ones since the last on disk. Kinora asks TMDB once a week, or from the Scan
+  menu (Check TV shows for new episodes): a show that has ended once, one still going once a week,
+  and the episodes of a season only when the folder lacks some. Folders numbered another way
+  (absolute numbers, DVD order) are left out rather than shown full of holes.
 - Watched episodes are remembered by the show's ids and the episode number, so a better copy of
   an episode keeps the flag.
 
@@ -91,8 +102,13 @@ Play opens the video in Kinora's player, over the whole window: VLC's engine dra
 decoding, 4K and HDR included: a 4K HDR10 HEVC movie from the NAS takes 7% of one core), Kinora's
 controls sit over it and go away after three seconds without moving the mouse.
 
-- Play/pause, back 10 s, forward 30 s, the seek bar, volume and mute, full screen; the audio track
-  and the subtitles (the ones in the file and the `.srt` files next to it) from two panels.
+- Play/pause, back 10 s, forward 30 s (both can be changed in Settings → Playback), the seek bar,
+  volume and mute, full screen; the audio track and the subtitles (the ones in the file and the
+  `.srt` files next to it) from two panels; the chapters of the file, the speed (0.5× to 2×), and a
+  pin that keeps the window over the others.
+- **Skip intro**: while the intro plays a button jumps past it. Where it is comes from Emby (its
+  hidden intro markers) or Jellyfin 10.10 (media segments), when the server has found it, otherwise
+  from a chapter of the file called Intro or Opening.
 - Episodes go on by themselves: at the end the next one starts after ten seconds in the same window
   (Play now or Cancel; off in Settings → Playback), and next and previous are on the bar too.
 - The audio and subtitles you choose are remembered, for the show and in general: the next title
@@ -100,9 +116,10 @@ controls sit over it and go away after three seconds without moving the mouse.
 - The subtitle panel has the delay, the size of text subtitles, Find subtitles (OpenSubtitles, with
   the video paused; what you download starts right away) and Load a file. Changing the size restarts
   VLC's engine: the picture goes black for a moment and comes back where it was.
-- Keys: Space or K play/pause, ← →  back 10 s / forward 30 s (Ctrl+→ a minute), ↑ ↓ volume, M mute,
+- Keys: Space or K play/pause, ← →  back and forward (Ctrl+→ a minute), ↑ ↓ volume, M mute,
   F or a double click full screen, A and S the next audio track or subtitle, G and H subtitles
-  earlier or later, N and P next and previous episode, Esc leaves full screen, then the player.
+  earlier or later, N and P next and previous episode, I skip intro, C chapters, − and + speed,
+  T keep on top, Esc leaves full screen, then the player.
 - Media keys (Windows): play/pause, stop, next and previous, and the forward and rewind buttons of
   remotes work even when Kinora is minimized or another window is in front, and so do the buttons
   of Bluetooth headphones. Windows' media panel shows the title and the poster. Windows sends the
@@ -144,6 +161,11 @@ travel: files, posters and metadata are not touched, on either side.
   would unmark more than 20 titles: more likely a wiped server than a change of mind.
 - A title the server refuses is tried again next time. Changing the server or the user starts again
   from a first sync.
+- While Kinora is open (Settings → Media server, on by default) it keeps in step title by title:
+  what you have just watched or marked goes to the server at once, and a movie or show page asks
+  the server first, so what you watched on the TV is already marked. Only titles a whole sync has
+  paired; on the same rules, and quiet when the server isn't there. More than 20 unmarked at once
+  is left to the Scan menu.
 
 ## Subtitles (OpenSubtitles)
 
@@ -153,6 +175,11 @@ the IMDb/TMDB ids; subtitles made for that exact file come first, then the prefe
 their order. The chosen one is saved next to the video as `<video>.<lang>.srt` (`.sdh`, `.forced`
 when so); one already there with that name is kept as `.old`. Each download counts against the
 account's daily quota, shown in the window. Key and password are stored like the TMDB key.
+
+**Subtitles for the season…** on a show page does it for every episode of the season that has none
+in your languages (a file next to it, or one inside that the episode's nfo lists; a forced one
+doesn't count): it says how many first, takes for each the best one by the same order (never a
+forced-only one, never machine-translated when that is off), and stops when the day's quota ends.
 
 ## Moving between library folders
 
