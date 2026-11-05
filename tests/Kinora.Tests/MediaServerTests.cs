@@ -739,7 +739,7 @@ public sealed class MediaServerTests : IDisposable
         {
             c.Open();
             using var cmd = c.CreateCommand();
-            cmd.CommandText = "ALTER TABLE server_sync DROP COLUMN server_id; PRAGMA user_version = 7;";
+            cmd.CommandText = "ALTER TABLE server_sync DROP COLUMN server_id; DROP TABLE tmdb_similar; PRAGMA user_version = 7;";
             cmd.ExecuteNonQuery();
         }
 

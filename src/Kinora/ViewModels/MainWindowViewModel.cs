@@ -1331,6 +1331,24 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
+    /// <summary>The movies of the library related to one (collection, director, leading actors), worked out off the UI thread.</summary>
+    public async Task<List<ShelfItem>> RelatedToAsync(MovieCardViewModel card)
+    {
+        var cards = _movies.ToList();
+        var related = await Task.Run(() => RelatedTitles.Find(card.Movie, cards.Select(c => c.Movie).ToList(), _s.Database.GetLeadingCast(5)));
+        var byId = cards.ToDictionary(c => c.Movie.Id);
+        return related.Where(r => byId.ContainsKey(r.Movie.Id))
+                      .Select(r =>
+                      {
+                          var other = byId[r.Movie.Id];
+                          return new ShelfItem(other, r.Reason, () => OpenDetail(other));
+                      })
+                      .ToList();
+    }
+
+    /// <summary>A movie of the library by its TMDB id (the first copy, when there are two).</summary>
+    public MovieCardViewModel? MovieByTmdbId(string tmdbId) => _movies.FirstOrDefault(c => c.Movie.TmdbId == tmdbId);
+
     /// <summary>One page at a time: opening a movie closes a show page and the person page, and the other way round.</summary>
     private void CloseOthers(bool keepMovie)
     {

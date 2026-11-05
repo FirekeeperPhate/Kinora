@@ -255,6 +255,69 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </StackPanel>
+
+                <!-- The library's movies of the same collection, director or leading actors -->
+                <StackPanel Spacing="14" IsVisible="{Binding HasRelated}">
+                    <TextBlock Classes="section" Text="RELATED IN YOUR LIBRARY" />
+                    <ItemsControl ItemsSource="{Binding Related}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel ItemSpacing="16" LineSpacing="18" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ShelfItem">
+                                <Button Classes="card" Width="132" ToolTip.Tip="{Binding Tip}" Command="{Binding OpenCommand}">
+                                    <StackPanel>
+                                        <Border Classes="poster" Height="198">
+                                            <Panel>
+                                                <TextBlock Text="{Binding Title}" TextWrapping="Wrap" TextAlignment="Center" VerticalAlignment="Center"
+                                                           Margin="8" Classes="subtle" FontSize="12" />
+                                                <Image Source="{Binding Card.Poster}" Stretch="UniformToFill" IsVisible="{Binding InLibrary}" />
+                                                <Image Source="{Binding Picture}" Stretch="UniformToFill" IsVisible="{Binding !InLibrary}" Opacity="0.75" />
+                                            </Panel>
+                                        </Border>
+                                        <TextBlock Classes="cardTitle" Text="{Binding Title}" Margin="2,8,2,0" FontWeight="SemiBold"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Margin="2,2,2,0" FontSize="12" Classes="subtle" Text="{Binding YearText}" />
+                                        <TextBlock Margin="2,0,2,0" FontSize="12" Classes="subtle" Text="{Binding Note}" TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+                <!-- What TMDB recommends after this one: the ones in the library first -->
+                <StackPanel Spacing="14" IsVisible="{Binding HasSimilar}">
+                    <TextBlock Classes="section" Text="SIMILAR" />
+                    <ItemsControl ItemsSource="{Binding Similar}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel ItemSpacing="16" LineSpacing="18" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ShelfItem">
+                                <Button Classes="card" Width="132" ToolTip.Tip="{Binding Tip}" Command="{Binding OpenCommand}">
+                                    <StackPanel>
+                                        <Border Classes="poster" Height="198">
+                                            <Panel>
+                                                <TextBlock Text="{Binding Title}" TextWrapping="Wrap" TextAlignment="Center" VerticalAlignment="Center"
+                                                           Margin="8" Classes="subtle" FontSize="12" />
+                                                <Image Source="{Binding Card.Poster}" Stretch="UniformToFill" IsVisible="{Binding InLibrary}" />
+                                                <Image Source="{Binding Picture}" Stretch="UniformToFill" IsVisible="{Binding !InLibrary}" Opacity="0.75" />
+                                            </Panel>
+                                        </Border>
+                                        <TextBlock Classes="cardTitle" Text="{Binding Title}" Margin="2,8,2,0" FontWeight="SemiBold"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Margin="2,2,2,0" FontSize="12" Classes="subtle" Text="{Binding YearText}" />
+                                        <TextBlock Margin="2,0,2,0" FontSize="12" Classes="subtle" Text="{Binding Note}" TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
             </StackPanel>
         </ScrollViewer>
     </Panel>

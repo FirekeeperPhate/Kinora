@@ -80,6 +80,33 @@ public sealed partial class LibraryDatabase
             """, new { kind = series ? "tv" : "movie", tmdbId, data = System.Text.Json.JsonSerializer.Serialize(cast), fetched = DateTimeOffset.UtcNow.ToUnixTimeSeconds() });
     }
 
+    /// <summary>What TMDB recommended after a title, and when it was asked (Unix seconds); null if never.</summary>
+    public (List<TmdbSimilar> Titles, long Fetched)? GetTmdbSimilar(bool series, string tmdbId)
+    {
+        using var c = Open();
+        var row = c.QuerySingleOrDefault<(string Data, long Fetched)?>("SELECT data, fetched FROM tmdb_similar WHERE kind = @kind AND tmdb_id = @tmdbId",
+                                                                         new { kind = series ? "tv" : "movie", tmdbId });
+        if (row is not { } r)
+            return null;
+        try
+        {
+            return (System.Text.Json.JsonSerializer.Deserialize<List<TmdbSimilar>>(r.Data) ?? [], r.Fetched);
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return null;
+        }
+    }
+
+    public void SaveTmdbSimilar(bool series, string tmdbId, IReadOnlyList<TmdbSimilar> titles)
+    {
+        using var c = Open();
+        c.Execute("""
+            INSERT INTO tmdb_similar (kind, tmdb_id, data, fetched) VALUES (@kind, @tmdbId, @data, @fetched)
+            ON CONFLICT(kind, tmdb_id) DO UPDATE SET data = excluded.data, fetched = excluded.fetched
+            """, new { kind = series ? "tv" : "movie", tmdbId, data = System.Text.Json.JsonSerializer.Serialize(titles), fetched = DateTimeOffset.UtcNow.ToUnixTimeSeconds() });
+    }
+
     /// <summary>A person's TMDB id, if any cast entry in the library knows it.</summary>
     public string? FindPersonId(string name)
     {

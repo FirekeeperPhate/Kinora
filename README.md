@@ -49,6 +49,9 @@ engine), or, if you prefer, in the player the OS associates with it. Windows, Li
   and the folders where the last scan found no video (a click opens one).
 - **Random** offers something not seen yet from the current view and its filters; **Another one** on
   its page doesn't come back to a title already offered until the others have all been.
+- A movie's page ends with **Related in your library** (the rest of its collection, the other movies
+  of its directors, those with two of its leading actors) and **Similar**: what TMDB recommends after
+  it, the ones you have first; the others, dimmed, open on TMDB. Asked when the page opens, kept a month.
 - Folders that are mounted somewhere else later (another drive letter, another OS): change the
   root's path in Settings, nothing is scanned again. Paths are stored relative to the root.
 - Names that Windows normally tidies up, ending with a dot or a space (`S.W.A.T.`), are read,

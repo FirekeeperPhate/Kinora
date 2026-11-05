@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -22,6 +23,7 @@ public partial class MovieDetailViewModel : ViewModelBase, IDisposable
     private readonly bool _rootUnavailable;
     private bool _disposed;
     private readonly CancellationTokenSource _photos = new();
+    private readonly CancellationTokenSource _shelves = new();
 
     public MovieDetailViewModel(MainWindowViewModel owner, AppServices services, MovieCardViewModel card, LibraryRoot? root, bool rootUnavailable)
     {
@@ -41,6 +43,76 @@ public partial class MovieDetailViewModel : ViewModelBase, IDisposable
         _ = LoadImagesAsync();
         var folder = root is not null && !rootUnavailable ? RelPath.ToFull(root.Path, m.Folder) : null;
         _ = CastItem.LoadPhotosAsync(_s, Cast, series: false, m.TmdbId, folder, _photos.Token);
+        _ = LoadShelvesAsync(_shelves.Token);
+    }
+
+    /// <summary>The library's movies related to this one.</summary>
+    public ObservableCollection<ShelfItem> Related { get; } = [];
+
+    /// <summary>What TMDB recommends: the ones in the library first.</summary>
+    public ObservableCollection<ShelfItem> Similar { get; } = [];
+
+    [ObservableProperty]
+    public partial bool HasRelated { get; private set; }
+
+    [ObservableProperty]
+    public partial bool HasSimilar { get; private set; }
+
+    private async Task LoadShelvesAsync(CancellationToken ct)
+    {
+        try
+        {
+            foreach (var item in await _owner.RelatedToAsync(Card))
+                Related.Add(item);
+            HasRelated = Related.Count > 0;
+
+            using var tmdb = _s.CreateTmdbClient();
+            var similar = await new SimilarTitles(_s.Database).GetAsync(tmdb, series: false, Movie.TmdbId, ct);
+            if (_disposed)
+                return;
+            var items = similar.Select(t => _owner.MovieByTmdbId(t.Id) is { } card && card != Card
+                    ? new ShelfItem(card, "In your library", () => _owner.OpenDetail(card))
+                    : new ShelfItem(t, () => Core.Platform.Launcher.OpenUrl($"https://www.themoviedb.org/movie/{Uri.EscapeDataString(t.Id)}")))
+                .Where(i => i.Card != Card)
+                .OrderByDescending(i => i.InLibrary)
+                .ToList();
+            foreach (var item in items)
+                Similar.Add(item);
+            HasSimilar = Similar.Count > 0;
+            await LoadSimilarPostersAsync(items.Where(i => !i.InLibrary).ToList(), ct);
+        }
+        catch (Exception e) when (e is OperationCanceledException or Microsoft.Data.Sqlite.SqliteException or IOException)
+        {
+        }
+    }
+
+    /// <summary>TMDB's posters of the movies not in the library: small, into the poster cache, a few at a time.</summary>
+    private async Task LoadSimilarPostersAsync(List<ShelfItem> items, CancellationToken ct)
+    {
+        using var gate = new SemaphoreSlim(4);
+        await Task.WhenAll(items.Where(i => i.Similar?.PosterPath is not null).Select(async item =>
+        {
+            await gate.WaitAsync(ct);
+            try
+            {
+                var path = item.Similar!.PosterPath!;
+                var key = ImageCache.KeyForOnline(path);
+                if (!_s.Posters.Has(key) && await TmdbImages.DownloadAsync(path, "w185", ct) is { } bytes)
+                    await Task.Run(() => _s.Posters.EnsureFromBytes(key, bytes), ct);
+                var bitmap = await Load(() => _s.Posters.Has(key) ? new Bitmap(_s.Posters.PathFor(key)) : null);
+                if (_disposed)
+                    bitmap?.Dispose();
+                else
+                    item.Picture = bitmap;
+            }
+            catch (Exception e) when (e is HttpRequestException or IOException or ArgumentException)
+            {
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }));
     }
 
     public MovieCardViewModel Card { get; }
@@ -264,6 +336,9 @@ public partial class MovieDetailViewModel : ViewModelBase, IDisposable
             return;
         _disposed = true;
         _photos.Cancel();
+        _shelves.Cancel();
+        foreach (var item in Similar)
+            item.Picture?.Dispose();
         foreach (var actor in Cast)
             actor.Release();
         if (!ReferenceEquals(Backdrop, Poster))

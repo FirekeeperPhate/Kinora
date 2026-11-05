@@ -354,6 +354,45 @@ public sealed class TmdbClient : IDisposable
         }
     }
 
+    /// <summary>
+    /// What TMDB recommends after a movie or a show (what its users watched next); when it has
+    /// nothing, the titles it finds similar by genres and keywords.
+    /// </summary>
+    public async Task<List<TmdbSimilar>> GetRecommendationsAsync(bool series, string tmdbId, CancellationToken ct)
+    {
+        var kind = series ? "tv" : "movie";
+        foreach (var list in new[] { "recommendations", "similar" })
+        {
+            JsonDocument doc;
+            try
+            {
+                doc = await GetJsonAsync($"{kind}/{Uri.EscapeDataString(tmdbId)}/{list}", [("language", Language), ("page", "1")], ct);
+            }
+            catch (TmdbException e) when (e.Status == HttpStatusCode.NotFound)
+            {
+                return [];
+            }
+            using (doc)
+            {
+                var found = new List<TmdbSimilar>();
+                if (doc.RootElement.TryGetProperty("results", out var results))
+                    foreach (var r in results.EnumerateArray())
+                    {
+                        if (!r.TryGetProperty("id", out var id) || (Str(r, series ? "name" : "title") is not { } title))
+                            continue;
+                        var date = Str(r, series ? "first_air_date" : "release_date");
+                        found.Add(new TmdbSimilar(id.GetRawText(), title,
+                            date is { Length: >= 4 } && int.TryParse(date[..4], out var y) ? y : null,
+                            Str(r, "poster_path"),
+                            r.TryGetProperty("vote_average", out var va) && va.ValueKind == JsonValueKind.Number && va.GetDouble() > 0 ? Math.Round(va.GetDouble(), 1) : null));
+                    }
+                if (found.Count > 0)
+                    return found;
+            }
+        }
+        return [];
+    }
+
     private async Task<JsonDocument> GetJsonAsync(string path, List<(string Key, string Value)> args, CancellationToken ct)
     {
         if (_apiKey is not null)

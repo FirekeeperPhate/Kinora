@@ -61,6 +61,18 @@ internal sealed class FakeTmdb : HttpMessageHandler
             return Json(HttpStatusCode.OK, $$"""{"results":[{{hits}}]}""");
         }
 
+        // What comes after a movie: Heat has recommendations, Alien only similar ones
+        if (path == "movie/949/recommendations")
+            return Json(HttpStatusCode.OK, """
+                {"results":[{"id":348,"title":"Alien","release_date":"1979-05-25","poster_path":"/p348.jpg","vote_average":8.1},
+                             {"id":111,"title":"Collateral","release_date":"2004-08-06","poster_path":"/coll.jpg","vote_average":7.5},
+                             {"id":112,"title":""}]}
+                """);
+        if (path == "movie/348/recommendations")
+            return Json(HttpStatusCode.OK, """{"results":[]}""");
+        if (path == "movie/348/similar")
+            return Json(HttpStatusCode.OK, """{"results":[{"id":679,"title":"Aliens","release_date":"1986-07-18"}]}""");
+
         // The cast with their photos, for the cast pictures
         if (path == "movie/949/credits")
             return Json(HttpStatusCode.OK, """

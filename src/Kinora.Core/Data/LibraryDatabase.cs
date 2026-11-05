@@ -11,7 +11,7 @@ namespace Kinora.Core.Data;
 /// </summary>
 public sealed partial class LibraryDatabase
 {
-    private const int SchemaVersion = 8;
+    private const int SchemaVersion = 9;
 
     private readonly string _connectionString;
 
@@ -334,6 +334,19 @@ public sealed partial class LibraryDatabase
                 ALTER TABLE server_sync ADD COLUMN server_id TEXT;
                 """, transaction: tx);
         }
+        if (version < 9)
+        {
+            c.Execute("""
+                -- What TMDB recommends after a movie or a show, asked when its page opens
+                CREATE TABLE tmdb_similar (
+                    kind TEXT NOT NULL,
+                    tmdb_id TEXT NOT NULL,
+                    data TEXT NOT NULL,
+                    fetched INTEGER NOT NULL,
+                    PRIMARY KEY (kind, tmdb_id)
+                );
+                """, transaction: tx);
+        }
         c.Execute($"PRAGMA user_version = {SchemaVersion};", transaction: tx);
         tx.Commit();
     }
@@ -396,6 +409,15 @@ public sealed partial class LibraryDatabase
         using var c = Open();
         return c.Query<(long MovieId, string Names)>("SELECT movie_id, group_concat(name, ' ') FROM cast_members GROUP BY movie_id")
                 .ToDictionary(r => r.MovieId, r => r.Names);
+    }
+
+    /// <summary>The first actors of every movie, in billing order: what "related" compares.</summary>
+    public Dictionary<long, List<string>> GetLeadingCast(int count)
+    {
+        using var c = Open();
+        return c.Query<(long MovieId, string Name)>("SELECT movie_id, name FROM cast_members WHERE ord < @count ORDER BY movie_id, ord", new { count })
+                .GroupBy(r => r.MovieId)
+                .ToDictionary(g => g.Key, g => g.Select(r => r.Name).ToList());
     }
 
     public List<CastMember> GetCast(long movieId)
