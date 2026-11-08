@@ -243,6 +243,8 @@ public partial class MainWindowViewModel : ViewModelBase
             _movies.Add(card);
         }
 
+        ReadHistory();
+
         _attention.Clear();
         foreach (var card in _movies)
             if (LibraryHealth.Problems(card.Movie) is { Count: > 0 } problems)
@@ -290,6 +292,9 @@ public partial class MainWindowViewModel : ViewModelBase
             NavItems.Add(new NavItem(NavKind.Continue, "Continue watching", Icons.Play) { Count = going });
         NavItems.Add(new NavItem(NavKind.Unwatched, "Unwatched", Icons.Eye) { Count = cards.Count(c => !c.Watched) });
         NavItems.Add(new NavItem(NavKind.RecentlyAdded, "Recently added", Icons.Clock) { Count = Math.Min(RecentCount, cards.Count) });
+        var seen = cards.Count(c => LastWatched(c) is not null);
+        if (seen > 0)
+            NavItems.Add(new NavItem(NavKind.History, "History", Icons.History) { Count = seen });
         var missing = cards.Count(c => c.NeedsMatch);
         if (missing > 0)
             NavItems.Add(new NavItem(NavKind.NeedsMetadata, "Not identified", Icons.Question) { Count = missing });
@@ -345,6 +350,7 @@ public partial class MainWindowViewModel : ViewModelBase
             NavKind.Continue => cards.Where(c => c.InProgress),
             NavKind.Unwatched => cards.Where(c => !c.Watched),
             NavKind.RecentlyAdded => cards.OrderByDescending(c => c.DateAdded).Take(RecentCount),
+            NavKind.History => cards.Where(c => LastWatched(c) is not null),
             NavKind.NeedsMetadata => cards.Where(c => c.NeedsMatch),
             NavKind.Duplicates => cards.Where(_duplicates.ContainsKey),
             NavKind.MissingEpisodes => cards.Where(c => c is SeriesCardViewModel s && _gaps.ContainsKey(s.Series.Id)),
@@ -376,6 +382,10 @@ public partial class MainWindowViewModel : ViewModelBase
         else if (nav.Kind == NavKind.Continue)
         {
             sorted = items.OrderByDescending(c => c.LastPlayed);
+        }
+        else if (nav.Kind == NavKind.History)
+        {
+            sorted = items.OrderByDescending(c => LastWatched(c)?.At ?? 0);
         }
         else if (nav.Kind == NavKind.Duplicates)
         {
@@ -411,6 +421,7 @@ public partial class MainWindowViewModel : ViewModelBase
                     _roots.TryGetValue(card.RootId, out var root) ? $"{card.CopyText}  ·  {root.Name}" : card.CopyText,
                 NavKind.MissingEpisodes when card is SeriesCardViewModel s && _gaps.TryGetValue(s.Series.Id, out var gaps) => gaps.Note,
                 NavKind.NeedsAttention => _attention.GetValueOrDefault(card),
+                NavKind.History => LastWatched(card)?.Note,
                 _ => null,
             };
         OnPropertyChanged(nameof(EmptyFolders));
@@ -420,6 +431,7 @@ public partial class MainWindowViewModel : ViewModelBase
         var (one, many) = Mode == LibraryMode.Movies ? ("movie", "movies") : ("show", "shows");
         CountText = query.Length > 0
             ? $"{Format.Count(_filtered.Count, one, many)} matching “{SearchText.Trim()}”"
+            : nav.Kind == NavKind.History ? HistorySummary()
             : Format.Count(_filtered.Count, one, many);
         HasNoResults = _filtered.Count == 0 && CurrentCards.Count > 0;
         LayoutRows();
@@ -444,6 +456,64 @@ public partial class MainWindowViewModel : ViewModelBase
             foreach (var card in group)
                 _duplicates[card] = place;
             place++;
+        }
+    }
+
+    // ---- history ----
+
+    private sealed record Watched(long At, string Note);
+
+    private List<HistoryEntry> _history = [];
+    private Dictionary<long, Watched> _moviesWatched = [];
+    private Dictionary<long, Watched> _showsWatched = [];
+
+    private Watched? LastWatched(CardViewModel card) => card switch
+    {
+        MovieCardViewModel m => _moviesWatched.GetValueOrDefault(m.Movie.Id),
+        SeriesCardViewModel s => _showsWatched.GetValueOrDefault(s.Series.Id),
+        _ => null,
+    };
+
+    /// <summary>The last viewing of each movie and show, for the History view.</summary>
+    private void ReadHistory()
+    {
+        _history = _s.Database.GetHistory();   // most recent first
+        var now = DateTime.Now;
+        _moviesWatched = _history.Where(e => e is { Kind: PlaybackKind.Movie, ItemId: not null })
+            .GroupBy(e => e.ItemId!.Value)
+            .ToDictionary(g => g.Key, g =>
+            {
+                var times = g.Count();
+                return new Watched(g.First().WatchedAt, $"Watched {WatchHistory.Date(g.First().WatchedAt, now)}" + (times > 1 ? $" · {times} times" : ""));
+            });
+        _showsWatched = _history.Where(e => e is { Kind: PlaybackKind.Episode, SeriesId: not null })
+            .GroupBy(e => e.SeriesId!.Value)
+            .ToDictionary(g => g.Key, g => new Watched(g.First().WatchedAt, $"{g.First().Title} · {WatchHistory.Date(g.First().WatchedAt, now)}"));
+    }
+
+    private string HistorySummary()
+    {
+        var movies = Mode == LibraryMode.Movies;
+        var sum = WatchHistory.Summarize(_history, movies ? PlaybackKind.Movie : PlaybackKind.Episode, DateTime.Now);
+        var (one, many) = movies ? ("movie", "movies") : ("episode", "episodes");
+        return $"This year {Format.Count(sum.ThisYear, one, many)}, {Hours(sum.HoursThisYear)}  ·  in all {Format.Count(sum.AllTime, one, many)}, {Hours(sum.HoursAllTime)}";
+
+        static string Hours(double h) => h < 1 ? $"{Math.Round(h * 60):0} min" : $"{h:0} h";
+    }
+
+    /// <summary>A viewing just recorded or taken back: the sidebar and the view follow.</summary>
+    private void HistoryChanged()
+    {
+        ReadHistory();
+        var item = NavItems.FirstOrDefault(n => n.Kind == NavKind.History);
+        var seen = CurrentCards.Count(c => LastWatched(c) is not null);
+        if ((item is null) != (seen == 0))
+            RebuildNav();
+        else if (item is not null)
+        {
+            item.Count = seen;
+            if (SelectedNav == item)
+                ApplyFilter();
         }
     }
 
@@ -947,6 +1017,8 @@ public partial class MainWindowViewModel : ViewModelBase
             await Task.Run(() => sync.ApplyAsync(plan, null, cts.Token));
             if (plan.WatchedHere + plan.UnwatchedHere + plan.PositionsHere > 0)
                 ShowServerChanges(plan);
+            else
+                HistoryChanged();   // a date the server had may have gone into the history
         }
         catch (Exception e) when (e is MediaServerException or HttpRequestException or OperationCanceledException or System.Text.Json.JsonException
                                   or Microsoft.Data.Sqlite.SqliteException)
@@ -1016,6 +1088,7 @@ public partial class MainWindowViewModel : ViewModelBase
             }
         }
         AfterWatchedChange();
+        HistoryChanged();
         ShowStatusFor($"From {_s.Settings.MediaServerProduct}: {Format.Count(changed.Count, "title", "titles")} brought up to date", 8);
     }
 
@@ -1346,6 +1419,44 @@ public partial class MainWindowViewModel : ViewModelBase
                       .ToList();
     }
 
+    /// <summary>The shows of the library related to one (leading actors, network and genre).</summary>
+    public async Task<List<ShelfItem>> RelatedToAsync(SeriesCardViewModel card)
+    {
+        var cards = _shows.ToList();
+        var related = await Task.Run(() => RelatedTitles.FindShows(card.Series, cards.Select(c => c.Series).ToList(), _s.Database.GetSeriesLeadingCast(5)));
+        var byId = cards.ToDictionary(c => c.Series.Id);
+        return related.Where(r => byId.ContainsKey(r.Show.Id))
+                      .Select(r =>
+                      {
+                          var other = byId[r.Show.Id];
+                          return new ShelfItem(other, r.Reason, () => OpenSeries(other));
+                      })
+                      .ToList();
+    }
+
+    /// <summary>The trailer TMDB knows, in the browser; a word in the status bar when there is none.</summary>
+    public async Task OpenTrailerAsync(bool series, string? tmdbId, string title)
+    {
+        using var client = _s.CreateTmdbClient();
+        if (client is null || tmdbId is null)
+            return;
+        try
+        {
+            if (await client.GetTrailerAsync(series, tmdbId, CancellationToken.None) is { } url)
+                Launcher.OpenUrl(url);
+            else
+                ShowStatusFor($"TMDB has no trailer for “{title}”.", 8);
+        }
+        catch (Exception e)
+        {
+            // An answer that isn't TMDB's, no browser: said, not thrown at the window
+            ShowStatusFor($"Can't open the trailer: {e.Message}", 10);
+        }
+    }
+
+    /// <summary>A show of the library by its TMDB id.</summary>
+    public SeriesCardViewModel? ShowByTmdbId(string tmdbId) => _shows.FirstOrDefault(c => c.Series.TmdbId == tmdbId);
+
     /// <summary>A movie of the library by its TMDB id (the first copy, when there are two).</summary>
     public MovieCardViewModel? MovieByTmdbId(string tmdbId) => _movies.FirstOrDefault(c => c.Movie.TmdbId == tmdbId);
 
@@ -1373,7 +1484,7 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         PlayFile(new PlayRequest(RelPath.ToFull(root.Path, videoFile ?? card.Movie.VideoFile), card.Title,
                                  card.Movie.Year?.ToString(CultureInfo.InvariantCulture), PlaybackKind.Movie, card.Movie.Id,
-                                 () => SetWatched(card, true), watched => MovieKept(card, watched), PosterPath(card.Movie.ThumbKey),
+                                 length => SetWatched(card, true, length), watched => MovieKept(card, watched), PosterPath(card.Movie.ThumbKey),
                                  FindSubtitles: added => FindSubtitlesAsync(card, added)));
     }
 
@@ -1390,7 +1501,7 @@ public partial class MainWindowViewModel : ViewModelBase
             return null;
         var what = string.Join(" · ", new[] { episode.Code, episode.Title }.Where(s => !string.IsNullOrWhiteSpace(s)));
         return new PlayRequest(RelPath.ToFull(root.Path, episode.VideoFile), card.Title, what, PlaybackKind.Episode, episode.Id,
-                               () => SetEpisodesWatched(card, [episode], true), watched => EpisodeKept(card, episode, watched), PosterPath(card.Series.ThumbKey),
+                               length => SetEpisodesWatched(card, [episode], true, viewingMs: length), watched => EpisodeKept(card, episode, watched), PosterPath(card.Series.ThumbKey),
                                TrackScope: $"series:{card.Series.Id}",
                                Next: () => Neighbour(EpisodeOrder.After),
                                Previous: () => Neighbour(EpisodeOrder.Before),
@@ -1755,6 +1866,7 @@ public partial class MainWindowViewModel : ViewModelBase
             foreach (var c in _movies.Cast<CardViewModel>().Concat(_shows))
                 c.SelectionActive = active;
         HasSelection = active;
+        OnPropertyChanged(nameof(CanFindSubtitlesForSelection));
         OnPropertyChanged(nameof(SelectionText));
         OnPropertyChanged(nameof(SelectionMoveTargets));
         OnPropertyChanged(nameof(CanMoveSelection));
@@ -2307,17 +2419,77 @@ public partial class MainWindowViewModel : ViewModelBase
             ? new SubtitleQuery(ParentImdbId: s.ImdbId, ParentTmdbId: s.TmdbId, Season: episode.Season, Episode: episode.Number)
             : new SubtitleQuery(ImdbId: episode.ImdbId, Title: $"{s.Title} {episode.Code}".Trim());
 
-    /// <summary>
-    /// A subtitle for each episode of a season that has none in the languages of the settings:
-    /// says how many first, and each one counts against the daily quota.
-    /// </summary>
-    public async Task SeasonSubtitlesAsync(SeriesCardViewModel card, IReadOnlyList<Episode> episodes, string seasonName)
+    /// <summary>A subtitle for each episode of a season that has none in the languages of the settings.</summary>
+    public Task SeasonSubtitlesAsync(SeriesCardViewModel card, IReadOnlyList<Episode> episodes, string seasonName)
     {
-        if (Dialogs is null || IsBusy("download subtitles") || !_roots.TryGetValue(card.RootId, out var root) || !CheckSubtitlesKey())
+        if (!_roots.TryGetValue(card.RootId, out var root))
+            return Task.CompletedTask;
+        var show = card.Series;
+        return DownloadSubtitlesAsync(
+            [root],
+            $"{seasonName} of {show.Title}",
+            "Subtitles for the season",
+            () => episodes.OrderBy(e => e.Number ?? int.MaxValue)
+                          .Select(e => new SubtitleJob(RelPath.ToFull(root.Path, e.VideoFile), e.Code.Length > 0 ? e.Code : Path.GetFileName(e.VideoFile),
+                                                       EpisodeQuery(show, e), Movie.Split(e.Subtitles)))
+                          .ToList(),
+            ("episode", "episodes"),
+            () => _s.SeriesScanner.RebuildAsync(root, [show], CancellationToken.None),
+            () =>
+            {
+                var showing = SeriesDetail?.Card == card;
+                var season = SeriesDetail?.SelectedSeason?.Number;
+                Reload();
+                if (showing && _shows.Contains(card))
+                    OpenSeries(card, season);
+            });
+    }
+
+    /// <summary>A subtitle for each of the selected movies that has none in the languages of the settings.</summary>
+    [RelayCommand]
+    private Task SubtitlesForSelected()
+    {
+        var movies = _selected.OfType<MovieCardViewModel>().Where(c => _roots.ContainsKey(c.RootId)).ToList();
+        if (movies.Count == 0)
+            return Task.CompletedTask;
+        var roots = movies.Select(c => _roots[c.RootId]).Distinct().ToList();
+        return DownloadSubtitlesAsync(
+            roots,
+            movies.Count == 1 ? movies[0].Title : $"the {movies.Count:N0} movies selected",
+            "Subtitles for the movies",
+            () => movies.Select(c => new SubtitleJob(RelPath.ToFull(_roots[c.RootId].Path, c.Movie.VideoFile), c.Title,
+                                                     new SubtitleQuery(ImdbId: c.Movie.ImdbId, TmdbId: c.Movie.TmdbId, Title: c.Movie.Title, Year: c.Movie.Year),
+                                                     c.Movie.SubtitleList))
+                        .ToList(),
+            ("movie", "movies"),
+            async () =>
+            {
+                foreach (var group in movies.GroupBy(c => c.RootId))
+                    await _s.Scanner.RebuildAsync(_roots[group.Key], group.Select(c => c.Movie).ToList(), CancellationToken.None);
+            },
+            () =>
+            {
+                ClearSelection();
+                Reload();
+            });
+    }
+
+    public bool CanFindSubtitlesForSelection => HasOpenSubtitlesKey && _selected.OfType<MovieCardViewModel>().Any();
+
+    /// <summary>
+    /// Subtitles for many videos at once: the ones with nothing in the languages of the settings,
+    /// said first, then the best for each. Each one counts against the daily quota; it stops when
+    /// the quota does. The folders are read again afterwards, also after a cancel.
+    /// </summary>
+    /// <param name="what">"Season 2 of Lost", "the 5 movies selected".</param>
+    private async Task DownloadSubtitlesAsync(IReadOnlyList<LibraryRoot> roots, string what, string title, Func<List<SubtitleJob>> candidates,
+                                              (string One, string Many) noun, Func<Task> rebuild, Action reopen)
+    {
+        if (Dialogs is null || IsBusy("download subtitles") || !CheckSubtitlesKey())
             return;
-        if (_unavailable.Contains(root.Id))
+        if (roots.FirstOrDefault(r => _unavailable.Contains(r.Id)) is { } away)
         {
-            ShowStatusFor($"{root.Name} is not reachable right now.", 10);
+            ShowStatusFor($"{away.Name} is not reachable right now.", 10);
             return;
         }
         if (string.IsNullOrEmpty(_s.Settings.OpenSubtitlesUser))
@@ -2327,17 +2499,15 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         var languages = SubtitleFiles.ParseLanguages(_s.Settings.SubtitleLanguages);
         var languageText = languages.Count > 0 ? string.Join(", ", languages.Select(Format.Language)) : "any language";
-        var show = card.Series;
 
-        BeginBusy($"Looking at the subtitles of {seasonName}…");
+        BeginBusy($"Looking at the subtitles of {what}…");
         List<SubtitleJob> jobs;
+        int total;
         try
         {
-            jobs = await Task.Run(() => episodes.OrderBy(e => e.Number ?? int.MaxValue)
-                .Select(e => new SubtitleJob(RelPath.ToFull(root.Path, e.VideoFile), e.Code.Length > 0 ? e.Code : Path.GetFileName(e.VideoFile),
-                                             EpisodeQuery(show, e), Movie.Split(e.Subtitles)))
-                .Where(j => SeasonSubtitles.Lacks(j, languages))
-                .ToList());
+            var all = candidates();
+            total = all.Count;
+            jobs = await Task.Run(() => all.Where(j => SeasonSubtitles.Lacks(j, languages)).ToList());
         }
         finally
         {
@@ -2346,14 +2516,14 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         if (jobs.Count == 0)
         {
-            ShowStatusFor($"Every episode of {seasonName} already has subtitles in {languageText}.", 10);
+            ShowStatusFor($"Every {noun.One} of {what} already has subtitles in {languageText}.", 10);
             return;
         }
-        var question = $"{Format.Count(jobs.Count, "episode", "episodes")} of {episodes.Count:N0} in {seasonName} of {show.Title} "
+        var question = $"{Format.Count(jobs.Count, noun.One, noun.Many)} of {total:N0} in {what} "
                        + $"{(jobs.Count == 1 ? "has" : "have")} no subtitles in {languageText}.\n\n"
                        + "Kinora picks the best one for each (made for that file when there is one) and saves it next to the video. "
                        + "Each download counts against your OpenSubtitles daily quota.";
-        if (!await Dialogs.ConfirmAsync("Subtitles for the season", question, "Download"))
+        if (!await Dialogs.ConfirmAsync(title, question, "Download"))
             return;
 
         BeginBusy("Logging in to OpenSubtitles…");
@@ -2396,11 +2566,11 @@ public partial class MainWindowViewModel : ViewModelBase
             _scanCts = null;
         }
 
-        // What was saved before a cancel or an error is there: the show is read again in any case
+        // What was saved before a cancel or an error is there: the folders are read again in any case
         try
         {
-            ScanStatus = "Reading the folder again…";
-            await Task.Run(() => _s.SeriesScanner.RebuildAsync(root, [show], CancellationToken.None));
+            ScanStatus = "Reading the folders again…";
+            await Task.Run(rebuild);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
         {
@@ -2410,11 +2580,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             IsScanning = false;
         }
-        var showing = SeriesDetail?.Card == card;
-        var season = SeriesDetail?.SelectedSeason?.Number;
-        Reload();
-        if (showing && _shows.Contains(card))
-            OpenSeries(card, season);
+        reopen();
 
         string text;
         if (result is null)
@@ -2430,7 +2596,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 parts.Add($"{result.Failed:N0} failed");
             if (result.Remaining >= 0)
                 parts.Add($"{result.Remaining:N0} downloads left today");
-            text = $"{seasonName}: {string.Join(", ", parts)}" + (result.Stopped is { } why ? $" · stopped: {why}" : "");
+            text = $"Subtitles for {what}: {string.Join(", ", parts)}" + (result.Stopped is { } why ? $" · stopped: {why}" : "");
         }
         if (text.Length > 0)
             ShowStatusFor(text, 20);
@@ -2446,9 +2612,11 @@ public partial class MainWindowViewModel : ViewModelBase
 
     // ---- watched ----
 
-    public void SetWatched(MovieCardViewModel card, bool watched)
+    /// <param name="lengthMs">The video's length, when the player saw it to the end.</param>
+    public void SetWatched(MovieCardViewModel card, bool watched, long? lengthMs = null)
     {
         _s.Database.SetWatched(card.Movie, watched);
+        Record(PlaybackKind.Movie, card.Movie.Id, null, card.Movie.Title, lengthMs ?? (card.Movie.Runtime ?? 0) * 60_000L, watched);
         card.NotifyWatchedChanged();
         Detail?.NotifyWatchedChanged();
         AfterWatchedChange();
@@ -2461,9 +2629,15 @@ public partial class MainWindowViewModel : ViewModelBase
         SetEpisodesWatched(card, episodes, watched);
     }
 
-    public void SetEpisodesWatched(SeriesCardViewModel card, IReadOnlyCollection<Episode> episodes, bool watched)
+    /// <param name="viewingMs">
+    /// One episode watched (the player, with its length, or a mark on its row): a viewing for the
+    /// history. A season or a show marked at once is not one, even of a single episode.
+    /// </param>
+    public void SetEpisodesWatched(SeriesCardViewModel card, IReadOnlyCollection<Episode> episodes, bool watched, long? viewingMs = null)
     {
         _s.Database.SetEpisodesWatched(card.Series, episodes, watched);
+        if (viewingMs is { } length && episodes.Count == 1 && episodes.First() is var one)
+            Record(PlaybackKind.Episode, one.Id, card.Series.Id, MediaServerSync.HistoryTitle(one), length > 0 ? length : (one.Runtime ?? 0) * 60_000L, watched);
         QueueSync(episodes.Select(e => SyncTitle.Of(card.Series, e)));
         var all = _s.Database.GetEpisodes(card.Series.Id);
         card.SetWatchedCount(all.Count(e => e.Watched));
@@ -2472,6 +2646,26 @@ public partial class MainWindowViewModel : ViewModelBase
         if (SeriesDetail?.Card == card)
             SeriesDetail.EpisodesChanged(all);
         AfterWatchedChange();
+    }
+
+    /// <summary>
+    /// One title watched (the player, or a mark by hand) goes into the history; unmarked, the
+    /// viewing of the last day comes out. Marking a whole folder or season isn't watching.
+    /// </summary>
+    private void Record(PlaybackKind kind, long id, long? seriesId, string title, long lengthMs, bool watched)
+    {
+        try
+        {
+            if (watched)
+                _s.Database.AddHistory(kind, id, seriesId, title, lengthMs);
+            else
+                _s.Database.RemoveRecentHistory(kind, id);
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException)
+        {
+            return;
+        }
+        HistoryChanged();
     }
 
     private void AfterWatchedChange()

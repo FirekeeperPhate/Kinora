@@ -84,6 +84,14 @@ public static partial class PlaybackRules
         return t.TotalHours >= 1 ? $"{(int)t.TotalHours}:{t.Minutes:00}:{t.Seconds:00}" : $"{t.Minutes}:{t.Seconds:00}";
     }
 
+    /// <summary>
+    /// "Clear voices": VLC's ten bands (31 Hz to 16 kHz) with the rumble of explosions and music
+    /// taken down and the range of speech (1-4 kHz) brought up. An equalizer, not a compressor:
+    /// libvlc lets an app drive no other audio filter.
+    /// </summary>
+    public static readonly float[] ClearVoicesBands = [-12, -10, -6, -2, 0, 3, 5, 4, 1, -2];
+    public const float ClearVoicesPreamp = 3;
+
     /// <summary>VLC's chapters, in order, each with a name ("Chapter 3" when the file has none).</summary>
     public static List<PlayerChapter> Chapters(IReadOnlyList<(string? Name, long StartMs, long DurationMs)> found) =>
         found.OrderBy(c => c.StartMs)

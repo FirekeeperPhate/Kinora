@@ -10,6 +10,7 @@ public enum NavKind
     Continue,
     Unwatched,
     RecentlyAdded,
+    History,
     NeedsMetadata,
     Duplicates,
     MissingEpisodes,

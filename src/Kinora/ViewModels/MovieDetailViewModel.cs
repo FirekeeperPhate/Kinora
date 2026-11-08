@@ -79,41 +79,14 @@ public partial class MovieDetailViewModel : ViewModelBase, IDisposable
             foreach (var item in items)
                 Similar.Add(item);
             HasSimilar = Similar.Count > 0;
-            await LoadSimilarPostersAsync(items.Where(i => !i.InLibrary).ToList(), ct);
+            await ShelfPosters.LoadAsync(_s, items.Where(i => !i.InLibrary).ToList(), () => _disposed, ct);
         }
         catch (Exception e) when (e is OperationCanceledException or Microsoft.Data.Sqlite.SqliteException or IOException)
         {
         }
     }
 
-    /// <summary>TMDB's posters of the movies not in the library: small, into the poster cache, a few at a time.</summary>
-    private async Task LoadSimilarPostersAsync(List<ShelfItem> items, CancellationToken ct)
-    {
-        using var gate = new SemaphoreSlim(4);
-        await Task.WhenAll(items.Where(i => i.Similar?.PosterPath is not null).Select(async item =>
-        {
-            await gate.WaitAsync(ct);
-            try
-            {
-                var path = item.Similar!.PosterPath!;
-                var key = ImageCache.KeyForOnline(path);
-                if (!_s.Posters.Has(key) && await TmdbImages.DownloadAsync(path, "w185", ct) is { } bytes)
-                    await Task.Run(() => _s.Posters.EnsureFromBytes(key, bytes), ct);
-                var bitmap = await Load(() => _s.Posters.Has(key) ? new Bitmap(_s.Posters.PathFor(key)) : null);
-                if (_disposed)
-                    bitmap?.Dispose();
-                else
-                    item.Picture = bitmap;
-            }
-            catch (Exception e) when (e is HttpRequestException or IOException or ArgumentException)
-            {
-            }
-            finally
-            {
-                gate.Release();
-            }
-        }));
-    }
+
 
     public MovieCardViewModel Card { get; }
     private Movie Movie => Card.Movie;
@@ -293,6 +266,11 @@ public partial class MovieDetailViewModel : ViewModelBase, IDisposable
 
     [RelayCommand]
     private void Reveal() => _owner.Reveal(Card);
+
+    public bool HasTrailer => HasTmdbKey && !string.IsNullOrEmpty(Movie.TmdbId);
+
+    [RelayCommand]
+    private Task Trailer() => _owner.OpenTrailerAsync(series: false, Movie.TmdbId, Title);
 
     [RelayCommand]
     private Task FindSubtitles() => _owner.FindSubtitlesAsync(Card);

@@ -61,6 +61,17 @@ internal sealed class FakeTmdb : HttpMessageHandler
             return Json(HttpStatusCode.OK, $$"""{"results":[{{hits}}]}""");
         }
 
+        // Trailers: Heat has a teaser and an English and an Italian trailer, Alien none
+        if (path == "movie/949/videos")
+            return Json(HttpStatusCode.OK, """
+                {"results":[{"site":"YouTube","key":"teaser1","type":"Teaser","iso_639_1":"en","official":true},
+                            {"site":"Vimeo","key":"vimeo1","type":"Trailer","iso_639_1":"en"},
+                            {"site":"YouTube","key":"enTrailer","type":"Trailer","iso_639_1":"en","official":false},
+                            {"site":"YouTube","key":"itTrailer","type":"Trailer","iso_639_1":"it","official":true}]}
+                """);
+        if (path == "movie/348/videos")
+            return Json(HttpStatusCode.OK, """{"results":[{"site":"YouTube","key":"bts","type":"Behind the Scenes"}]}""");
+
         // What comes after a movie: Heat has recommendations, Alien only similar ones
         if (path == "movie/949/recommendations")
             return Json(HttpStatusCode.OK, """

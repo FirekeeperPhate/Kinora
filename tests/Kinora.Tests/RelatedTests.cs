@@ -105,4 +105,42 @@ public sealed class RelatedTests : IDisposable
         Assert.Empty(await new SimilarTitles(_db).GetAsync(null, false, "949", _ct));
         Assert.Empty(await new SimilarTitles(_db).GetAsync(null, false, null, _ct));
     }
+
+    [Fact]
+    public void Shows_are_related_by_their_actors_then_by_network_and_genre()
+    {
+        static Series S(long id, string title, int year, string studios = "", string genres = "") =>
+            new() { Id = id, Title = title, Year = year, Studios = studios, Genres = genres, TvdbId = id.ToString() };
+        var wire = S(1, "The Wire", 2002, "HBO", "Crime|Drama");
+        var library = new[]
+        {
+            wire,
+            S(2, "Treme", 2010, "HBO", "Drama"),
+            S(3, "The Deuce", 2017, "HBO", "Drama"),        // same actors as well
+            S(4, "Silicon Valley", 2014, "HBO", "Comedy"),  // same network, no genre in common
+            S(5, "Bosch", 2014, "Amazon", "Crime"),
+        };
+        var leads = new Dictionary<long, List<string>>
+        {
+            [1] = ["Dominic West", "Idris Elba", "Wendell Pierce"],
+            [3] = ["James Franco", "Wendell Pierce", "Idris Elba"],
+        };
+
+        var related = RelatedTitles.FindShows(wire, library, leads);
+
+        Assert.Equal([3L, 2L], related.Select(r => r.Show.Id));
+        Assert.Equal("With Wendell Pierce and Idris Elba", related[0].Reason);
+        Assert.Equal("Also on HBO", related[1].Reason);
+    }
+
+    [Theory]
+    [InlineData("en-US", "949", "https://www.youtube.com/watch?v=enTrailer")]   // a trailer before a teaser, English before Italian
+    [InlineData("it-IT", "949", "https://www.youtube.com/watch?v=itTrailer")]   // the language of the metadata first
+    [InlineData("en-US", "348", null)]                                          // no trailer, only extras
+    [InlineData("en-US", "999999", null)]                                       // unknown to TMDB
+    public async Task The_trailer_is_a_trailer_in_the_language_first(string language, string id, string? url)
+    {
+        using var client = new TmdbClient("0123456789abcdef0123456789abcdef", language, new FakeTmdb());
+        Assert.Equal(url, await client.GetTrailerAsync(series: false, id, _ct));
+    }
 }

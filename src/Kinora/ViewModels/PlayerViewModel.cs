@@ -18,7 +18,8 @@ namespace Kinora.ViewModels;
 /// <param name="Previous">The episode before this one, if any.</param>
 /// <param name="FindSubtitles">Opens the subtitle search; what it gives is the file saved.</param>
 /// <param name="Intro">Where the intro is, if the media server knows.</param>
-public sealed record PlayRequest(string Path, string Title, string? Subtitle, PlaybackKind Kind, long ItemId, Action MarkWatched,
+/// <param name="MarkWatched">Seen to the end; given the video's length, for the history.</param>
+public sealed record PlayRequest(string Path, string Title, string? Subtitle, PlaybackKind Kind, long ItemId, Action<long> MarkWatched,
                                  Action<bool>? Kept = null, string? Picture = null, string? TrackScope = null, Func<PlayRequest?>? Next = null,
                                  Func<PlayRequest?>? Previous = null, Func<Action<string>, Task>? FindSubtitles = null,
                                  Func<CancellationToken, Task<(long StartMs, long EndMs)?>>? Intro = null);
@@ -121,6 +122,9 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
     private bool _recovering;
     private int _recoveries;
     private long _recoveredAt;
+    private int _sameEnds;
+    private long _candidateMs;
+    private int _steadyTicks;
 
     /// <summary>
     /// Waits before opening the file again, longer each time: about 40 s in all, what a NAS takes
@@ -136,6 +140,7 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
         _closed = closed;
         Player = NewPlayer();
         Volume = Math.Clamp(s.Settings.PlayerVolume, 0, 100);
+        ClearVoices = s.Settings.ClearVoices;
         foreach (var rate in new[] { 0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f })
             Speeds.Add(new SpeedChoice(rate, c => SetRate(c.Rate)) { IsSelected = rate == 1 });
         Prepare();
@@ -283,6 +288,7 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
                 Player.SetSpuDelay(_subtitleDelayMs * 1000);
             if (_rate != 1)
                 Player.SetRate(_rate);
+            ApplyClearVoices();
             RefreshTracks();
             RefreshChapters();
         });
@@ -352,7 +358,12 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
         _loadedSubtitles.Clear();
         _recovering = false;
         _recoveries = 0;
+        _sameEnds = 0;
+        _steadyTicks = 0;
         CanTryAgain = false;
+        CanEndHere = false;
+        _toastVersion++;
+        Toast = null;   // a note about the last video doesn't stay over this one
         _serverIntro = null;
         _intro = null;
         _introSkipped = false;
@@ -412,7 +423,26 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
             return;
         TimeMs = Math.Max(0, Player.Time);
         if (Math.Abs(TimeMs - _lastGoodMs) <= PlaybackRules.LargestStep)
+        {
             _lastGoodMs = TimeMs;
+            _steadyTicks = 0;
+        }
+        else if (IsPlaying && !IsBuffering && Math.Abs(TimeMs - _candidateMs) <= PlaybackRules.LargestStep)
+        {
+            // A jump nobody asked for, after which the video plays on steadily for two seconds
+            // (a timestamp jump in a recording, a long stall): that is where it is now
+            _candidateMs = TimeMs;
+            if (++_steadyTicks >= 8)
+            {
+                _lastGoodMs = TimeMs;
+                _steadyTicks = 0;
+            }
+        }
+        else
+        {
+            _candidateMs = TimeMs;
+            _steadyTicks = 0;
+        }
         if (_recoveries > 0 && _lastGoodMs > _recoveredAt + 60_000)
             _recoveries = 0;   // a minute played since: the next sleep gets all its tries again
         if (TimeMs > 0 && Message is null)
@@ -468,9 +498,12 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     public void Forward() => SeekBy(ForwardSeconds);
 
+    /// <summary>Opening the file again, or waiting for a Try again: where it was must stay put.</summary>
+    private bool Stalled => _recovering || CanTryAgain;
+
     public void SeekBy(int seconds)
     {
-        if (!CanSeek || _ended)
+        if (!CanSeek || _ended || Stalled)
             return;
         var to = Math.Clamp(Player.Time + seconds * 1000L, 0, Math.Max(0, LengthMs - 1000));
         Player.Time = to;
@@ -482,7 +515,7 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
     /// <summary>Where the seek bar was let go.</summary>
     public void SeekToProgress()
     {
-        if (!CanSeek || _ended)
+        if (!CanSeek || _ended || Stalled)
             return;
         var to = (long)(Progress / 1000 * LengthMs);
         Player.Time = to;
@@ -513,6 +546,8 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private void StartOver()
     {
+        if (Stalled)
+            return;
         ResumeText = null;
         Player.Time = 0;
         _lastGoodMs = 0;
@@ -575,7 +610,7 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
 
     private void GoToChapter(ChapterChoice chapter)
     {
-        if (!CanSeek || _ended)
+        if (!CanSeek || _ended || Stalled)
             return;
         Player.Time = chapter.StartMs;
         TimeMs = chapter.StartMs;
@@ -587,7 +622,7 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
     public void SkipIntro()
     {
         // Only while the intro plays: the key at any other moment would go back to its end
-        if (!ShowSkipIntro || _intro is not { } intro || !CanSeek || _ended)
+        if (!ShowSkipIntro || _intro is not { } intro || !CanSeek || _ended || Stalled)
             return;
         _introSkipped = true;
         ShowSkipIntro = false;
@@ -617,6 +652,38 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
 
     [RelayCommand]
     public void ToggleOnTop() => IsOnTop = !IsOnTop;
+
+    /// <summary>Voices up, rumbles down: for the evening, or a film mixed for a cinema.</summary>
+    [ObservableProperty]
+    public partial bool ClearVoices { get; set; }
+
+    [RelayCommand]
+    public void ToggleClearVoices() => ClearVoices = !ClearVoices;
+
+    partial void OnClearVoicesChanged(bool value)
+    {
+        ApplyClearVoices();
+        _s.Settings.ClearVoices = value;
+        if (_started)
+            ShowToast(value ? "Clear voices on" : "Clear voices off");
+    }
+
+    /// <summary>On the player now; a new player (another subtitle size) gets it when it starts.</summary>
+    private void ApplyClearVoices()
+    {
+        if (Player is null)
+            return;
+        if (!ClearVoices)
+        {
+            Player.UnsetEqualizer();
+            return;
+        }
+        using var equalizer = new Equalizer();
+        equalizer.SetPreamp(PlaybackRules.ClearVoicesPreamp);
+        for (var band = 0; band < Math.Min(equalizer.BandCount, PlaybackRules.ClearVoicesBands.Length); band++)
+            equalizer.SetAmp(PlaybackRules.ClearVoicesBands[band], (uint)band);
+        Player.SetEqualizer(equalizer);
+    }
 
     // ---- next and previous ----
 
@@ -899,9 +966,22 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
             return;
         if (PlaybackRules.EndedEarly(_lastGoodMs, LengthMs))
         {
+            // Opened again and over again at the same place: more likely a file shorter than its
+            // length says than a NAS still asleep. The user says which
+            if (_recoveries > 0 && Math.Abs(_lastGoodMs - _recoveredAt) <= 3000 && ++_sameEnds >= 2)
+            {
+                ShowStopped(endsHere: true);
+                return;
+            }
             _ = RecoverAsync();
             return;
         }
+        Finish();
+    }
+
+    /// <summary>The end: kept as watched, then the next episode or back to Kinora.</summary>
+    private void Finish()
+    {
         _ended = true;
         IsPlaying = false;
         KeepProgress();
@@ -924,7 +1004,37 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
     private void TryAgain()
     {
         _recoveries = 0;
+        _sameEnds = 0;
         _ = RecoverAsync();
+    }
+
+    /// <summary>The video keeps stopping at the same place: the user may take it for its end.</summary>
+    [ObservableProperty]
+    public partial bool CanEndHere { get; private set; }
+
+    [RelayCommand]
+    private void EndHere()
+    {
+        if (_closing || _ended)
+            return;
+        Message = null;
+        CanTryAgain = false;
+        CanEndHere = false;
+        Finish();
+    }
+
+    private void ShowStopped(bool endsHere)
+    {
+        _recovering = false;
+        _toastVersion++;
+        Toast = null;
+        IsBuffering = false;
+        IsPlaying = false;
+        CanTryAgain = true;
+        CanEndHere = endsHere;
+        Message = endsHere
+            ? "The video stops here, before the end its length says: the file may be shorter than it claims, or the NAS still asleep."
+            : "The file doesn't answer: the NAS may still be waking up. Where you were is kept.";
     }
 
     /// <summary>
@@ -946,6 +1056,7 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
         IsBuffering = true;
         Message = null;
         CanTryAgain = false;
+        CanEndHere = false;
         TimeMs = at;
         if (LengthMs > 0)
             Progress = at * 1000.0 / LengthMs;
@@ -960,7 +1071,10 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
                 await Task.Delay(TimeSpan.FromSeconds(RecoverDelays[_recoveries]));
                 if (_closing || request != _request)
                     return;
-                if (await AnswersAsync(request.Path))
+                var answers = await AnswersAsync(request.Path);
+                if (_closing || request != _request)
+                    return;   // closed or another episode meanwhile: this player may be gone
+                if (answers)
                 {
                     _recoveries++;
                     _recoveredAt = at;
@@ -973,11 +1087,7 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
         }
         if (_closing || request != _request)
             return;
-        _recovering = false;
-        Toast = null;
-        IsBuffering = false;
-        CanTryAgain = true;
-        Message = "The file doesn't answer: the NAS may still be waking up. Where you were is kept.";
+        ShowStopped(endsHere: false);
     }
 
     private static async Task<bool> AnswersAsync(string path)
@@ -1006,7 +1116,7 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
             if (_ended || PlaybackRules.CountsAsWatched(position, length))
             {
                 _s.Database.ClearPlayback(_request.Kind, _request.ItemId);
-                _request.MarkWatched();
+                _request.MarkWatched(length);
                 watched = true;
             }
             else if (PlaybackRules.WorthResuming(position, length))

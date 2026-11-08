@@ -11,7 +11,7 @@ namespace Kinora.Core.Data;
 /// </summary>
 public sealed partial class LibraryDatabase
 {
-    private const int SchemaVersion = 9;
+    private const int SchemaVersion = 10;
 
     private readonly string _connectionString;
 
@@ -345,6 +345,35 @@ public sealed partial class LibraryDatabase
                     fetched INTEGER NOT NULL,
                     PRIMARY KEY (kind, tmdb_id)
                 );
+                """, transaction: tx);
+        }
+        if (version < 10)
+        {
+            c.Execute("""
+                -- What was watched and when. A title that leaves the library leaves its viewings
+                -- behind (they still count), without its id: SQLite gives the highest ids again
+                CREATE TABLE watch_history (
+                    id INTEGER PRIMARY KEY,
+                    kind TEXT NOT NULL,
+                    item_id INTEGER,
+                    series_id INTEGER,
+                    title TEXT NOT NULL,
+                    watched_at INTEGER NOT NULL,
+                    length_ms INTEGER NOT NULL
+                );
+                CREATE INDEX ix_watch_history_item ON watch_history(kind, item_id);
+                DROP TRIGGER movie_gone;
+                DROP TRIGGER episode_gone;
+                CREATE TRIGGER movie_gone AFTER DELETE ON movies BEGIN
+                    DELETE FROM playback WHERE kind = 'movie' AND item_id = old.id;
+                    DELETE FROM server_sync WHERE kind = 'movie' AND item_id = old.id;
+                    UPDATE watch_history SET item_id = NULL WHERE kind = 'movie' AND item_id = old.id;
+                END;
+                CREATE TRIGGER episode_gone AFTER DELETE ON episodes BEGIN
+                    DELETE FROM playback WHERE kind = 'episode' AND item_id = old.id;
+                    DELETE FROM server_sync WHERE kind = 'episode' AND item_id = old.id;
+                    UPDATE watch_history SET item_id = NULL, series_id = NULL WHERE kind = 'episode' AND item_id = old.id;
+                END;
                 """, transaction: tx);
         }
         c.Execute($"PRAGMA user_version = {SchemaVersion};", transaction: tx);

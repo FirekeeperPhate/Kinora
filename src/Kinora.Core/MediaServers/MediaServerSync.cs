@@ -4,7 +4,9 @@ using Kinora.Core.Models;
 namespace Kinora.Core.MediaServers;
 
 /// <summary>One title found on both sides, and what happens to it.</summary>
-public sealed record SyncPair(PlaybackKind Kind, long LocalId, Movie? Movie, Series? Series, Episode? Episode, ServerItem Server, SyncDecision Decision);
+/// <param name="Agreed">What the two sides agreed on before this sync; null for a title paired the first time.</param>
+public sealed record SyncPair(PlaybackKind Kind, long LocalId, Movie? Movie, Series? Series, Episode? Episode, ServerItem Server, SyncDecision Decision,
+                              SyncBase? Agreed = null);
 
 /// <summary>A title of Kinora to sync on its own: the one just played, the page just opened.</summary>
 public sealed record SyncTitle(PlaybackKind Kind, long LocalId, Movie? Movie, Series? Series, Episode? Episode)
@@ -102,8 +104,9 @@ public sealed class MediaServerSync(LibraryDatabase db, MediaServerClient client
                 var kept = (local.Kind == PlaybackKind.Movie ? movies : episodes).GetValueOrDefault(local.Id);
                 var here = new LocalState(local.Movie?.Watched ?? local.Episode!.Watched, kept?.PositionMs ?? 0, kept?.LengthMs ?? 0, kept?.Updated ?? 0);
                 var there = new RemoteState(item.Played, item.PositionMs, item.RunTimeMs, item.LastPlayed);
-                var decision = SyncMerge.Decide(here, there, last.GetValueOrDefault((local.Kind, local.Id)));
-                return new SyncPair(local.Kind, local.Id, local.Movie, local.Series, local.Episode, item, decision);
+                var agreed = last.GetValueOrDefault((local.Kind, local.Id));
+                var decision = SyncMerge.Decide(here, there, agreed);
+                return new SyncPair(local.Kind, local.Id, local.Movie, local.Series, local.Episode, item, decision, agreed);
             }).ToList(),
             NotFound = unknown,
             FirstTime = last.Count == 0,
@@ -134,7 +137,7 @@ public sealed class MediaServerSync(LibraryDatabase db, MediaServerClient client
             var kept = (title.Kind == PlaybackKind.Movie ? movies : episodes).GetValueOrDefault(title.LocalId);
             var here = new LocalState(title.Movie?.Watched ?? title.Episode!.Watched, kept?.PositionMs ?? 0, kept?.LengthMs ?? 0, kept?.Updated ?? 0);
             var there = new RemoteState(item.Played, item.PositionMs, item.RunTimeMs, item.LastPlayed);
-            pairs.Add(new SyncPair(title.Kind, title.LocalId, title.Movie, title.Series, title.Episode, item, SyncMerge.Decide(here, there, sync)));
+            pairs.Add(new SyncPair(title.Kind, title.LocalId, title.Movie, title.Series, title.Episode, item, SyncMerge.Decide(here, there, sync), sync));
         }
         return new SyncPlan { Pairs = pairs };
     }
@@ -226,8 +229,14 @@ public sealed class MediaServerSync(LibraryDatabase db, MediaServerClient client
     /// <summary>Kinora first, then the server. A title the server refuses is tried again next time.</summary>
     public async Task<SyncResult> ApplyAsync(SyncPlan plan, IProgress<(int Done, int Total)>? progress, CancellationToken ct)
     {
+        var dated = new HashSet<string>();
         foreach (var pair in plan.Pairs)
+        {
             ApplyHere(pair);
+            // One viewing on the server is one here, also with two copies of the movie
+            if (dated.Add(pair.Server.Id))
+                KeepDate(pair);
+        }
 
         var pushes = plan.Pairs.Where(p => p.Decision.WatchedToServer || p.Decision.Position == PositionMove.ToServer).ToList();
         var failed = new System.Collections.Concurrent.ConcurrentDictionary<SyncPair, string>();
@@ -253,6 +262,31 @@ public sealed class MediaServerSync(LibraryDatabase db, MediaServerClient client
                               .Select(p => (p.Kind, p.LocalId, p.Decision.Watched, p.Decision.FinalPositionMs, (string?)p.Server.Id)));
         return new SyncResult(failed.Count, failed.Values.FirstOrDefault());
     }
+
+    /// <summary>
+    /// A title the server has as played, with its date, and none here: its viewing goes into the
+    /// history at the server's date. The first sync fills the history with what was watched on the TV.
+    /// </summary>
+    /// <remarks>
+    /// Only what the server says that Kinora didn't tell it: watched there and not here, or a title
+    /// paired the first time. A season marked here and pushed gets "played now" on the server,
+    /// and that is no viewing.
+    /// </remarks>
+    private void KeepDate(SyncPair pair)
+    {
+        if (!pair.Decision.Watched || !pair.Server.Played || pair.Server.LastPlayed <= 0 || db.HasHistory(pair.Kind, pair.LocalId))
+            return;
+        if (!pair.Decision.WatchedToKinora && pair.Agreed is not null)
+            return;
+        if (pair.Movie is { } movie)
+            db.AddHistory(PlaybackKind.Movie, movie.Id, null, movie.Title, pair.Server.RunTimeMs, pair.Server.LastPlayed);
+        else if (pair is { Series: { } show, Episode: { } episode })
+            db.AddHistory(PlaybackKind.Episode, episode.Id, show.Id, HistoryTitle(episode), pair.Server.RunTimeMs, pair.Server.LastPlayed);
+    }
+
+    /// <summary>"S01E03 · Pilot": how an episode is named in the history.</summary>
+    public static string HistoryTitle(Episode episode) =>
+        string.Join(" · ", new[] { episode.Code, episode.Title }.Where(s => !string.IsNullOrWhiteSpace(s)));
 
     private void ApplyHere(SyncPair pair)
     {

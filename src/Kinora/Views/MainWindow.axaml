@@ -220,6 +220,8 @@
                                     </MenuFlyout>
                                 </DropDownButton.Flyout>
                             </DropDownButton>
+                            <Button Content="Subtitles…" Command="{Binding SubtitlesForSelectedCommand}" IsVisible="{Binding CanFindSubtitlesForSelection}"
+                                    ToolTip.Tip="The best subtitle for each selected movie that has none in your languages" />
                             <Button Content="Delete…" Command="{Binding DeleteSelectedCommand}" />
                             <Button Content="Select all" Command="{Binding SelectAllCommand}" ToolTip.Tip="Everything in this view (Ctrl+A)" />
                             <Button Content="Clear" Command="{Binding ClearSelectionCommand}" ToolTip.Tip="Esc" />

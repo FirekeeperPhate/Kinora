@@ -131,6 +131,9 @@ public sealed class AppSettings
     /// <summary>The size of text subtitles, in percent of VLC's normal one.</summary>
     public int SubtitleScale { get; set; } = 100;
 
+    /// <summary>The player's equalizer for the evening: voices up, rumbles down.</summary>
+    public bool ClearVoices { get; set; }
+
     /// <summary>The player's skip buttons and arrow keys, in seconds.</summary>
     public int SkipBackSeconds { get; set; } = 10;
     public int SkipForwardSeconds { get; set; } = 30;

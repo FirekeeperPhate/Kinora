@@ -355,6 +355,38 @@ public sealed class TmdbClient : IDisposable
     }
 
     /// <summary>
+    /// The trailer of a movie or a show on YouTube, as TMDB lists it: an official one in the
+    /// language of the metadata first, then in English, then any. Null when there is none.
+    /// </summary>
+    public async Task<string?> GetTrailerAsync(bool series, string tmdbId, CancellationToken ct)
+    {
+        var lang2 = Language.Split('-')[0];
+        JsonDocument doc;
+        try
+        {
+            doc = await GetJsonAsync($"{(series ? "tv" : "movie")}/{Uri.EscapeDataString(tmdbId)}/videos",
+                                     [("include_video_language", $"{lang2},en,null")], ct);
+        }
+        catch (TmdbException e) when (e.Status == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+        using (doc)
+        {
+            if (!doc.RootElement.TryGetProperty("results", out var results))
+                return null;
+            var best = results.EnumerateArray()
+                .Where(v => Str(v, "site") == "YouTube" && Str(v, "key") is { Length: > 0 } && Str(v, "type") is "Trailer" or "Teaser")
+                .OrderBy(v => Str(v, "type") == "Trailer" ? 0 : 1)
+                .ThenBy(v => Str(v, "iso_639_1") == lang2 ? 0 : Str(v, "iso_639_1") == "en" ? 1 : 2)
+                .ThenBy(v => v.TryGetProperty("official", out var o) && o.ValueKind == JsonValueKind.True ? 0 : 1)
+                .Select(v => Str(v, "key"))
+                .FirstOrDefault();
+            return best is null ? null : "https://www.youtube.com/watch?v=" + Uri.EscapeDataString(best);
+        }
+    }
+
+    /// <summary>
     /// What TMDB recommends after a movie or a show (what its users watched next); when it has
     /// nothing, the titles it finds similar by genres and keywords.
     /// </summary>

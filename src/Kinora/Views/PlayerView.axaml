@@ -160,6 +160,9 @@
                         <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
                             <Button Classes="player" Padding="18,8" Background="#FF6A5C" Command="{Binding TryAgainCommand}"
                                     Content="Try again" IsVisible="{Binding CanTryAgain}" />
+                            <Button Classes="player" Padding="18,8" Background="#33FFFFFF" Command="{Binding EndHereCommand}"
+                                    Content="It ends here" IsVisible="{Binding CanEndHere}"
+                                    ToolTip.Tip="Take this for the end: marked watched, then the next episode" />
                             <Button Classes="player" Padding="18,8" Background="#33FFFFFF"
                                     Command="{Binding CloseCommand}" Content="Back to Kinora" />
                         </StackPanel>
@@ -282,11 +285,22 @@
                                 </Flyout>
                             </DropDownButton.Flyout>
                         </DropDownButton>
-                        <DropDownButton x:Name="AudioButton" Grid.Column="8" Classes="player" ToolTip.Tip="Audio (A)" IsVisible="{Binding HasAudioChoice}">
+                        <DropDownButton x:Name="AudioButton" Grid.Column="8" Classes="player" ToolTip.Tip="Audio (A next track, V clear voices)">
                             <Path Classes="icon" Data="{x:Static k:Icons.Audio}" />
                             <DropDownButton.Flyout>
                                 <Flyout Placement="TopEdgeAlignedRight" FlyoutPresenterClasses="player">
-                                    <ItemsControl x:Name="AudioPanel" Width="260" ItemsSource="{Binding AudioTracks}" ItemTemplate="{StaticResource TrackRow}" />
+                                    <StackPanel x:Name="AudioPanel" Width="280" Spacing="2">
+                                        <ItemsControl ItemsSource="{Binding AudioTracks}" ItemTemplate="{StaticResource TrackRow}" IsVisible="{Binding HasAudioChoice}" />
+                                        <Border Height="1" Background="#22FFFFFF" Margin="4,6" IsVisible="{Binding HasAudioChoice}" />
+                                        <Button Classes="playerRow" Command="{Binding ToggleClearVoicesCommand}"
+                                                ToolTip.Tip="Lower rumbles, clearer dialogue: an equalizer, it doesn't even out loud and quiet scenes">
+                                            <Grid ColumnDefinitions="26,*">
+                                                <Path Classes="icon" Data="{x:Static k:Icons.Check}" Stroke="White" Width="16" Height="16"
+                                                      HorizontalAlignment="Left" IsVisible="{Binding ClearVoices}" />
+                                                <TextBlock Grid.Column="1" Text="Clear voices (V)" />
+                                            </Grid>
+                                        </Button>
+                                    </StackPanel>
                                 </Flyout>
                             </DropDownButton.Flyout>
                         </DropDownButton>

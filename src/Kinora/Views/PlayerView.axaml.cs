@@ -82,7 +82,7 @@ public partial class PlayerView : UserControl
         }
         // A choice closes its menu, once its command has run: closed at once, the rows lose
         // their items and the click does nothing
-        foreach (var (panel, button) in new[] { (AudioPanel, AudioButton), (ChaptersPanel, ChaptersButton), (SpeedPanel, SpeedButton) })
+        foreach (var (panel, button) in new (Control Panel, DropDownButton Button)[] { (AudioPanel, AudioButton), (ChaptersPanel, ChaptersButton), (SpeedPanel, SpeedButton) })
             panel.AddHandler(Button.ClickEvent, (_, _) => Dispatcher.UIThread.Post(() => button.Flyout?.Hide()));
     }
 
@@ -382,6 +382,9 @@ public partial class PlayerView : UserControl
                 break;
             case Key.T:
                 vm.ToggleOnTop();
+                break;
+            case Key.V:
+                vm.ToggleClearVoices();
                 break;
             case Key.Up:
                 vm.ChangeVolume(5);

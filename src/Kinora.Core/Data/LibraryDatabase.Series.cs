@@ -48,6 +48,15 @@ public sealed partial class LibraryDatabase
                                    new { seriesId }).ToList();
     }
 
+    /// <summary>The first actors of every show, in billing order: what "related" compares.</summary>
+    public Dictionary<long, List<string>> GetSeriesLeadingCast(int count)
+    {
+        using var c = Open();
+        return c.Query<(long SeriesId, string Name)>("SELECT series_id, name FROM series_cast WHERE ord < @count ORDER BY series_id, ord", new { count })
+                .GroupBy(r => r.SeriesId)
+                .ToDictionary(g => g.Key, g => g.Select(r => r.Name).ToList());
+    }
+
     public Dictionary<long, string> GetSeriesCastNames()
     {
         using var c = Open();

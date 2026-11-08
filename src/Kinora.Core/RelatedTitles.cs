@@ -5,6 +5,9 @@ namespace Kinora.Core;
 /// <summary>A movie of the library related to another, and why.</summary>
 public sealed record RelatedMovie(Movie Movie, string Reason);
 
+/// <summary>A show of the library related to another, and why.</summary>
+public sealed record RelatedShow(Series Show, string Reason);
+
 /// <summary>
 /// The movies of the library related to one: the rest of its collection in order, then the other
 /// movies of its directors, then those sharing at least two of its leading actors. Other copies of
@@ -55,6 +58,47 @@ public static class RelatedTitles
         }
         return result;
     }
+
+    /// <summary>
+    /// The shows of the library related to one: those sharing two of its leading actors, then
+    /// those of its network with a genre in common. Shows have no collections, and their nfo
+    /// rarely names who made them.
+    /// </summary>
+    public static List<RelatedShow> FindShows(Series show, IEnumerable<Series> library, IReadOnlyDictionary<long, List<string>> leads)
+    {
+        var others = library.Where(s => s.Id != show.Id && !SameShow(s, show)).ToList();
+        var result = new List<RelatedShow>();
+
+        void Add(IEnumerable<Series> shows, Func<Series, string> reason)
+        {
+            foreach (var s in shows)
+                if (result.Count < Most && !result.Any(r => r.Show.Id == s.Id || SameShow(r.Show, s)))
+                    result.Add(new RelatedShow(s, reason(s)));
+        }
+
+        if (leads.TryGetValue(show.Id, out var mine) && mine.Count >= 2)
+        {
+            var names = mine.Select(SearchText.Normalize).ToHashSet();
+            List<string> Shared(Series s) => leads.TryGetValue(s.Id, out var theirs) ? theirs.Where(n => names.Contains(SearchText.Normalize(n))).ToList() : [];
+            Add(others.Select(s => (Show: s, Shared: Shared(s))).Where(x => x.Shared.Count >= 2)
+                      .OrderByDescending(x => x.Shared.Count).ThenByDescending(x => x.Show.Year ?? 0).Select(x => x.Show),
+                s => "With " + string.Join(" and ", Shared(s).Take(2)));
+        }
+
+        var networks = show.StudioList.Select(SearchText.Normalize).Where(n => n.Length > 0).ToHashSet();
+        var genres = show.GenreList.Select(SearchText.Normalize).ToHashSet();
+        if (networks.Count > 0 && genres.Count > 0)
+            Add(others.Where(s => s.StudioList.Any(n => networks.Contains(SearchText.Normalize(n)))
+                                  && s.GenreList.Any(g => genres.Contains(SearchText.Normalize(g))))
+                      .OrderByDescending(s => s.Year ?? 0),
+                s => "Also on " + s.StudioList.First(n => networks.Contains(SearchText.Normalize(n))));
+        return result;
+    }
+
+    private static bool SameShow(Series a, Series b) =>
+        (!string.IsNullOrEmpty(a.TmdbId) && a.TmdbId == b.TmdbId)
+        || (!string.IsNullOrEmpty(a.TvdbId) && a.TvdbId == b.TvdbId)
+        || (!string.IsNullOrEmpty(a.ImdbId) && string.Equals(a.ImdbId, b.ImdbId, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Two copies of one movie: an id in common, or no ids and the same name and year.</summary>
     public static bool Same(Movie a, Movie b) =>

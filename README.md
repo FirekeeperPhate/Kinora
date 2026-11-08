@@ -49,9 +49,15 @@ engine), or, if you prefer, in the player the OS associates with it. Windows, Li
   and the folders where the last scan found no video (a click opens one).
 - **Random** offers something not seen yet from the current view and its filters; **Another one** on
   its page doesn't come back to a title already offered until the others have all been.
+- **History**, in the sidebar: what you watched and when, the last viewing first, with what this
+  year and all of it add up to ("This year 84 movies, 168 h"). A title goes in when the player gets
+  to its end or you mark that one title watched (marking a folder or a season isn't watching it);
+  unmarked within a day, it comes out. The first sync with Emby or Jellyfin brings their dates.
 - A movie's page ends with **Related in your library** (the rest of its collection, the other movies
   of its directors, those with two of its leading actors) and **Similar**: what TMDB recommends after
   it, the ones you have first; the others, dimmed, open on TMDB. Asked when the page opens, kept a month.
+  A show's page has the same rows (related: the same actors, or the same network and genre), and
+  both have **Trailer**, which opens the trailer TMDB lists on YouTube.
 - Folders that are mounted somewhere else later (another drive letter, another OS): change the
   root's path in Settings, nothing is scanned again. Paths are stored relative to the root.
 - Names that Windows normally tidies up, ending with a dot or a space (`S.W.A.T.`), are read,
@@ -109,6 +115,9 @@ controls sit over it and go away after three seconds without moving the mouse.
   volume and mute, full screen; the audio track and the subtitles (the ones in the file and the
   `.srt` files next to it) from two panels; the chapters of the file, the speed (0.5× to 2×), and a
   pin that keeps the window over the others.
+- **Clear voices** (the audio menu, or V): an equalizer that takes the rumble of explosions and
+  music down and brings the range of voices up, for the evening. It doesn't even out loud and
+  quiet scenes: libvlc lets an app drive no compressor.
 - **Skip intro**: while the intro plays a button jumps past it. Where it is comes from Emby (its
   hidden intro markers) or Jellyfin 10.10 (media segments), when the server has found it, otherwise
   from a chapter of the file called Intro or Opening.
@@ -122,7 +131,7 @@ controls sit over it and go away after three seconds without moving the mouse.
 - Keys: Space or K play/pause, ← →  back and forward (Ctrl+→ a minute), ↑ ↓ volume, M mute,
   F or a double click full screen, A and S the next audio track or subtitle, G and H subtitles
   earlier or later, N and P next and previous episode, I skip intro, C chapters, − and + speed,
-  T keep on top, Esc leaves full screen, then the player.
+  T keep on top, V clear voices, Esc leaves full screen, then the player.
 - Media keys (Windows): play/pause, stop, next and previous, and the forward and rewind buttons of
   remotes work even when Kinora is minimized or another window is in front, and so do the buttons
   of Bluetooth headphones. Windows' media panel shows the title and the poster. Windows sends the
@@ -182,7 +191,7 @@ their order. The chosen one is saved next to the video as `<video>.<lang>.srt` (
 when so); one already there with that name is kept as `.old`. Each download counts against the
 account's daily quota, shown in the window. Key and password are stored like the TMDB key.
 
-**Subtitles for the season…** on a show page does it for every episode of the season that has none
+**Subtitles for the season…** on a show page (and **Subtitles…** for the movies selected) does it for every episode of the season that has none
 in your languages (a file next to it, or one inside that the episode's nfo lists; a forced one
 doesn't count): it says how many first, takes for each the best one by the same order (never a
 forced-only one, never machine-translated when that is off), and stops when the day's quota ends.

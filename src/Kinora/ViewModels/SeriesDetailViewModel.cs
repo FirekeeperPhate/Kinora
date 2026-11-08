@@ -115,7 +115,7 @@ public partial class EpisodeRow : ObservableObject
     private void ToggleWatched()
     {
         if (Episode is not null)
-            _page.SetWatched([Episode], !Episode.Watched);
+            _page.SetEpisodeWatched(Episode, !Episode.Watched);
     }
 
     [RelayCommand]
@@ -140,6 +140,7 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
     private readonly MainWindowViewModel _owner;
     private readonly AppServices _s;
     private readonly CancellationTokenSource _photos = new();
+    private readonly CancellationTokenSource _shelves = new();
     private readonly LibraryRoot? _root;
     private readonly bool _rootUnavailable;
     private Dictionary<int, TmdbSeason> _tmdbSeasons;
@@ -182,6 +183,47 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
         SelectedSeason = Seasons.FirstOrDefault(t => season is not null && t.Number == season)
                          ?? Seasons.FirstOrDefault(t => t.Number == next?.Season) ?? Seasons.FirstOrDefault();
         _ = LoadImagesAsync();
+        _ = LoadShelvesAsync(_shelves.Token);
+    }
+
+    /// <summary>The library's shows related to this one.</summary>
+    public ObservableCollection<ShelfItem> Related { get; } = [];
+
+    /// <summary>What TMDB recommends: the ones in the library first.</summary>
+    public ObservableCollection<ShelfItem> Similar { get; } = [];
+
+    [ObservableProperty]
+    public partial bool HasRelated { get; private set; }
+
+    [ObservableProperty]
+    public partial bool HasSimilar { get; private set; }
+
+    private async Task LoadShelvesAsync(CancellationToken ct)
+    {
+        try
+        {
+            foreach (var item in await _owner.RelatedToAsync(Card))
+                Related.Add(item);
+            HasRelated = Related.Count > 0;
+
+            using var tmdb = _s.CreateTmdbClient();
+            var similar = await new SimilarTitles(_s.Database).GetAsync(tmdb, series: true, Series.TmdbId, ct);
+            if (_disposed)
+                return;
+            var items = similar.Select(t => _owner.ShowByTmdbId(t.Id) is { } card
+                    ? new ShelfItem(card, "In your library", () => _owner.OpenSeries(card))
+                    : new ShelfItem(t, () => Core.Platform.Launcher.OpenUrl($"https://www.themoviedb.org/tv/{Uri.EscapeDataString(t.Id)}")))
+                .Where(i => i.Card != Card)
+                .OrderByDescending(i => i.InLibrary)
+                .ToList();
+            foreach (var item in items)
+                Similar.Add(item);
+            HasSimilar = Similar.Count > 0;
+            await ShelfPosters.LoadAsync(_s, items.Where(i => !i.InLibrary).ToList(), () => _disposed, ct);
+        }
+        catch (Exception e) when (e is OperationCanceledException or Microsoft.Data.Sqlite.SqliteException or IOException)
+        {
+        }
     }
 
     public SeriesCardViewModel Card { get; }
@@ -470,6 +512,9 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
     public bool HasOpenSubtitlesKey => _owner.HasOpenSubtitlesKey;
     public void SetWatched(IReadOnlyCollection<Episode> episodes, bool watched) => _owner.SetEpisodesWatched(Card, episodes, watched);
 
+    /// <summary>One episode marked on its row: a viewing, for the history.</summary>
+    public void SetEpisodeWatched(Episode episode, bool watched) => _owner.SetEpisodesWatched(Card, [episode], watched, viewingMs: 0);
+
     /// <summary>Called back after episodes changed state, with the fresh list.</summary>
     public void EpisodesChanged(List<Episode> all)
     {
@@ -511,6 +556,11 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private void RevealShow() => _owner.Reveal(Card);
 
+    public bool HasTrailer => HasTmdbKey && !string.IsNullOrEmpty(Series.TmdbId);
+
+    [RelayCommand]
+    private Task Trailer() => _owner.OpenTrailerAsync(series: true, Series.TmdbId, Title);
+
     [RelayCommand]
     private Task Identify() => _owner.IdentifyAsync(Card);
 
@@ -542,6 +592,9 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
         _disposed = true;
         _thumbs.Cancel();
         _photos.Cancel();
+        _shelves.Cancel();
+        foreach (var item in Similar)
+            item.Picture?.Dispose();
         foreach (var actor in Cast)
             actor.Release();
         foreach (var row in Episodes)
