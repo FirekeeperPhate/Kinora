@@ -2616,7 +2616,7 @@ public partial class MainWindowViewModel : ViewModelBase
     public void SetWatched(MovieCardViewModel card, bool watched, long? lengthMs = null)
     {
         _s.Database.SetWatched(card.Movie, watched);
-        Record(PlaybackKind.Movie, card.Movie.Id, null, card.Movie.Title, lengthMs ?? (card.Movie.Runtime ?? 0) * 60_000L, watched);
+        Record(PlaybackKind.Movie, card.Movie.Id, null, card.Movie.Title, lengthMs ?? KnownLength(PlaybackKind.Movie, card.Movie.Id, card.Movie.Runtime), watched);
         card.NotifyWatchedChanged();
         Detail?.NotifyWatchedChanged();
         AfterWatchedChange();
@@ -2637,7 +2637,7 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         _s.Database.SetEpisodesWatched(card.Series, episodes, watched);
         if (viewingMs is { } length && episodes.Count == 1 && episodes.First() is var one)
-            Record(PlaybackKind.Episode, one.Id, card.Series.Id, MediaServerSync.HistoryTitle(one), length > 0 ? length : (one.Runtime ?? 0) * 60_000L, watched);
+            Record(PlaybackKind.Episode, one.Id, card.Series.Id, MediaServerSync.HistoryTitle(one), length > 0 ? length : KnownLength(PlaybackKind.Episode, one.Id, one.Runtime), watched);
         QueueSync(episodes.Select(e => SyncTitle.Of(card.Series, e)));
         var all = _s.Database.GetEpisodes(card.Series.Id);
         card.SetWatchedCount(all.Count(e => e.Watched));
@@ -2652,6 +2652,10 @@ public partial class MainWindowViewModel : ViewModelBase
     /// One title watched (the player, or a mark by hand) goes into the history; unmarked, the
     /// viewing of the last day comes out. Marking a whole folder or season isn't watching.
     /// </summary>
+    /// <summary>A title marked by hand: its length by the nfo, or as the player measured it when it was started.</summary>
+    private long KnownLength(PlaybackKind kind, long id, int? runtimeMinutes) =>
+        runtimeMinutes is > 0 ? runtimeMinutes.Value * 60_000L : _s.Database.GetPlayback(kind, id)?.LengthMs ?? 0;
+
     private void Record(PlaybackKind kind, long id, long? seriesId, string title, long lengthMs, bool watched)
     {
         try
