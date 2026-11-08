@@ -583,7 +583,7 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
     private void OpenDirector(string name) => _owner.OpenPerson(name, null, director: true);
 
     [RelayCommand]
-    private void Back() => _owner.CloseDetailCommand.Execute(null);
+    private void Back() => _owner.GoBack();
 
     public void Dispose()
     {

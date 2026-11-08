@@ -64,6 +64,14 @@ public partial class PlayerView : UserControl
             _vm?.PlayPause();   // the first click paused: undo it
             ToggleFullScreen();
         };
+        // The mouse's back button, as on Kinora's pages: back to them
+        OverlayRoot.AddHandler(PointerPressedEvent, (_, e) =>
+        {
+            if (e.GetCurrentPoint(OverlayRoot).Properties.PointerUpdateKind != PointerUpdateKind.XButton1Pressed)
+                return;
+            e.Handled = true;
+            _vm?.Close();
+        }, RoutingStrategies.Tunnel, handledEventsToo: true);
 
         // The seek bar: while it is held the timer leaves it alone, the time shown follows it
         SeekBar.AddHandler(PointerPressedEvent, (_, _) => { if (_vm is { } vm) vm.IsSeeking = true; }, RoutingStrategies.Tunnel, handledEventsToo: true);

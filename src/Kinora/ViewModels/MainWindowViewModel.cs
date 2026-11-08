@@ -721,6 +721,7 @@ public partial class MainWindowViewModel : ViewModelBase
     /// <summary>From a movie's page: the other movies of its collection.</summary>
     public void ShowCollection(string name)
     {
+        Remember(new LibraryPage());   // Back returns to the movie
         CloseDetail();
         ClosePerson();
         ClearSelection();
@@ -1335,8 +1336,119 @@ public partial class MainWindowViewModel : ViewModelBase
 
     // ---- pages ----
 
+    // ---- back and forward, as in a browser ----
+
+    /// <summary>A page that can be opened again: by id, since a reload makes new cards.</summary>
+    private abstract record Page;
+    private sealed record LibraryPage : Page;
+    private sealed record MoviePage(long Id, bool FromRandom) : Page;
+    private sealed record ShowPage(long Id, int? Season, bool FromRandom) : Page;
+    private sealed record PersonPage(string Name, string? TmdbId, bool Director) : Page;
+
+    private const int MostPagesKept = 100;
+    private readonly List<Page> _backPages = [];
+    private readonly List<Page> _forwardPages = [];
+    private bool _travelling;
+
+    private Page CurrentPage() =>
+        Person is { } p ? new PersonPage(p.Name, p.KnownId, p.IsDirector)
+        : Detail is { } m ? new MoviePage(m.Card.Movie.Id, m.FromRandom)
+        : SeriesDetail is { } s ? new ShowPage(s.Card.Series.Id, s.SelectedSeason?.Number, s.FromRandom)
+        : new LibraryPage();
+
+    private static bool Same(Page a, Page b) => (a, b) switch
+    {
+        (MoviePage x, MoviePage y) => x.Id == y.Id,
+        (ShowPage x, ShowPage y) => x.Id == y.Id,
+        (PersonPage x, PersonPage y) => x.Name == y.Name && x.TmdbId == y.TmdbId && x.Director == y.Director,
+        (LibraryPage, LibraryPage) => true,
+        _ => false,
+    };
+
+    /// <summary>Before going somewhere new: where we were goes on the way back, the way forward is gone.</summary>
+    private void Remember(Page next)
+    {
+        if (_travelling)
+            return;
+        var here = CurrentPage();
+        if (Same(here, next))
+            return;   // the same page opened again, to show it fresh: not a step
+        _backPages.Add(here);
+        if (_backPages.Count > MostPagesKept)
+            _backPages.RemoveAt(0);
+        _forwardPages.Clear();
+    }
+
+    /// <summary>The page before (Back, Esc, the mouse's back button); from the first one, the library.</summary>
+    public void GoBack()
+    {
+        if (!Travel(_backPages, _forwardPages) && !ShowLibrary)
+        {
+            // Nothing left behind (or all of it gone from the library): the library is always there
+            var here = CurrentPage();
+            Show(new LibraryPage());
+            _forwardPages.Add(here);
+        }
+    }
+
+    /// <summary>The page Back came from (the mouse's forward button).</summary>
+    public void GoForward() => Travel(_forwardPages, _backPages);
+
+    private bool Travel(List<Page> from, List<Page> to)
+    {
+        var here = CurrentPage();
+        while (from.Count > 0)
+        {
+            var page = from[^1];
+            from.RemoveAt(from.Count - 1);
+            if (Same(page, here) || !Show(page))
+                continue;   // a title deleted since, or the page we're on
+            to.Add(here);
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>Opens a page of the history; false when its title isn't in the library any more.</summary>
+    private bool Show(Page page)
+    {
+        _travelling = true;
+        try
+        {
+            switch (page)
+            {
+                case LibraryPage:
+                    CloseDetail();
+                    ClosePerson();
+                    return true;
+                case MoviePage m when _movies.FirstOrDefault(c => c.Movie.Id == m.Id) is { } card:
+                    if (Person is not null && Detail?.Card == card)
+                        ClosePerson();   // the page is still there under the person's
+                    else
+                        OpenDetail(card, m.FromRandom);
+                    return true;
+                case ShowPage s when _shows.FirstOrDefault(c => c.Series.Id == s.Id) is { } card:
+                    if (Person is not null && SeriesDetail?.Card == card)
+                        ClosePerson();
+                    else
+                        OpenSeries(card, s.Season, s.FromRandom);
+                    return true;
+                case PersonPage p:
+                    OpenPerson(p.Name, p.TmdbId, p.Director);
+                    return true;
+                default:
+                    return false;
+            }
+        }
+        finally
+        {
+            _travelling = false;
+        }
+    }
+
     public void OpenDetail(MovieCardViewModel card, bool fromRandom = false)
     {
+        Remember(new MoviePage(card.Movie.Id, fromRandom));
         var old = Detail;
         _roots.TryGetValue(card.RootId, out var root);
         Detail = new MovieDetailViewModel(this, _s, card, root, _unavailable.Contains(card.RootId)) { FromRandom = fromRandom };
@@ -1347,6 +1459,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public void OpenSeries(SeriesCardViewModel card, int? season = null, bool fromRandom = false)
     {
+        Remember(new ShowPage(card.Series.Id, season, fromRandom));
         var old = SeriesDetail;
         _roots.TryGetValue(card.RootId, out var root);
         SeriesDetail = new SeriesDetailViewModel(this, _s, card, root, _unavailable.Contains(card.RootId), season) { FromRandom = fromRandom };
@@ -1373,6 +1486,7 @@ public partial class MainWindowViewModel : ViewModelBase
     /// </summary>
     public void OpenPerson(string name, string? tmdbId, bool director)
     {
+        Remember(new PersonPage(name, tmdbId, director));
         var movies = _movies.ToDictionary(c => c.Movie.Id);
         var shows = _shows.ToDictionary(c => c.Series.Id);
         var titles = _s.Database.GetCredits(name, tmdbId)

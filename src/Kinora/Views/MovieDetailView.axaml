@@ -53,7 +53,7 @@
                         Padding="12,8,16,8">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <Path Classes="icon" Data="{x:Static k:Icons.Back}" Width="14" Height="14" />
-                        <TextBlock Text="Library" />
+                        <TextBlock Text="Back" />
                     </StackPanel>
                 </Button>
                     <Button Classes="pill" Command="{Binding AnotherRandomCommand}" IsVisible="{Binding FromRandom}" Padding="12,8,16,8"

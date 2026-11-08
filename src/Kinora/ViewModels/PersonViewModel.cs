@@ -40,6 +40,8 @@ public partial class PersonViewModel : ViewModelBase, IDisposable
     }
 
     public string Name { get; }
+    public string? KnownId => _knownId;
+    public bool IsDirector => _director;
     public List<PersonTitle> Titles { get; }
     public string TitlesText => $"In your library: {Format.Count(Titles.Count, "title", "titles")}";
 
@@ -150,7 +152,7 @@ public partial class PersonViewModel : ViewModelBase, IDisposable
     }
 
     [RelayCommand]
-    private void Back() => _owner.ClosePerson();
+    private void Back() => _owner.GoBack();
 
     public void Dispose()
     {

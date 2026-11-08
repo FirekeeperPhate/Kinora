@@ -21,6 +21,33 @@ public partial class MainWindow : Window, IDialogs
             if (Vm is { } vm)
                 vm.LastModifiers = e.KeyModifiers;
         }, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(PointerPressedEvent, OnMouseSideButton, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+    }
+
+    private DateTime _sideButtonAt;
+
+    /// <summary>The mouse's back and forward buttons, as in a browser; in the player, back closes it.</summary>
+    private void OnMouseSideButton(object? sender, PointerPressedEventArgs e)
+    {
+        var kind = e.GetCurrentPoint(this).Properties.PointerUpdateKind;
+        if (kind is not (PointerUpdateKind.XButton1Pressed or PointerUpdateKind.XButton2Pressed) || Vm is not { } vm)
+            return;
+        e.Handled = true;
+        _sideButtonAt = DateTime.UtcNow;
+        Travel(vm, back: kind == PointerUpdateKind.XButton1Pressed);
+    }
+
+    private static void Travel(MainWindowViewModel vm, bool back)
+    {
+        if (vm.Player is { } player)
+        {
+            if (back)
+                player.Close();
+        }
+        else if (back)
+            vm.GoBack();
+        else
+            vm.GoForward();
     }
 
     private MainWindowViewModel? Vm => DataContext as MainWindowViewModel;
@@ -80,6 +107,14 @@ public partial class MainWindow : Window, IDialogs
     {
         if (Vm is not { } vm)
             return;
+        // A keyboard's back and forward keys; the mouse's buttons may send one too, after their click
+        if (e.Key is Key.BrowserBack or Key.BrowserForward)
+        {
+            if (DateTime.UtcNow - _sideButtonAt > TimeSpan.FromMilliseconds(600))
+                Travel(vm, back: e.Key == Key.BrowserBack);
+            e.Handled = true;
+            return;
+        }
         // While a video plays, the keys are the player's
         if (vm.Player is not null)
         {
@@ -87,14 +122,9 @@ public partial class MainWindow : Window, IDialogs
                 e.Handled = player.HandleKey(e);
             return;
         }
-        if (e.Key == Key.Escape && vm.Person is not null)
+        if (e.Key == Key.Escape && !vm.ShowLibrary)
         {
-            vm.ClosePerson();
-            e.Handled = true;
-        }
-        else if (e.Key == Key.Escape && !vm.ShowLibrary)
-        {
-            vm.CloseDetailCommand.Execute(null);
+            vm.GoBack();
             e.Handled = true;
         }
         else if (e.Key == Key.F && e.KeyModifiers.HasFlag(KeyModifiers.Control) && vm.ShowLibrary)
