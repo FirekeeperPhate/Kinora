@@ -117,6 +117,7 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
 
     /// <summary>Where the video really was: the clock without the jumps VLC makes when a read fails.</summary>
     private long _lastGoodMs;
+    private readonly System.Diagnostics.Stopwatch _paused = new();
     private bool _recovering;
     private int _recoveries;
     private long _recoveredAt;
@@ -275,6 +276,7 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
                 return;   // queued while it was being closed: the player may be gone
             IsPlaying = true;
             IsBuffering = false;
+            _paused.Reset();
             Player.Volume = Volume;   // the audio output exists only now
             Player.Mute = IsMuted;
             if (_subtitleDelayMs != 0)
@@ -284,7 +286,11 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
             RefreshTracks();
             RefreshChapters();
         });
-        player.Paused += (_, _) => Post(() => IsPlaying = false);
+        player.Paused += (_, _) => Post(() =>
+        {
+            IsPlaying = false;
+            _paused.Restart();
+        });
         player.Buffering += (_, e) => Post(() => IsBuffering = e.Cache < 100 && !IsPlaying);
         player.LengthChanged += (_, e) => Post(() =>
         {
@@ -434,7 +440,26 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
     {
         if (Message is not null || _ended || _recovering)
             return;
-        Player.SetPause(Player.IsPlaying);
+        if (Player.IsPlaying)
+            Player.SetPause(true);
+        else
+            Resume();
+    }
+
+    /// <summary>After this long paused, the picture starts again from a clean frame.</summary>
+    private static readonly TimeSpan LongPause = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// Plays on after a pause. After a long one the decoder left waiting (the graphics card's, a
+    /// file on the NAS whose connection went idle) can show broken blocks until the next
+    /// keyframe: a seek to the same place starts from a clean one.
+    /// </summary>
+    private void Resume()
+    {
+        if (CanSeek && _paused.IsRunning && _paused.Elapsed > LongPause)
+            Player.Time = _lastGoodMs;
+        _paused.Reset();
+        Player.SetPause(false);
     }
 
     [RelayCommand]
@@ -760,7 +785,7 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
         if (_closing)
             return;
         if (wasPlaying)
-            Player.SetPause(false);
+            Resume();
         if (NextCountdown > 0)
             _countdown.Start();
     }
