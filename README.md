@@ -132,6 +132,9 @@ controls sit over it and go away after three seconds without moving the mouse.
   Until then a started movie has a ring on its poster instead of the check, as full as what was
   seen; a show has the same ring next to the episodes left, a started episode a bar under its
   picture. Pages say so: Resume from 32:10, Resume S01E03.
+- A video on a NAS that stops answering (the computer slept with it open) isn't taken for the end:
+  Kinora opens it again where it was, waiting up to about 40 s for the NAS to wake up, and if it
+  still doesn't answer it says so, keeps the place and offers Try again. Nothing is marked watched.
 - **Continue watching**, in the sidebar when there is something in it: what you are in the middle
   of, last played first. A click goes on with it; the page is in the menu of the right click.
 - A movie folder can have a rule (Settings → Library folders): after watching a movie from

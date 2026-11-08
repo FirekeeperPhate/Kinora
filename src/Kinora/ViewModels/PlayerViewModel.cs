@@ -115,6 +115,18 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
     private CancellationTokenSource _introLookup = new();
     private float _rate = 1;
 
+    /// <summary>Where the video really was: the clock without the jumps VLC makes when a read fails.</summary>
+    private long _lastGoodMs;
+    private bool _recovering;
+    private int _recoveries;
+    private long _recoveredAt;
+
+    /// <summary>
+    /// Waits before opening the file again, longer each time: about 40 s in all, what a NAS takes
+    /// to wake up. It may answer for the folder before it serves the file again.
+    /// </summary>
+    private static readonly int[] RecoverDelays = [1, 3, 6, 12, 20];
+
     public PlayerViewModel(AppServices s, LibVLC vlc, PlayRequest request, Action<PlayerViewModel> closed)
     {
         _s = s;
@@ -291,11 +303,23 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
                     OnEnded();
             });
         };
-        player.EncounteredError += (_, _) => Post(() =>
+        player.EncounteredError += (_, _) =>
         {
-            IsBuffering = false;
-            Message = "This video can't be played.";
-        });
+            var video = Volatile.Read(ref _video);
+            Post(() =>
+            {
+                if (video != _video || _closing)
+                    return;
+                // It was playing: the file stopped answering (a sleep, the network), not a bad file
+                if (_played && LengthMs > 0)
+                {
+                    _ = RecoverAsync();
+                    return;
+                }
+                IsBuffering = false;
+                Message = "This video can't be played.";
+            });
+        };
         return player;
     }
 
@@ -320,6 +344,9 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
         _reopeningAt = null;
         _played = false;
         _loadedSubtitles.Clear();
+        _recovering = false;
+        _recoveries = 0;
+        CanTryAgain = false;
         _serverIntro = null;
         _intro = null;
         _introSkipped = false;
@@ -357,6 +384,7 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
         try
         {
             using var media = new Media(_vlc, new Uri(_request.Path));
+            _lastGoodMs = fromMs;
             if (fromMs > 0)
                 media.AddOption(string.Create(CultureInfo.InvariantCulture, $":start-time={fromMs / 1000.0:0.###}"));
             foreach (var file in _loadedSubtitles)
@@ -374,10 +402,14 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
 
     private void Tick()
     {
-        if (_closing || _ended)
+        if (_closing || _ended || _recovering || CanTryAgain)
             return;
         TimeMs = Math.Max(0, Player.Time);
-        if (TimeMs > 0)
+        if (Math.Abs(TimeMs - _lastGoodMs) <= PlaybackRules.LargestStep)
+            _lastGoodMs = TimeMs;
+        if (_recoveries > 0 && _lastGoodMs > _recoveredAt + 60_000)
+            _recoveries = 0;   // a minute played since: the next sleep gets all its tries again
+        if (TimeMs > 0 && Message is null)
         {
             _played = true;
             _reopeningAt = null;
@@ -400,7 +432,7 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     public void PlayPause()
     {
-        if (Message is not null || _ended)
+        if (Message is not null || _ended || _recovering)
             return;
         Player.SetPause(Player.IsPlaying);
     }
@@ -418,6 +450,7 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
         var to = Math.Clamp(Player.Time + seconds * 1000L, 0, Math.Max(0, LengthMs - 1000));
         Player.Time = to;
         TimeMs = to;
+        _lastGoodMs = to;
         Progress = to * 1000.0 / LengthMs;
     }
 
@@ -429,6 +462,7 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
         var to = (long)(Progress / 1000 * LengthMs);
         Player.Time = to;
         TimeMs = to;
+        _lastGoodMs = to;
     }
 
     /// <summary>While dragging: the time shown follows the bar.</summary>
@@ -456,6 +490,7 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
     {
         ResumeText = null;
         Player.Time = 0;
+        _lastGoodMs = 0;
     }
 
     // ---- intro, chapters, speed ----
@@ -519,6 +554,7 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
             return;
         Player.Time = chapter.StartMs;
         TimeMs = chapter.StartMs;
+        _lastGoodMs = chapter.StartMs;
         Progress = chapter.StartMs * 1000.0 / LengthMs;
     }
 
@@ -532,6 +568,7 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
         ShowSkipIntro = false;
         Player.Time = intro.EndMs;
         TimeMs = intro.EndMs;
+        _lastGoodMs = intro.EndMs;
     }
 
     /// <summary>Slower or faster from the keys: one step of the menu.</summary>
@@ -833,8 +870,13 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
 
     private void OnEnded()
     {
-        if (_closing || _ended)
+        if (_closing || _ended || _recovering)
             return;
+        if (PlaybackRules.EndedEarly(_lastGoodMs, LengthMs))
+        {
+            _ = RecoverAsync();
+            return;
+        }
         _ended = true;
         IsPlaying = false;
         KeepProgress();
@@ -846,6 +888,82 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
         else
         {
             Close();
+        }
+    }
+
+    /// <summary>The file couldn't be read again: a button opens it once more, from where it was.</summary>
+    [ObservableProperty]
+    public partial bool CanTryAgain { get; private set; }
+
+    [RelayCommand]
+    private void TryAgain()
+    {
+        _recoveries = 0;
+        _ = RecoverAsync();
+    }
+
+    /// <summary>
+    /// The video stopped reading before its end, mostly after the computer slept: the NAS's
+    /// connection is gone and VLC takes it for the end. It is opened again where it was, once the
+    /// file answers; nothing becomes watched for it.
+    /// </summary>
+    private async Task RecoverAsync()
+    {
+        if (_recovering || _closing)
+            return;
+        var request = _request;
+        var at = _lastGoodMs;
+        _recovering = true;
+        _reopeningAt = at;   // what is kept if the player closes meanwhile
+        _countdown.Stop();
+        NextCountdown = 0;
+        IsPlaying = false;
+        IsBuffering = true;
+        Message = null;
+        CanTryAgain = false;
+        TimeMs = at;
+        if (LengthMs > 0)
+            Progress = at * 1000.0 / LengthMs;
+        if (_recoveries < RecoverDelays.Length)
+        {
+            _toastVersion++;   // stays until it is done, not the usual three seconds
+            Toast = "The file stopped answering: opening it again…";
+            Player.Stop();
+            // Going on from the last wait: a file that fails again right away gets more time
+            for (; _recoveries < RecoverDelays.Length; _recoveries++)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(RecoverDelays[_recoveries]));
+                if (_closing || request != _request)
+                    return;
+                if (await AnswersAsync(request.Path))
+                {
+                    _recoveries++;
+                    _recoveredAt = at;
+                    _recovering = false;
+                    Toast = null;
+                    PlayCurrent(at);
+                    return;
+                }
+            }
+        }
+        if (_closing || request != _request)
+            return;
+        _recovering = false;
+        Toast = null;
+        IsBuffering = false;
+        CanTryAgain = true;
+        Message = "The file doesn't answer: the NAS may still be waking up. Where you were is kept.";
+    }
+
+    private static async Task<bool> AnswersAsync(string path)
+    {
+        try
+        {
+            return await Task.Run(() => File.Exists(Core.ExactPath.ForIo(path))).WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        catch (TimeoutException)
+        {
+            return false;
         }
     }
 

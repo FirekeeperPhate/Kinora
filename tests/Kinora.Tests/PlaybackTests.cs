@@ -32,6 +32,15 @@ public sealed class PlaybackTests : IDisposable
         Assert.Equal(watched, PlaybackRules.CountsAsWatched(position, length));
     }
 
+    [Theory]
+    [InlineData(40 * Minute, 120 * Minute, true)]     // the NAS gone after a sleep: VLC says "the end" at 40 minutes
+    [InlineData(0, 120 * Minute, true)]
+    [InlineData(108 * Minute, 120 * Minute, false)]   // in the credits: as good as the end
+    [InlineData(120 * Minute - 300, 120 * Minute, false)]
+    [InlineData(5 * Minute, 0, false)]                // length unknown: the end is the end
+    public void An_end_before_its_time_is_a_file_that_stopped(long lastPosition, long length, bool early) =>
+        Assert.Equal(early, PlaybackRules.EndedEarly(lastPosition, length));
+
     [Fact]
     public void How_much_was_seen()
     {

@@ -17,6 +17,19 @@ public static partial class PlaybackRules
     public static bool CountsAsWatched(long positionMs, long lengthMs) =>
         lengthMs > 0 && positionMs >= lengthMs * WatchedFraction;
 
+    /// <summary>
+    /// The end came before the video got near it: a file that stopped answering (the NAS after
+    /// the computer's sleep), not a video seen to the end. Nothing gets marked watched for it.
+    /// </summary>
+    public static bool EndedEarly(long lastPositionMs, long lengthMs) =>
+        lengthMs > 0 && !CountsAsWatched(lastPositionMs, lengthMs);
+
+    /// <summary>
+    /// Between two looks at the clock the video moves a fraction of a second (a few at most, at
+    /// double speed on a busy computer): more than this, unasked, isn't playing but a jump.
+    /// </summary>
+    public const long LargestStep = 10_000;
+
     public static bool WorthResuming(long positionMs, long lengthMs) =>
         positionMs >= MinimumResume.TotalMilliseconds && !CountsAsWatched(positionMs, lengthMs);
 

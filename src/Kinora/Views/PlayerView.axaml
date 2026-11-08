@@ -157,8 +157,12 @@
                         Background="#CC1A1A22" CornerRadius="14" Padding="24,18">
                     <StackPanel Spacing="14">
                         <TextBlock Text="{Binding Message}" FontSize="16" TextWrapping="Wrap" MaxWidth="480" />
-                        <Button Classes="player" HorizontalAlignment="Center" Padding="18,8" Background="#33FFFFFF"
-                                Command="{Binding CloseCommand}" Content="Back to Kinora" />
+                        <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
+                            <Button Classes="player" Padding="18,8" Background="#FF6A5C" Command="{Binding TryAgainCommand}"
+                                    Content="Try again" IsVisible="{Binding CanTryAgain}" />
+                            <Button Classes="player" Padding="18,8" Background="#33FFFFFF"
+                                    Command="{Binding CloseCommand}" Content="Back to Kinora" />
+                        </StackPanel>
                     </StackPanel>
                 </Border>
             </StackPanel>
