@@ -158,6 +158,12 @@
                                 </MenuFlyout>
                             </SplitButton.Flyout>
                         </SplitButton>
+                        <Button Command="{Binding ToggleFullScreenCommand}" ToolTip.Tip="Full screen (F11)" Padding="10,0">
+                            <Panel>
+                                <Path Classes="icon" Data="{x:Static k:Icons.FullScreen}" Width="16" Height="16" IsVisible="{Binding !IsFullScreen}" />
+                                <Path Classes="icon" Data="{x:Static k:Icons.ExitFullScreen}" Width="16" Height="16" IsVisible="{Binding IsFullScreen}" />
+                            </Panel>
+                        </Button>
                     </StackPanel>
                 </Grid>
 
@@ -381,6 +387,15 @@
                                 IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).SeriesDetail, Converter={x:Static ObjectConverters.IsNotNull}}" />
         <views:PersonView DataContext="{Binding Person}"
                           IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).Person, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+        <!-- Full screen on the movie, show and person pages; in the library it is in the toolbar -->
+        <Button Classes="pill" Command="{Binding ToggleFullScreenCommand}" IsVisible="{Binding !ShowLibrary}" ToolTip.Tip="Full screen (F11)"
+                HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,22,48,0" Padding="10,8">
+            <Panel>
+                                <Path Classes="icon" Data="{x:Static k:Icons.FullScreen}" Width="14" Height="14" IsVisible="{Binding !IsFullScreen}" />
+                                <Path Classes="icon" Data="{x:Static k:Icons.ExitFullScreen}" Width="14" Height="14" IsVisible="{Binding IsFullScreen}" />
+                            </Panel>
+        </Button>
 
         <!-- The built-in player, over everything; made when a video starts, gone when it ends -->
         <ContentControl Content="{Binding Player}" IsVisible="{Binding Player, Converter={x:Static ObjectConverters.IsNotNull}}">

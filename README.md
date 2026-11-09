@@ -62,6 +62,8 @@ engine), or, if you prefer, in the player the OS associates with it. Windows, Li
 - **Back and forward** as in a browser: Back on a page (or Esc, or the mouse's back button) returns
   to the page before, a related movie to the one it was found on, down to the library; the mouse's
   forward button goes the other way. In the player the back button closes it.
+- **Full screen** with the button at the top right (in the library next to Scan, on a page in its corner) or F11;
+  Esc in the library leaves it. Full screen turned on in the player ends with the player.
 - Folders that are mounted somewhere else later (another drive letter, another OS): change the
   root's path in Settings, nothing is scanned again. Paths are stored relative to the root.
 - Names that Windows normally tidies up, ending with a dot or a space (`S.W.A.T.`), are read,

@@ -74,6 +74,7 @@ public partial class MainWindow : Window, IDialogs
         vm.Dialogs = this;
         vm.ScrollToTopRequested += () => GridScroller.Offset = new Vector(0, 0);
         vm.ShutdownRequested += Close;
+        vm.FullScreenToggleRequested += ToggleFullScreen;
         UpdateViewport();
         vm.Initialize();
     }
@@ -84,7 +85,8 @@ public partial class MainWindow : Window, IDialogs
         {
             vm.Player?.Close();   // keeps the position, stops VLC before its window goes
             var settings = vm.Services.Settings;
-            settings.WindowMaximized = WindowState == WindowState.Maximized;
+            settings.WindowMaximized = WindowState == WindowState.Maximized
+                                       || WindowState == WindowState.FullScreen && _beforeFullScreen == WindowState.Maximized;
             if (WindowState == WindowState.Normal)
             {
                 settings.WindowWidth = Width;
@@ -92,6 +94,31 @@ public partial class MainWindow : Window, IDialogs
             }
         }
         base.OnClosing(e);
+    }
+
+    // ---- full screen ----
+
+    private WindowState _beforeFullScreen = WindowState.Normal;
+
+    /// <summary>In and out of full screen, back to maximized or not as it was (the button at the top right, F11, the player's F).</summary>
+    public void ToggleFullScreen()
+    {
+        if (WindowState == WindowState.FullScreen)
+        {
+            WindowState = _beforeFullScreen;
+        }
+        else
+        {
+            _beforeFullScreen = WindowState == WindowState.Minimized ? WindowState.Normal : WindowState;
+            WindowState = WindowState.FullScreen;
+        }
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == WindowStateProperty && Vm is { } vm)
+            vm.IsFullScreen = WindowState == WindowState.FullScreen;
     }
 
     private void UpdateViewport()
@@ -122,7 +149,12 @@ public partial class MainWindow : Window, IDialogs
                 e.Handled = player.HandleKey(e);
             return;
         }
-        if (e.Key == Key.Escape && !vm.ShowLibrary)
+        if (e.Key == Key.F11)
+        {
+            ToggleFullScreen();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape && !vm.ShowLibrary)
         {
             vm.GoBack();
             e.Handled = true;
@@ -146,6 +178,11 @@ public partial class MainWindow : Window, IDialogs
         else if (e.Key == Key.A && e.KeyModifiers.HasFlag(KeyModifiers.Control) && vm.ShowLibrary && !SearchBox.IsFocused)
         {
             vm.SelectAllCommand.Execute(null);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape && WindowState == WindowState.FullScreen)
+        {
+            ToggleFullScreen();   // nothing else for Esc to do in the library: out of full screen
             e.Handled = true;
         }
     }

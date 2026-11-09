@@ -1339,6 +1339,17 @@ public partial class MainWindowViewModel : ViewModelBase
 
     // ---- pages ----
 
+    // ---- full screen ----
+
+    /// <summary>The window fills the screen; shown by the button at the top right.</summary>
+    [ObservableProperty]
+    public partial bool IsFullScreen { get; set; }
+
+    public event Action? FullScreenToggleRequested;
+
+    [RelayCommand]
+    private void ToggleFullScreen() => FullScreenToggleRequested?.Invoke();
+
     // ---- back and forward, as in a browser ----
 
     /// <summary>A page that can be opened again: by id, since a reload makes new cards.</summary>

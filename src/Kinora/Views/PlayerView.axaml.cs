@@ -23,7 +23,7 @@ public partial class PlayerView : UserControl
     private Window? _window;
     private PlayerOverlayWindow? _overlay;
     private Services.MediaKeys? _mediaKeys;
-    private WindowState _stateBeforeFullScreen = WindowState.Normal;
+    private bool _fullScreenAtOpen;
     private bool _menuOpen;
     private Point _lastPointer;
 
@@ -136,6 +136,9 @@ public partial class PlayerView : UserControl
             return;
         _window.PositionChanged += OnWindowMoved;
         _window.PropertyChanged += OnWindowPropertyChanged;
+        _fullScreenAtOpen = _window.WindowState == WindowState.FullScreen;
+        if (_vm is not null)
+            _vm.IsFullScreen = _fullScreenAtOpen;
         _overlay = new PlayerOverlayWindow(OverlayRoot) { DataContext = DataContext };
         // A click on the controls moves Avalonia's keyboard focus over there: the keys still
         // work, and the focus goes back to Kinora's window right after
@@ -244,8 +247,9 @@ public partial class PlayerView : UserControl
             _window.PositionChanged -= OnWindowMoved;
             _window.PropertyChanged -= OnWindowPropertyChanged;
             _window.Topmost = false;
-            if (_window.WindowState == WindowState.FullScreen)
-                _window.WindowState = _stateBeforeFullScreen;
+            // Full screen only for the video: Kinora comes back as it was
+            if (_window.WindowState == WindowState.FullScreen && !_fullScreenAtOpen)
+                ToggleFullScreen();
             _window.Cursor = Cursor.Default;
         }
         base.OnDetachedFromVisualTree(e);
@@ -329,20 +333,8 @@ public partial class PlayerView : UserControl
 
     // ---- full screen ----
 
-    private void ToggleFullScreen()
-    {
-        if (_window is null)
-            return;
-        if (_window.WindowState == WindowState.FullScreen)
-        {
-            _window.WindowState = _stateBeforeFullScreen;
-        }
-        else
-        {
-            _stateBeforeFullScreen = _window.WindowState;
-            _window.WindowState = WindowState.FullScreen;
-        }
-    }
+    /// <summary>The window's own switch, the one of the button at its top right and of F11.</summary>
+    private void ToggleFullScreen() => (_window as MainWindow)?.ToggleFullScreen();
 
     // ---- keyboard ----
 
