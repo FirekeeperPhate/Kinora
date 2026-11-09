@@ -91,6 +91,7 @@ public sealed class SeriesCardViewModel : CardViewModel
             .Append(s.Studios.Replace('|', ' ')).Append(' ').Append(CastNames)
             .ToString());
         SortKey = SortTitle(s.SortTitle ?? s.Title);
+        TitleKeys = TitleKeysOf(s.Title, s.OriginalTitle);
     }
 
     protected override void Open() => _owner.Activate(this);

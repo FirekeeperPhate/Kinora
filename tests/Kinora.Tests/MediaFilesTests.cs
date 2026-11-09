@@ -55,6 +55,24 @@ public class MediaFilesTests
     public void Search_text(string text, string normalized) => Assert.Equal(normalized, SearchText.Normalize(text));
 
     [Fact]
+    public void A_short_title_comes_before_everything_else_with_its_letters()
+    {
+        static int Rank(string query, params string[] titles) =>
+            SearchText.Rank(titles.Select(SearchText.Normalize), SearchText.Normalize(query));
+
+        Assert.Equal(0, Rank("her", "Her"));
+        Assert.Equal(0, Rank("thing", "The Thing"));
+        Assert.Equal(0, Rank("amelie", "Le fabuleux destin d'Amélie Poulain", "Amélie"));   // the original title counts too
+        Assert.Equal(1, Rank("her", "Hereditary"));
+        Assert.Equal(1, Rank("her", "The Hero"));
+        Assert.Equal(2, Rank("her", "Kill Her Goats"));
+        Assert.Equal(2, Rank("dark knight", "Batman: The Dark Knight Returns"));
+        Assert.Equal(3, Rank("her", "The Others"));
+        Assert.Equal(3, Rank("her", "Sherlock Holmes"));
+        Assert.Equal(3, Rank("her", "Heat"));   // found in the cast, not in the title
+    }
+
+    [Fact]
     public void Search_matches_every_word_anywhere()
     {
         var text = SearchText.Normalize("A Haunting in Venice 2023 Kenneth Branagh");

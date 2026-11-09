@@ -29,6 +29,12 @@ public abstract partial class CardViewModel : ViewModelBase, IPosterHolder
     public string SearchKey { get; protected set; } = "";
     public string SortKey { get; protected set; } = "";
 
+    /// <summary>The title and the original title as a search sees them, to put what is called just that first.</summary>
+    public IReadOnlyList<string> TitleKeys { get; protected set; } = [];
+
+    protected static IReadOnlyList<string> TitleKeysOf(string title, string? originalTitle) =>
+        new[] { SearchText.Normalize(title), SearchText.Normalize(originalTitle) }.Where(t => t.Length > 0).Distinct().ToArray();
+
     /// <summary>Fully watched (a movie, or every episode of a show).</summary>
     public abstract bool Watched { get; }
 

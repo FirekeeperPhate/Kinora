@@ -412,6 +412,9 @@ public partial class MainWindowViewModel : ViewModelBase
             };
         }
 
+        // A search puts what is called just that first, then what begins with it; the chosen order within each
+        if (query.Length > 0)
+            sorted = sorted.OrderBy(c => Core.SearchText.Rank(c.TitleKeys, query));
         _filtered = sorted.ToList();
         // What the view is about, under each poster
         foreach (var card in CurrentCards)
