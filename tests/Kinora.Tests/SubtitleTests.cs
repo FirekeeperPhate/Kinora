@@ -79,6 +79,66 @@ public sealed class SubtitleFilesTests : IDisposable
         Assert.Empty(Directory.GetFiles(_dir, "*.tmp"));
     }
 
+    // VLC keeps the subtitles next to the video open while it plays: it lets others read and
+    // write them, not rename or replace them
+    private FileStream OpenAsThePlayerDoes(string name) =>
+        new(Path.Combine(_dir, name), FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+
+    [Fact]
+    public void An_old_copy_open_in_the_player_leaves_its_name_to_the_next()
+    {
+        var target = Path.Combine(_dir, "Heat.en.srt");
+        File.WriteAllText(target, "mine");
+        File.WriteAllText(Path.Combine(_dir, "Heat.en.old.srt"), "older");
+        using (OpenAsThePlayerDoes("Heat.en.old.srt"))
+            SubtitleFiles.Save(target, Encoding.UTF8.GetBytes("new"));
+        Assert.Equal("new", File.ReadAllText(target));
+        Assert.Equal("older", File.ReadAllText(Path.Combine(_dir, "Heat.en.old.srt")));
+        Assert.Equal("mine", File.ReadAllText(Path.Combine(_dir, "Heat.en.old2.srt")));
+        Assert.Empty(Directory.GetFiles(_dir, "*.tmp"));
+    }
+
+    [Fact]
+    public void A_subtitle_open_in_the_player_is_copied_aside_and_written_over()
+    {
+        var target = Path.Combine(_dir, "Heat.en.srt");
+        File.WriteAllText(target, "mine");
+        using (OpenAsThePlayerDoes("Heat.en.srt"))
+            SubtitleFiles.Save(target, Encoding.UTF8.GetBytes("new"));
+        Assert.Equal("new", File.ReadAllText(target));
+        Assert.Equal("mine", File.ReadAllText(Path.Combine(_dir, "Heat.en.old.srt")));
+        Assert.Empty(Directory.GetFiles(_dir, "*.tmp"));
+    }
+
+    [Fact]
+    public async Task A_subtitle_held_for_a_moment_is_waited_for()
+    {
+        var target = Path.Combine(_dir, "Heat.en.srt");
+        File.WriteAllText(target, "mine");
+        var held = new FileStream(target, FileMode.Open, FileAccess.Read, FileShare.None);
+        var release = Task.Delay(300).ContinueWith(_ => held.Dispose());
+        SubtitleFiles.Save(target, Encoding.UTF8.GetBytes("new"));
+        await release;
+        Assert.Equal("new", File.ReadAllText(target));
+        Assert.Equal("mine", File.ReadAllText(Path.Combine(_dir, "Heat.en.old.srt")));
+    }
+
+    [Fact]
+    public void A_refusal_says_which_file_and_where()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Only Windows refuses a file another program holds");
+        var target = Path.Combine(_dir, "Heat.en.srt");
+        File.WriteAllText(target, "mine");
+        using (new FileStream(target, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            var e = Assert.Throws<IOException>(() => SubtitleFiles.Save(target, Encoding.UTF8.GetBytes("new")));
+            Assert.Contains("Heat.en.old.srt", e.Message);
+            Assert.Contains(_dir, e.Message);
+        }
+        Assert.Equal("mine", File.ReadAllText(target));
+        Assert.Empty(Directory.GetFiles(_dir, "*.tmp"));
+    }
+
     [Fact]
     public void Languages_typed_by_hand() =>
         Assert.Equal(["it", "en", "pt-br"], SubtitleFiles.ParseLanguages(" IT, en;pt-BR  en"));
