@@ -103,6 +103,33 @@ public sealed class CastPhotoTests : IDisposable
     }
 
     [Fact]
+    public async Task A_person_page_takes_the_library_photo_and_asks_tmdb_for_none()
+    {
+        var none = Path.Combine(_dir, "Collateral (2004)");
+        var kodi = Path.Combine(_dir, "Heat (1995)");
+        var named = Path.Combine(_dir, "The Irishman (2019)");
+        Directory.CreateDirectory(none);
+        Directory.CreateDirectory(Path.Combine(kodi, ".actors"));
+        Directory.CreateDirectory(named);
+        File.WriteAllBytes(Path.Combine(kodi, ".actors", "Al_Pacino.jpg"), [7]);
+        File.WriteAllBytes(Path.Combine(named, "pacino.jpg"), [8]);
+        var ct = TestContext.Current.CancellationToken;
+
+        // The first title in the order given that has one: the nfo's file, or Kodi's
+        Assert.Equal(Path.Combine(named, "pacino.jpg"),
+                     Plain(await _photos.LibraryPhotoAsync("Al Pacino", [(null, none), ("pacino.jpg", named), (null, kodi)], ct)));
+        Assert.Equal(Path.Combine(kodi, ".actors", "Al_Pacino.jpg"),
+                     Plain(await _photos.LibraryPhotoAsync("Al Pacino", [(null, none), (null, kodi), ("pacino.jpg", named)], ct)));
+        // A web address in an nfo: downloaded once, as for the cast row
+        var web = await _photos.LibraryPhotoAsync("Al Pacino", [("https://example.org/pacino.jpg", null)], ct);
+        Assert.Equal([4, 5, 6], File.ReadAllBytes(web!));
+        // A library folder out of reach, a Jellyfin path, nothing at all: none, and nothing asked of TMDB
+        Assert.Null(await _photos.LibraryPhotoAsync("Al Pacino", [(".actors/Al_Pacino.jpg", null), (@"C:\ProgramData\Jellyfin-not-here\pacino.jpg", none), (null, none)], ct));
+        Assert.Null(await _photos.LibraryPhotoAsync("Al Pacino", [], ct));
+        Assert.DoesNotContain(_downloads, d => d.Contains("w185") || d.Contains("w342"));
+    }
+
+    [Fact]
     public void The_nfo_photo_is_read()
     {
         var path = Path.Combine(_dir, "movie.nfo");

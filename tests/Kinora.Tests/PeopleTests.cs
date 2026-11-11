@@ -28,7 +28,7 @@ public sealed class PeopleTests : IDisposable
         }
         Movie("Heat (1995)", """
             <movie><title>Heat</title><director>Michael Mann</director>
-            <actor><name>Al Pacino</name><role>Vincent Hanna</role><tmdbid>1158</tmdbid></actor>
+            <actor><name>Al Pacino</name><role>Vincent Hanna</role><tmdbid>1158</tmdbid><thumb>.actors/pacino.jpg</thumb></actor>
             <actor><name>Robert De Niro</name><role>Neil McCauley</role></actor></movie>
             """);
         Movie("Collateral (2004)", "<movie><title>Collateral</title><director>Michael Mann</director></movie>");
@@ -65,6 +65,15 @@ public sealed class PeopleTests : IDisposable
         var credits = _db.GetCredits("Michael Mann", null);
         Assert.Equal(["Collateral", "Heat"], credits.Select(TitleOf).Order());
         Assert.All(credits, c => Assert.Equal("Director", c.Role));
+    }
+
+    [Fact]
+    public async Task A_credit_keeps_the_photo_its_nfo_names()
+    {
+        await _scanner.ScanAsync(_root, false, null, default);
+        var credits = _db.GetCredits("Al Pacino", "1158");
+        Assert.Equal([("Heat", ".actors/pacino.jpg"), ("The Irishman", null)],
+                     credits.Select(c => (TitleOf(c), c.Thumb)).OrderBy(x => x.Item1));
     }
 
     [Fact]

@@ -4,8 +4,8 @@ using Kinora.Core.Online;
 
 namespace Kinora.Core.Data;
 
-/// <summary>A movie or show a person is in, with what they did there.</summary>
-public sealed record PersonCredit(bool IsSeries, long Id, string Role);
+/// <summary>A movie or show a person is in, with what they did there, and the photo its nfo names for them.</summary>
+public sealed record PersonCredit(bool IsSeries, long Id, string Role, string? Thumb = null);
 
 public sealed partial class LibraryDatabase
 {
@@ -18,10 +18,10 @@ public sealed partial class LibraryDatabase
         using var c = Open();
         var credits = new List<PersonCredit>();
         const string byPerson = "(tmdb_id = @tmdbId OR (name = @name COLLATE NOCASE AND (tmdb_id IS NULL OR @tmdbId IS NULL)))";
-        foreach (var (id, role) in c.Query<(long, string?)>($"SELECT movie_id, role FROM cast_members WHERE {byPerson}", new { name, tmdbId }))
-            credits.Add(new PersonCredit(false, id, string.IsNullOrWhiteSpace(role) ? "Actor" : role!));
-        foreach (var (id, role) in c.Query<(long, string?)>($"SELECT series_id, role FROM series_cast WHERE {byPerson}", new { name, tmdbId }))
-            credits.Add(new PersonCredit(true, id, string.IsNullOrWhiteSpace(role) ? "Actor" : role!));
+        foreach (var (id, role, thumb) in c.Query<(long, string?, string?)>($"SELECT movie_id, role, thumb FROM cast_members WHERE {byPerson}", new { name, tmdbId }))
+            credits.Add(new PersonCredit(false, id, string.IsNullOrWhiteSpace(role) ? "Actor" : role!, thumb));
+        foreach (var (id, role, thumb) in c.Query<(long, string?, string?)>($"SELECT series_id, role, thumb FROM series_cast WHERE {byPerson}", new { name, tmdbId }))
+            credits.Add(new PersonCredit(true, id, string.IsNullOrWhiteSpace(role) ? "Actor" : role!, thumb));
 
         // Directors are stored joined with '|': match the whole name, not a part of it
         foreach (var (id, directors) in c.Query<(long, string)>("SELECT id, directors FROM movies WHERE directors LIKE @like",

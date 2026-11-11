@@ -105,7 +105,8 @@ With a TMDB API key (Settings), what the folders don't say comes from The Movie 
 - the actors on a movie or show page get their photos: the one the nfo names when it can be
   reached (a web address, a file in the folder, Kodi's `.actors`; Jellyfin's paths on its own
   server can't), otherwise TMDB's, from the title's credits (asked once per title, matched by
-  TMDB id or by name). Without a photo, the initials;
+  TMDB id or by name). Without a photo, the initials. A person's own page takes the same photo
+  from the library (the title it was opened from first), and asks TMDB for one only when there is none;
 - with **Save downloaded metadata and pictures in the movie folders** on (off by default) a
   `movie.nfo` and the missing pictures are written next to the movie; existing files are never
   replaced.

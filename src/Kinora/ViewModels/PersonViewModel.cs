@@ -17,8 +17,9 @@ public sealed record PersonTitle(CardViewModel Card, string Role)
 }
 
 /// <summary>
-/// An actor or director: photo and biography from TMDB, and every movie and show in the library
-/// they are in. Without a TMDB key only the library part is there.
+/// An actor or director: the photo their nfo files or Kodi's ".actors" have (else TMDB's), the
+/// biography from TMDB, and every movie and show in the library they are in. Without a TMDB key
+/// there is no biography.
 /// </summary>
 public partial class PersonViewModel : ViewModelBase, IDisposable
 {
@@ -26,9 +27,11 @@ public partial class PersonViewModel : ViewModelBase, IDisposable
     private readonly AppServices _s;
     private readonly string? _knownId;
     private readonly bool _director;
+    private readonly IReadOnlyList<(string? Thumb, string? TitleFolder)> _appearances;
     private bool _disposed;
 
-    public PersonViewModel(MainWindowViewModel owner, AppServices services, string name, string? tmdbId, bool director, List<PersonTitle> titles)
+    public PersonViewModel(MainWindowViewModel owner, AppServices services, string name, string? tmdbId, bool director, List<PersonTitle> titles,
+                           IReadOnlyList<(string? Thumb, string? TitleFolder)> appearances)
     {
         _owner = owner;
         _s = services;
@@ -36,6 +39,7 @@ public partial class PersonViewModel : ViewModelBase, IDisposable
         _director = director;
         Name = name;
         Titles = titles;
+        _appearances = appearances;
         _ = LoadAsync();
     }
 
@@ -68,10 +72,12 @@ public partial class PersonViewModel : ViewModelBase, IDisposable
 
     private async Task LoadAsync()
     {
+        await LoadLibraryPhotoAsync();
         using var client = _s.CreateTmdbClient();
         if (client is null)
         {
-            Biography = "Add a TMDB API key in Settings to see the biography and the photo.";
+            Biography = HasPhoto ? "Add a TMDB API key in Settings to see the biography."
+                                 : "Add a TMDB API key in Settings to see the biography and the photo.";
             return;
         }
         IsLoading = true;
@@ -97,7 +103,7 @@ public partial class PersonViewModel : ViewModelBase, IDisposable
 
             Biography = person.Biography ?? "No biography on TMDB.";
             Facts = BuildFacts(person);
-            if (person.ProfilePath is { } path)
+            if (Photo is null && person.ProfilePath is { } path)
             {
                 var key = Core.Imaging.ImageCache.KeyForOnline(path);
                 if (!_s.People.Has(key) && await TmdbImages.DownloadAsync(path, "w342", CancellationToken.None) is { } bytes)
@@ -113,6 +119,30 @@ public partial class PersonViewModel : ViewModelBase, IDisposable
         finally
         {
             IsLoading = false;
+        }
+    }
+
+    /// <summary>The photo the library has for them: no need to ask TMDB for one.</summary>
+    private async Task LoadLibraryPhotoAsync()
+    {
+        try
+        {
+            var file = await Task.Run(() => _s.CastPhotos.LibraryPhotoAsync(Name, _appearances, CancellationToken.None));
+            if (file is null || _disposed)
+                return;
+            var bitmap = await Task.Run(() =>
+            {
+                using var stream = File.OpenRead(file);
+                return Bitmap.DecodeToWidth(stream, 480);   // shown 220 wide, sharp on a 2x screen
+            });
+            if (_disposed)
+                bitmap.Dispose();
+            else
+                Photo = bitmap;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException)
+        {
+            // not a picture after all, or gone: TMDB's then
         }
     }
 

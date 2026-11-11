@@ -53,7 +53,37 @@ public sealed class CastPhotos(LibraryDatabase db, FileCache people)
     /// <summary>A file with the actor's photo (downloaded the first time), or null when there is none.</summary>
     public async Task<string?> PhotoAsync(CastMember member, TmdbCast? match, string? titleFolder, CancellationToken ct)
     {
-        if (member.Thumb is { Length: > 0 } thumb)
+        if (await OwnPhotoAsync(member.Name, member.Thumb, titleFolder, ct) is { } own)
+            return own;
+        if (match?.ProfilePath is { Length: > 0 } path)
+        {
+            var key = ImageCache.KeyForOnline(TmdbSize + path);
+            if (people.Has(key) || await TmdbImages.DownloadAsync(path, TmdbSize, ct) is { Length: > 0 } bytes && Save(key, bytes))
+                return people.PathFor(key);
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// The photo for a person's page from the library itself: the first title (in the order given)
+    /// whose nfo names one that can be reached, or with the person in Kodi's ".actors". TMDB's
+    /// only when there is none of these.
+    /// </summary>
+    public async Task<string?> LibraryPhotoAsync(string name, IEnumerable<(string? Thumb, string? TitleFolder)> appearances, CancellationToken ct)
+    {
+        foreach (var (thumb, folder) in appearances)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (await OwnPhotoAsync(name, thumb, folder, ct) is { } file)
+                return file;
+        }
+        return null;
+    }
+
+    /// <summary>The photo the nfo names, then Kodi's ".actors/First_Last.jpg"; null when neither is there.</summary>
+    private async Task<string?> OwnPhotoAsync(string name, string? thumbText, string? titleFolder, CancellationToken ct)
+    {
+        if (thumbText is { Length: > 0 } thumb)
         {
             if (Uri.TryCreate(thumb, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https")
             {
@@ -66,14 +96,8 @@ public sealed class CastPhotos(LibraryDatabase db, FileCache people)
                 return file;
             }
         }
-        if (titleFolder is not null && LocalFile(Path.Combine(".actors", member.Name.Replace(' ', '_') + ".jpg"), titleFolder) is { } kodi)
+        if (titleFolder is not null && LocalFile(Path.Combine(".actors", name.Replace(' ', '_') + ".jpg"), titleFolder) is { } kodi)
             return kodi;
-        if (match?.ProfilePath is { Length: > 0 } path)
-        {
-            var key = ImageCache.KeyForOnline(TmdbSize + path);
-            if (people.Has(key) || await TmdbImages.DownloadAsync(path, TmdbSize, ct) is { Length: > 0 } bytes && Save(key, bytes))
-                return people.PathFor(key);
-        }
         return null;
     }
 

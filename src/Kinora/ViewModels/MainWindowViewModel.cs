@@ -1515,16 +1515,31 @@ public partial class MainWindowViewModel : ViewModelBase
         Remember(new PersonPage(name, tmdbId, director));
         var movies = _movies.ToDictionary(c => c.Movie.Id);
         var shows = _shows.ToDictionary(c => c.Series.Id);
-        var titles = _s.Database.GetCredits(name, tmdbId)
-            .Select(c => c.IsSeries
-                ? shows.TryGetValue(c.Id, out var s) ? new PersonTitle(s, c.Role) : null
-                : movies.TryGetValue(c.Id, out var m) ? new PersonTitle(m, c.Role) : null)
-            .OfType<PersonTitle>()
-            .OrderByDescending(t => t.Card.Year ?? 0)
+        var credits = _s.Database.GetCredits(name, tmdbId)
+            .Select(c => (Credit: c, Card: c.IsSeries
+                ? shows.GetValueOrDefault(c.Id) as CardViewModel
+                : movies.GetValueOrDefault(c.Id)))
+            .Where(x => x.Card is not null)
+            .OrderByDescending(x => x.Card!.Year ?? 0)
+            .ToList();
+        var titles = credits.Select(x => new PersonTitle(x.Card!, x.Credit.Role)).ToList();
+        // Their own photo comes from the library first: the title the page was opened from, then the newest
+        var from = (CardViewModel?)Detail?.Card ?? SeriesDetail?.Card;
+        var appearances = credits
+            .OrderByDescending(x => x.Card == from)
+            .Select(x => (x.Credit.Thumb, TitleFolder(x.Card!)))
             .ToList();
         var old = Person;
-        Person = new PersonViewModel(this, _s, name, tmdbId, director, titles);
+        Person = new PersonViewModel(this, _s, name, tmdbId, director, titles, appearances);
         old?.Dispose();
+    }
+
+    /// <summary>A title's folder on disk, or null while its library folder can't be reached.</summary>
+    private string? TitleFolder(CardViewModel card)
+    {
+        if (!_roots.TryGetValue(card.RootId, out var root) || _unavailable.Contains(card.RootId))
+            return null;
+        return RelPath.ToFull(root.Path, card is SeriesCardViewModel s ? s.Series.Folder : ((MovieCardViewModel)card).Movie.Folder);
     }
 
     public void ClosePerson()
