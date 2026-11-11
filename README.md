@@ -64,6 +64,8 @@ engine), or, if you prefer, in the player the OS associates with it. Windows, Li
   forward button goes the other way. In the player the back button closes it.
 - **Full screen** with the button at the top right (in the library next to Scan, on a page in its corner) or F11;
   Esc in the library leaves it. Full screen turned on in the player ends with the player.
+- **A foldable sidebar**: the button next to the name, or Ctrl+B, folds it to a column of icons
+  (their names show under the mouse) and gives the posters the room; it stays as you left it.
 - Folders that are mounted somewhere else later (another drive letter, another OS): change the
   root's path in Settings, nothing is scanned again. Paths are stored relative to the root.
 - Names that Windows normally tidies up, ending with a dot or a space (`S.W.A.T.`), are read,

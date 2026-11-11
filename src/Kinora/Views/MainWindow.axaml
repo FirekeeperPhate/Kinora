@@ -12,34 +12,101 @@
 
     <Window.KeyBindings>
         <KeyBinding Gesture="F5" Command="{Binding ScanCommand}" />
+        <KeyBinding Gesture="Ctrl+B" Command="{Binding ToggleSidebarCommand}" />
     </Window.KeyBindings>
 
     <Panel>
         <!-- Library -->
-        <Grid ColumnDefinitions="236,*" IsVisible="{Binding ShowLibrary}">
+        <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding ShowLibrary}">
 
-            <!-- Sidebar -->
-            <Border Background="{DynamicResource SidebarBackground}">
+            <!-- Sidebar: open with names and counts, or folded to a column of icons -->
+            <Border Classes="sidebar" Classes.folded="{Binding SidebarCollapsed}" Background="{DynamicResource SidebarBackground}">
+                <Border.Styles>
+                    <Style Selector="Border.sidebar">
+                        <Setter Property="Width" Value="236" />
+                    </Style>
+                    <Style Selector="Border.sidebar.folded">
+                        <Setter Property="Width" Value="68" />
+                    </Style>
+                    <Style Selector="Border.sidebar.folded :is(Control).open">
+                        <Setter Property="IsVisible" Value="False" />
+                    </Style>
+                    <Style Selector="Border.sidebar:not(.folded) :is(Control).folded">
+                        <Setter Property="IsVisible" Value="False" />
+                    </Style>
+                    <Style Selector="Border.sidebar Path.navicon">
+                        <Setter Property="Margin" Value="0,0,12,0" />
+                    </Style>
+                    <Style Selector="Border.sidebar.folded Path.navicon">
+                        <Setter Property="Margin" Value="0" />
+                    </Style>
+                    <Style Selector="Border.sidebar.folded ListBox.nav">
+                        <Setter Property="Padding" Value="8,0" />
+                    </Style>
+                    <Style Selector="Border.sidebar.folded ListBox.nav > ListBoxItem" x:DataType="vm:NavItem">
+                        <Setter Property="Padding" Value="0,9" />
+                        <Setter Property="HorizontalContentAlignment" Value="Center" />
+                        <Setter Property="ToolTip.Tip" Value="{Binding Title}" />
+                        <Setter Property="ToolTip.Placement" Value="Right" />
+                    </Style>
+                    <Style Selector="Border.sidebar Button.settings">
+                        <Setter Property="Margin" Value="10,8,10,14" />
+                        <Setter Property="Padding" Value="12,9" />
+                        <Setter Property="HorizontalContentAlignment" Value="Left" />
+                    </Style>
+                    <Style Selector="Border.sidebar.folded Button.settings">
+                        <Setter Property="Margin" Value="8,8,8,14" />
+                        <Setter Property="Padding" Value="0,9" />
+                        <Setter Property="HorizontalContentAlignment" Value="Center" />
+                        <Setter Property="ToolTip.Tip" Value="Settings" />
+                        <Setter Property="ToolTip.Placement" Value="Right" />
+                    </Style>
+                </Border.Styles>
                 <DockPanel>
-                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="10" Margin="22,22,22,18">
+                    <Grid DockPanel.Dock="Top" Classes="open" ColumnDefinitions="*,Auto" Margin="22,22,12,18">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Image Source="/Assets/kinora-64.png" Width="30" Height="30" />
+                            <TextBlock Text="Kinora" FontSize="21" FontWeight="Bold" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Classes="nav" Background="Transparent" Padding="7" VerticalAlignment="Center"
+                                Command="{Binding ToggleSidebarCommand}" ToolTip.Tip="Fold the sidebar (Ctrl+B)">
+                            <Path Classes="icon" Data="{x:Static k:Icons.SidebarFold}" Width="18" Height="18" />
+                        </Button>
+                    </Grid>
+                    <StackPanel DockPanel.Dock="Top" Classes="folded" Spacing="12" Margin="0,22,0,14" HorizontalAlignment="Center">
                         <Image Source="/Assets/kinora-64.png" Width="30" Height="30" />
-                        <TextBlock Text="Kinora" FontSize="21" FontWeight="Bold" VerticalAlignment="Center" />
+                        <Button Classes="nav" Background="Transparent" Padding="7" HorizontalAlignment="Center"
+                                Command="{Binding ToggleSidebarCommand}" ToolTip.Tip="Open the sidebar (Ctrl+B)" ToolTip.Placement="Right">
+                            <Path Classes="icon" Data="{x:Static k:Icons.SidebarUnfold}" Width="18" Height="18" />
+                        </Button>
                     </StackPanel>
 
                     <!-- Movies or TV shows -->
-                    <Border DockPanel.Dock="Top" Margin="16,0,16,10" Padding="3" CornerRadius="10" Background="{DynamicResource ChipBackground}">
+                    <Border DockPanel.Dock="Top" Classes="open" Margin="16,0,16,10" Padding="3" CornerRadius="10" Background="{DynamicResource ChipBackground}">
                         <UniformGrid Columns="2">
                             <RadioButton Classes="segment" Content="Movies" IsChecked="{Binding IsMoviesMode}" GroupName="mode" />
                             <RadioButton Classes="segment" Content="TV shows" IsChecked="{Binding IsShowsMode}" GroupName="mode" />
                         </UniformGrid>
                     </Border>
+                    <Border DockPanel.Dock="Top" Classes="folded" Margin="12,0,12,10" Padding="3" CornerRadius="10" Background="{DynamicResource ChipBackground}">
+                        <UniformGrid Rows="2">
+                            <RadioButton Classes="segment" IsChecked="{Binding IsMoviesMode}" GroupName="modeFolded"
+                                         ToolTip.Tip="Movies" ToolTip.Placement="Right">
+                                <Path Classes="icon" Data="{x:Static k:Icons.Film}" Width="17" Height="17" />
+                            </RadioButton>
+                            <RadioButton Classes="segment" IsChecked="{Binding IsShowsMode}" GroupName="modeFolded"
+                                         ToolTip.Tip="TV shows" ToolTip.Placement="Right">
+                                <Path Classes="icon" Data="{x:Static k:Icons.Tv}" Width="17" Height="17" />
+                            </RadioButton>
+                        </UniformGrid>
+                    </Border>
 
-                    <Button DockPanel.Dock="Bottom" Classes="nav" Margin="10,8,10,14" Padding="12,9"
-                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                    <Button DockPanel.Dock="Bottom" Classes="nav settings"
+                            HorizontalAlignment="Stretch"
                             Background="Transparent" Command="{Binding OpenSettingsCommand}">
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <Path Classes="icon" Data="{x:Static k:Icons.Sliders}" />
-                            <TextBlock Text="Settings" VerticalAlignment="Center" />
+                        <StackPanel Orientation="Horizontal">
+                            <Path Classes="icon navicon" Data="{x:Static k:Icons.Sliders}" />
+                            <TextBlock Classes="open" Text="Settings" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
 
@@ -52,13 +119,15 @@
                         <ListBox.ItemTemplate>
                             <DataTemplate x:DataType="vm:NavItem">
                                 <Panel>
-                                    <TextBlock Classes="section" Text="{Binding Title}" Margin="0,14,0,2"
-                                               IsVisible="{Binding IsHeader}" />
+                                    <Panel IsVisible="{Binding IsHeader}">
+                                        <TextBlock Classes="section open" Text="{Binding Title}" Margin="0,14,0,2" />
+                                        <Border Classes="folded" Height="1" Margin="4,10,4,4" Background="{DynamicResource SubtleText}" Opacity="0.3" />
+                                    </Panel>
                                     <Grid ColumnDefinitions="Auto,*,Auto" IsVisible="{Binding IsSelectable}">
-                                        <Path Classes="icon" Data="{Binding Icon}" Width="17" Height="17" Margin="0,0,12,0" />
-                                        <TextBlock Grid.Column="1" Text="{Binding Title}" VerticalAlignment="Center"
+                                        <Path Classes="icon navicon" Data="{Binding Icon}" Width="17" Height="17" />
+                                        <TextBlock Grid.Column="1" Classes="open" Text="{Binding Title}" VerticalAlignment="Center"
                                                    TextTrimming="CharacterEllipsis" />
-                                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" Margin="8,0,0,0">
+                                        <StackPanel Grid.Column="2" Classes="open" Orientation="Horizontal" Spacing="6" Margin="8,0,0,0">
                                             <Path Classes="icon" Data="{x:Static k:Icons.Offline}" Width="14" Height="14"
                                                   IsVisible="{Binding IsUnavailable}" ToolTip.Tip="Not reachable right now" />
                                             <TextBlock Text="{Binding CountText}" Classes="subtle" FontSize="12"

@@ -145,6 +145,9 @@ public sealed class AppSettings
     public double WindowHeight { get; set; } = 820;
     public bool WindowMaximized { get; set; }
 
+    /// <summary>The sidebar folded to a column of icons.</summary>
+    public bool SidebarCollapsed { get; set; }
+
     private static readonly JsonSerializerOptions Json = new()
     {
         WriteIndented = true,

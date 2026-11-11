@@ -53,7 +53,8 @@ public partial class MainWindowViewModel : ViewModelBase
         _suppressFilter = true;
         SelectedSort = SortOptions.First(o => o.Value == _s.Settings.Sort);
         SortDescending = _s.Settings.SortDescending;
-        Mode = _s.Settings.ShowTvShows ? LibraryMode.Shows : LibraryMode.Movies;
+        SidebarCollapsed = _s.Settings.SidebarCollapsed;
+        Mode =_s.Settings.ShowTvShows ? LibraryMode.Shows : LibraryMode.Movies;
         CardViewModel.MoveTargetsProvider = MoveTargetsFor;
         CardViewModel.ToggleSelectHandler = ToggleSelection;
         _suppressFilter = false;
@@ -1338,6 +1339,17 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     // ---- pages ----
+
+    // ---- sidebar ----
+
+    /// <summary>The sidebar folded to its icons, for more posters in a row; kept for the next start.</summary>
+    [ObservableProperty]
+    public partial bool SidebarCollapsed { get; set; }
+
+    partial void OnSidebarCollapsedChanged(bool value) => _s.Settings.SidebarCollapsed = value;
+
+    [RelayCommand]
+    private void ToggleSidebar() => SidebarCollapsed = !SidebarCollapsed;
 
     // ---- full screen ----
 
