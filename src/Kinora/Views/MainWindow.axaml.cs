@@ -142,6 +142,13 @@ public partial class MainWindow : Window, IDialogs
             e.Handled = true;
             return;
         }
+        // Alt+Left and Alt+Right, as in a browser (before the player, whose Left and Right seek)
+        if (e.Key is Key.Left or Key.Right && e.KeyModifiers == KeyModifiers.Alt)
+        {
+            Travel(vm, back: e.Key == Key.Left);
+            e.Handled = true;
+            return;
+        }
         // While a video plays, the keys are the player's
         if (vm.Player is not null)
         {

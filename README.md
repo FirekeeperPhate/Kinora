@@ -59,9 +59,9 @@ engine), or, if you prefer, in the player the OS associates with it. Windows, Li
   it, the ones you have first; the others, dimmed, open on TMDB. Asked when the page opens, kept a month.
   A show's page has the same rows (related: the same actors, or the same network and genre), and
   both have **Trailer**, which opens the trailer TMDB lists on YouTube.
-- **Back and forward** as in a browser: Back on a page (or Esc, or the mouse's back button) returns
-  to the page before, a related movie to the one it was found on, down to the library; the mouse's
-  forward button goes the other way. In the player the back button closes it.
+- **Back and forward** as in a browser: Back on a page (or Esc, Alt+←, or the mouse's back button)
+  returns to the page before, a related movie to the one it was found on, down to the library;
+  Alt+→ or the mouse's forward button goes the other way. In the player Alt+← and the back button close it.
 - **Full screen** with the button at the top right (in the library next to Scan, on a page in its corner) or F11;
   Esc in the library leaves it. Full screen turned on in the player ends with the player.
 - **A foldable sidebar**: the button next to the name, or Ctrl+B, folds it to a column of icons
