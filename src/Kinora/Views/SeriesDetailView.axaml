@@ -103,6 +103,13 @@
                         <TextBlock Text="Back" />
                     </StackPanel>
                 </Button>
+                    <Button Classes="pill" Command="{Binding Owner.GoToLibraryCommand}" IsVisible="{Binding Owner.LibraryIsFarther}"
+                            ToolTip.Tip="Back to the library (Alt+Home)" Padding="12,8,16,8">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Path Classes="icon" Data="{x:Static k:Icons.Library}" Width="15" Height="15" />
+                            <TextBlock Text="Library" />
+                        </StackPanel>
+                    </Button>
                     <Button Classes="pill" Command="{Binding AnotherRandomCommand}" IsVisible="{Binding FromRandom}" Padding="12,8,16,8"
                             ToolTip.Tip="Another title picked at random">
                         <StackPanel Orientation="Horizontal" Spacing="8">

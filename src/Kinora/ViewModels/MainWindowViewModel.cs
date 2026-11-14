@@ -1403,6 +1403,27 @@ public partial class MainWindowViewModel : ViewModelBase
         if (_backPages.Count > MostPagesKept)
             _backPages.RemoveAt(0);
         _forwardPages.Clear();
+        NoteHistory();
+    }
+
+    /// <summary>
+    /// True when Back would not reach the library in one step (a chain of "Another one", of
+    /// actors and their movies): the pages then show a Library button next to Back.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool LibraryIsFarther { get; private set; }
+
+    private void NoteHistory() => LibraryIsFarther = _backPages.Count > 0 && _backPages[^1] is not LibraryPage;
+
+    /// <summary>Straight to the library (the Library button, Alt+Home); Back returns to the page left.</summary>
+    [RelayCommand]
+    public void GoToLibrary()
+    {
+        if (ShowLibrary)
+            return;
+        Remember(new LibraryPage());
+        Show(new LibraryPage());
+        NoteHistory();
     }
 
     /// <summary>The page before (Back, Esc, the mouse's back button); from the first one, the library.</summary>
@@ -1415,10 +1436,15 @@ public partial class MainWindowViewModel : ViewModelBase
             Show(new LibraryPage());
             _forwardPages.Add(here);
         }
+        NoteHistory();
     }
 
     /// <summary>The page Back came from (the mouse's forward button).</summary>
-    public void GoForward() => Travel(_forwardPages, _backPages);
+    public void GoForward()
+    {
+        Travel(_forwardPages, _backPages);
+        NoteHistory();
+    }
 
     private bool Travel(List<Page> from, List<Page> to)
     {

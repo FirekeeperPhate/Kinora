@@ -585,6 +585,9 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private void Back() => _owner.GoBack();
 
+    /// <summary>For the Library button next to Back.</summary>
+    public MainWindowViewModel Owner => _owner;
+
     public void Dispose()
     {
         if (_disposed)

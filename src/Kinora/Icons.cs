@@ -18,6 +18,7 @@ public static class Icons
     public static Geometry Tag { get; } = Geometry.Parse("M3.5,11.5 V4.5 A1,1 0 0 1 4.5,3.5 H11.5 L20.5,12.5 L12.5,20.5 Z M8,7 A1,1 0 1 0 8.01,7 Z");
     public static Geometry Sliders { get; } = Geometry.Parse("M4,6 H20 M4,12 H20 M4,18 H20 M9,4 V8 M15,10 V14 M7,16 V20");
     public static Geometry Refresh { get; } = Geometry.Parse("M20,12 A8,8 0 1 1 17.7,6.3 M20,3.5 V8.5 H15");
+    public static Geometry Library { get; } = Geometry.Parse("M4,4 H10 V10 H4 Z M14,4 H20 V10 H14 Z M4,14 H10 V20 H4 Z M14,14 H20 V20 H14 Z");
     public static Geometry Back { get; } = Geometry.Parse("M14.5,5 L7.5,12 L14.5,19");
     public static Geometry Check { get; } = Geometry.Parse("M5,12.5 L10,17 L19,7");
     public static Geometry Search { get; } = Geometry.Parse("M10.5,4 A6.5,6.5 0 1 0 10.51,4 Z M15.5,15.5 L20,20");

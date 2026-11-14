@@ -161,6 +161,11 @@ public partial class MainWindow : Window, IDialogs
             ToggleFullScreen();
             e.Handled = true;
         }
+        else if (e.Key == Key.Home && e.KeyModifiers == KeyModifiers.Alt && !vm.ShowLibrary)
+        {
+            vm.GoToLibrary();   // as a browser's Home
+            e.Handled = true;
+        }
         else if (e.Key == Key.Escape && !vm.ShowLibrary)
         {
             vm.GoBack();

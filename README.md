@@ -62,6 +62,8 @@ engine), or, if you prefer, in the player the OS associates with it. Windows, Li
 - **Back and forward** as in a browser: Back on a page (or Esc, Alt+←, or the mouse's back button)
   returns to the page before, a related movie to the one it was found on, down to the library;
   Alt+→ or the mouse's forward button goes the other way. In the player Alt+← and the back button close it.
+  Several pages away from the library (a run of "Another one", from a movie to an actor to another
+  movie), a Library button next to Back (or Alt+Home) goes straight there, and Back returns to the page left.
 - **Full screen** with the button at the top right (in the library next to Scan, on a page in its corner) or F11;
   Esc in the library leaves it. Full screen turned on in the player ends with the player.
 - **A foldable sidebar**: the button next to the name, or Ctrl+B, folds it to a column of icons
