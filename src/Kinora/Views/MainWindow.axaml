@@ -192,7 +192,7 @@
                             </Panel>
                             <DropDownButton.Flyout>
                                 <Flyout Placement="BottomEdgeAlignedRight">
-                                    <Grid ColumnDefinitions="Auto,12,220" RowDefinitions="Auto,8,Auto,8,Auto,8,Auto,8,Auto,12,Auto">
+                                    <Grid ColumnDefinitions="Auto,12,220" RowDefinitions="Auto,8,Auto,8,Auto,8,Auto,8,Auto,8,Auto,12,Auto">
                                         <TextBlock Text="Resolution" VerticalAlignment="Center" IsVisible="{Binding IsMoviesMode}" />
                                         <ComboBox Grid.Column="2" HorizontalAlignment="Stretch" ItemsSource="{Binding FilterResolutions}"
                                                   SelectedItem="{Binding SelectedResolution}" IsVisible="{Binding IsMoviesMode}" />
@@ -207,7 +207,9 @@
                                         <TextBlock Grid.Row="8" Text="Collection" VerticalAlignment="Center" IsVisible="{Binding IsMoviesMode}" />
                                         <ComboBox Grid.Row="8" Grid.Column="2" HorizontalAlignment="Stretch" ItemsSource="{Binding FilterCollections}"
                                                   SelectedItem="{Binding SelectedCollection}" IsVisible="{Binding IsMoviesMode}" />
-                                        <Button Grid.Row="10" Grid.Column="2" HorizontalAlignment="Right" Content="Clear" Command="{Binding ClearFiltersCommand}"
+                                        <CheckBox Grid.Row="10" Grid.Column="2" Content="Only unwatched" IsChecked="{Binding OnlyUnwatched}"
+                                                  ToolTip.Tip="In any view: a genre, a folder, a collection. It stays on when you change view." />
+                                        <Button Grid.Row="12" Grid.Column="2" HorizontalAlignment="Right" Content="Clear" Command="{Binding ClearFiltersCommand}"
                                                 IsEnabled="{Binding HasFilter}" />
                                     </Grid>
                                 </Flyout>

@@ -41,7 +41,8 @@ engine), or, if you prefer, in the player the OS associates with it. Windows, Li
   isn't lost among "Others" and "Sherlock". Sort by title, year, date added, rating;
   by title "The Matrix" goes under M, or under T if you untick that in Settings → Library.
 - **Filters** in the toolbar: resolution, HDR, decade, rating, collection (for shows decade and
-  rating). The collection on a movie's page opens the other movies in it. HDR comes from the nfo's
+  rating), and only unwatched, which works in any view (a genre, a folder) and stays on from one
+  to the next. The collection on a movie's page opens the other movies in it. HDR comes from the nfo's
   `hdrtype` or the file name; for what is already in the library the nfo is read by a full scan.
 - **Duplicates**, in the sidebar when there are any: the same movie or show more than once, in the
   same folder or in two (an id in common, or the same name and year without ids), side by side

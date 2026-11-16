@@ -376,7 +376,8 @@ public partial class MainWindowViewModel : ViewModelBase
         var query = Core.SearchText.Normalize(SearchText);
         var filter = CurrentFilter;
         var items = InView(nav).Where(c => Core.SearchText.Matches(c.SearchKey, query))
-                               .Where(c => c is MovieCardViewModel m ? filter.Allows(m.Movie) : filter.Allows(c.Year, c.Rating));
+                               .Where(c => c is MovieCardViewModel m ? filter.Allows(m.Movie) : filter.Allows(c.Year, c.Rating))
+                               .Where(c => !OnlyUnwatched || !c.Watched);
 
         IEnumerable<CardViewModel> sorted;
         if (nav.Kind == NavKind.RecentlyAdded)
@@ -672,6 +673,15 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     public partial bool OnlyHdr { get; set; }
 
+    /// <summary>
+    /// Only what hasn't been watched, in whatever view: a genre, a folder, a collection. It stays
+    /// on from one view to the next, like the other filters.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool OnlyUnwatched { get; set; }
+
+    partial void OnOnlyUnwatchedChanged(bool value) => FilterChanged();
+
     partial void OnSelectedResolutionChanged(string? value) => FilterChanged();
     partial void OnSelectedDecadeChanged(string? value) => FilterChanged();
     partial void OnSelectedRatingChanged(string? value) => FilterChanged();
@@ -686,7 +696,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private static string? Chosen(string? value) => value is null or AnyFilter ? null : value;
 
-    public bool HasFilter => CurrentFilter != new LibraryFilter();
+    public bool HasFilter => OnlyUnwatched || CurrentFilter != new LibraryFilter();
 
     private LibraryFilter CurrentFilter => new()
     {
@@ -704,6 +714,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _suppressFilter = true;
         SelectedResolution = SelectedDecade = SelectedRating = SelectedCollection = AnyFilter;
         OnlyHdr = false;
+        OnlyUnwatched = false;
         _suppressFilter = suppressed;
         ApplyFilter(toTop: true);
     }
@@ -2861,8 +2872,8 @@ public partial class MainWindowViewModel : ViewModelBase
         var unwatched = NavItems.FirstOrDefault(n => n.Kind == NavKind.Unwatched);
         if (unwatched is not null)
             unwatched.Count = CurrentCards.Count(c => !c.Watched);
-        if (SelectedNav?.Kind == NavKind.Unwatched)
-            ApplyFilter();
+        if (SelectedNav?.Kind == NavKind.Unwatched || OnlyUnwatched)
+            ApplyFilter();   // what was just seen leaves the view
         AfterProgressChange();
     }
 
