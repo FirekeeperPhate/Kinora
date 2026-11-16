@@ -108,6 +108,9 @@ public sealed class AppSettings
     public bool SortDescending { get; set; }
     public double CardWidth { get; set; } = 170;
 
+    /// <summary>Sorting by title skips "The", "A" and "An" in front: "The Matrix" goes under M.</summary>
+    public bool IgnoreLeadingArticles { get; set; } = true;
+
     /// <summary>How far one notch of the mouse wheel scrolls: 1 = Avalonia's own step (50 px), 3 = three times that.</summary>
     public double ScrollSpeed { get; set; } = 3;
 

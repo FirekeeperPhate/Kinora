@@ -221,6 +221,11 @@
                     <StackPanel Spacing="12">
                         <TextBlock Classes="heading" Text="Library" />
                         <CheckBox IsChecked="{Binding ScanOnStartup}" Content="Look for changes when Kinora starts" />
+                        <StackPanel Spacing="2">
+                            <CheckBox IsChecked="{Binding IgnoreLeadingArticles}" Content="Sort titles without &quot;The&quot;, &quot;A&quot; and &quot;An&quot; in front" />
+                            <TextBlock Classes="subtle" FontSize="12" TextWrapping="Wrap" Margin="28,0,0,0"
+                                       Text="On: The Matrix is under M. Off: under T, as it is written." />
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 

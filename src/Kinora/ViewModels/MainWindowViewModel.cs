@@ -362,6 +362,9 @@ public partial class MainWindowViewModel : ViewModelBase
         };
     }
 
+    /// <summary>What titles sort by: without "The", "A", "An" in front, unless the settings say otherwise.</summary>
+    private string TitleKey(CardViewModel c) => _s.Settings.IgnoreLeadingArticles ? c.SortKey : c.FullSortKey;
+
     private void ApplyFilter(bool toTop = false)
     {
         if (_suppressFilter)
@@ -399,17 +402,17 @@ public partial class MainWindowViewModel : ViewModelBase
             sorted = SelectedSort.Value switch
             {
                 SortOrder.Year => SortDescending
-                    ? items.OrderBy(c => c.Year ?? int.MaxValue).ThenBy(c => c.SortKey, StringComparer.Ordinal)
-                    : items.OrderByDescending(c => c.Year ?? 0).ThenBy(c => c.SortKey, StringComparer.Ordinal),
+                    ? items.OrderBy(c => c.Year ?? int.MaxValue).ThenBy(c => TitleKey(c), StringComparer.Ordinal)
+                    : items.OrderByDescending(c => c.Year ?? 0).ThenBy(c => TitleKey(c), StringComparer.Ordinal),
                 SortOrder.DateAdded => SortDescending
                     ? items.OrderBy(c => c.DateAdded)
                     : items.OrderByDescending(c => c.DateAdded),
                 SortOrder.Rating => SortDescending
-                    ? items.OrderBy(c => c.Rating ?? double.MaxValue).ThenBy(c => c.SortKey, StringComparer.Ordinal)
-                    : items.OrderByDescending(c => c.Rating ?? 0).ThenBy(c => c.SortKey, StringComparer.Ordinal),
+                    ? items.OrderBy(c => c.Rating ?? double.MaxValue).ThenBy(c => TitleKey(c), StringComparer.Ordinal)
+                    : items.OrderByDescending(c => c.Rating ?? 0).ThenBy(c => TitleKey(c), StringComparer.Ordinal),
                 _ => SortDescending
-                    ? items.OrderByDescending(c => c.SortKey, StringComparer.Ordinal)
-                    : items.OrderBy(c => c.SortKey, StringComparer.Ordinal),
+                    ? items.OrderByDescending(c => TitleKey(c), StringComparer.Ordinal)
+                    : items.OrderBy(c => TitleKey(c), StringComparer.Ordinal),
             };
         }
 
@@ -453,7 +456,7 @@ public partial class MainWindowViewModel : ViewModelBase
         foreach (var card in _duplicates.Keys)
             card.Note = null;
         _duplicates.Clear();
-        var groups = DuplicateFinder.Groups(CurrentCards, c => c.Ids).OrderBy(g => g[0].SortKey, StringComparer.Ordinal);
+        var groups = DuplicateFinder.Groups(CurrentCards, c => c.Ids).OrderBy(g => TitleKey(g[0]), StringComparer.Ordinal);
         var place = 0;
         foreach (var group in groups)
         {
@@ -2885,8 +2888,11 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         var settings = new SettingsViewModel(_s, Dialogs, CheckForUpdatesAsync);
         var cardWidth = _s.Settings.CardWidth;
+        var ignoreArticles = _s.Settings.IgnoreLeadingArticles;
         await Dialogs.ShowSettingsAsync(settings);
         _s.SaveSettings();
+        if (ignoreArticles != _s.Settings.IgnoreLeadingArticles)
+            ApplyFilter();
         OnPropertyChanged(nameof(HasMediaServer));
         OnPropertyChanged(nameof(SyncMenuText));
         if (Math.Abs(cardWidth - _s.Settings.CardWidth) > 0.5)

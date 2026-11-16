@@ -66,7 +66,7 @@ public sealed class MovieCardViewModel : CardViewModel
             .Append(m.Title).Append(' ').Append(m.OriginalTitle).Append(' ').Append(m.Year).Append(' ')
             .Append(m.Directors.Replace('|', ' ')).Append(' ').Append(m.Collection).Append(' ').Append(CastNames)
             .ToString());
-        SortKey = SortTitle(m.SortTitle ?? m.Title);
+        SetSortKeys(m.SortTitle ?? m.Title);
         TitleKeys = TitleKeysOf(m.Title, m.OriginalTitle);
     }
 

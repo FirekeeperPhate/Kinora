@@ -140,15 +140,15 @@ public abstract partial class CardViewModel : ViewModelBase, IPosterHolder
         OnPropertyChanged(nameof(Subtitle));
     }
 
-    /// <summary>"The Matrix" sorts under M, as in every library.</summary>
-    protected static string SortTitle(string title)
+    /// <summary>The two sort keys: "The Matrix" under M (<see cref="SortKey"/>) or under T (<see cref="FullSortKey"/>).</summary>
+    protected void SetSortKeys(string title)
     {
-        var t = SearchText.Normalize(title);
-        foreach (var article in new[] { "the ", "a ", "an " })
-            if (t.StartsWith(article, StringComparison.Ordinal) && t.Length > article.Length)
-                return t[article.Length..];
-        return t;
+        SortKey = SearchText.SortKey(title);
+        FullSortKey = SearchText.SortKey(title, ignoreArticles: false);
     }
+
+    /// <summary>The title as it is, "The" included: for those who don't want it skipped.</summary>
+    public string FullSortKey { get; private set; } = "";
 
     // ---- selection ----
 

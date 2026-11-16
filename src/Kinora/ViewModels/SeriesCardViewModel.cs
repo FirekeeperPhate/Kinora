@@ -90,7 +90,7 @@ public sealed class SeriesCardViewModel : CardViewModel
             .Append(s.Title).Append(' ').Append(s.OriginalTitle).Append(' ').Append(s.Year).Append(' ')
             .Append(s.Studios.Replace('|', ' ')).Append(' ').Append(CastNames)
             .ToString());
-        SortKey = SortTitle(s.SortTitle ?? s.Title);
+        SetSortKeys(s.SortTitle ?? s.Title);
         TitleKeys = TitleKeysOf(s.Title, s.OriginalTitle);
     }
 

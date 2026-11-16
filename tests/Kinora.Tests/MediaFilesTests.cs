@@ -55,6 +55,20 @@ public class MediaFilesTests
     public void Search_text(string text, string normalized) => Assert.Equal(normalized, SearchText.Normalize(text));
 
     [Fact]
+    public void Titles_sort_without_the_article_in_front_unless_asked_to_keep_it()
+    {
+        static List<string> Sorted(bool ignore, params string[] titles) =>
+            titles.OrderBy(t => SearchText.SortKey(t, ignore), StringComparer.Ordinal).ToList();
+
+        string[] titles = ["Up", "The Matrix", "A Quiet Place", "Heat", "An American Werewolf in London", "The"];
+        Assert.Equal(["An American Werewolf in London", "Heat", "The Matrix", "A Quiet Place", "The", "Up"], Sorted(true, titles));
+        Assert.Equal(["A Quiet Place", "An American Werewolf in London", "Heat", "The", "The Matrix", "Up"], Sorted(false, titles));
+        Assert.Equal("matrix", SearchText.SortKey("The Matrix"));
+        Assert.Equal("there will be blood", SearchText.SortKey("There Will Be Blood"));   // a word, not the article
+        Assert.Equal("la dolce vita", SearchText.SortKey("La dolce vita"));
+    }
+
+    [Fact]
     public void A_short_title_comes_before_everything_else_with_its_letters()
     {
         static int Rank(string query, params string[] titles) =>

@@ -79,6 +79,7 @@ public partial class SettingsViewModel : ViewModelBase
         ThemeIndex = (int)_s.Settings.Theme;
         WriteToMediaFolders = _s.Settings.WriteToMediaFolders;
         ScanOnStartup = _s.Settings.ScanOnStartup;
+        IgnoreLeadingArticles = _s.Settings.IgnoreLeadingArticles;
         UseBuiltInPlayer = _s.Settings.UseBuiltInPlayer;
         AutoPlayNextEpisode = _s.Settings.AutoPlayNextEpisode;
         SkipBackSeconds = SkipChoices.Contains(_s.Settings.SkipBackSeconds) ? _s.Settings.SkipBackSeconds : 10;
@@ -455,6 +456,11 @@ public partial class SettingsViewModel : ViewModelBase
 
     [ObservableProperty]
     public partial double ScrollSpeed { get; set; }
+
+    [ObservableProperty]
+    public partial bool IgnoreLeadingArticles { get; set; }
+
+    partial void OnIgnoreLeadingArticlesChanged(bool value) => _s.Settings.IgnoreLeadingArticles = value;
 
     partial void OnScrollSpeedChanged(double value) => _s.Settings.ScrollSpeed = Math.Round(value * 2) / 2;
 

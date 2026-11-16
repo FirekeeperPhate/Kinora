@@ -65,6 +65,22 @@ public static class SearchText
         return best;
     }
 
+    /// <summary>
+    /// The key titles are sorted by: "The Matrix" under M, as in every library, unless the user
+    /// wants it under T. Only English articles: an Italian "La" or "Il" is often part of the name.
+    /// </summary>
+    public static string SortKey(string? title, bool ignoreArticles = true)
+    {
+        var t = Normalize(title);
+        if (ignoreArticles)
+            foreach (var article in SortArticles)
+                if (t.StartsWith(article, StringComparison.Ordinal) && t.Length > article.Length)
+                    return t[article.Length..];
+        return t;
+    }
+
+    private static readonly string[] SortArticles = ["the ", "a ", "an "];
+
     private static readonly string[] Articles = ["the ", "a ", "an ", "il ", "lo ", "la ", "i ", "gli ", "le ", "un ", "uno ", "una "];
 
     private static string WithoutArticle(string title)

@@ -38,7 +38,8 @@ engine), or, if you prefer, in the player the OS associates with it. Windows, Li
 - **Watched** flags survive rescans, and a movie moved outside Kinora keeps it (by IMDb/TMDB id).
 - Search across title, original title, year, director, collection and cast; accents and
   punctuation don't matter. What is called just that comes first, then what begins with it, so "Her"
-  isn't lost among "Others" and "Sherlock". Sort by title (articles ignored), year, date added, rating.
+  isn't lost among "Others" and "Sherlock". Sort by title, year, date added, rating;
+  by title "The Matrix" goes under M, or under T if you untick that in Settings → Library.
 - **Filters** in the toolbar: resolution, HDR, decade, rating, collection (for shows decade and
   rating). The collection on a movie's page opens the other movies in it. HDR comes from the nfo's
   `hdrtype` or the file name; for what is already in the library the nfo is read by a full scan.
