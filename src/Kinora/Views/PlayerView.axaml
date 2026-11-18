@@ -49,6 +49,9 @@
                     <Setter Property="CornerRadius" Value="22" />
                     <Setter Property="Focusable" Value="False" />
                     <Setter Property="VerticalAlignment" Value="Center" />
+                    <!-- Next to the mouse a tip can cover the bottom of its own button, and a click there hits the tip -->
+                    <Setter Property="ToolTip.Placement" Value="Top" />
+                    <Setter Property="ToolTip.VerticalOffset" Value="-6" />
                 </Style>
                 <Style Selector="Button.player:pointerover /template/ ContentPresenter#PART_ContentPresenter, DropDownButton.player:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.player:pointerover /template/ ContentPresenter#PART_ContentPresenter">
                     <Setter Property="Background" Value="#33FFFFFF" />
@@ -85,6 +88,9 @@
                     <Setter Property="Focusable" Value="False" />
                     <Setter Property="HorizontalAlignment" Value="Stretch" />
                     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <!-- Beside the menu, not over the next row -->
+                    <Setter Property="ToolTip.Placement" Value="Left" />
+                    <Setter Property="ToolTip.HorizontalOffset" Value="-6" />
                 </Style>
                 <Style Selector="Button.playerRow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
                     <Setter Property="Background" Value="#33FFFFFF" />
@@ -102,6 +108,11 @@
                     <Setter Property="HorizontalContentAlignment" Value="Center" />
                     <Setter Property="VerticalContentAlignment" Value="Center" />
                 </Style>
+                <Style Selector="TextBlock.menuHeader">
+                    <Setter Property="FontSize" Value="12" />
+                    <Setter Property="Opacity" Value="0.6" />
+                    <Setter Property="Margin" Value="10,4,10,2" />
+                </Style>
                 <Style Selector="Border.bar">
                     <Setter Property="Transitions">
                         <Transitions>
@@ -111,6 +122,8 @@
                 </Style>
                 <Style Selector="Slider">
                     <Setter Property="Focusable" Value="False" />
+                    <Setter Property="ToolTip.Placement" Value="Top" />
+                    <Setter Property="ToolTip.VerticalOffset" Value="-6" />
                 </Style>
             </Grid.Styles>
 
@@ -261,7 +274,7 @@
                                 </Flyout>
                             </DropDownButton.Flyout>
                         </DropDownButton>
-                        <DropDownButton x:Name="SpeedButton" Grid.Column="7" Classes="player" ToolTip.Tip="Speed (− and +)">
+                        <DropDownButton x:Name="SpeedButton" Grid.Column="7" Classes="player" ToolTip.Tip="Speed (− and +) and zoom (Z)">
                             <Panel>
                                 <Path Classes="icon" Data="{x:Static k:Icons.Speed}" IsVisible="{Binding !IsRateChanged}" />
                                 <TextBlock Text="{Binding RateText}" FontWeight="SemiBold" IsVisible="{Binding IsRateChanged}" MinWidth="22"
@@ -269,19 +282,37 @@
                             </Panel>
                             <DropDownButton.Flyout>
                                 <Flyout Placement="TopEdgeAlignedRight" FlyoutPresenterClasses="player">
-                                    <ItemsControl x:Name="SpeedPanel" Width="180" ItemsSource="{Binding Speeds}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate x:DataType="vm:SpeedChoice">
-                                                <Button Classes="playerRow" Command="{Binding ChooseCommand}">
-                                                    <Grid ColumnDefinitions="26,*">
-                                                        <Path Classes="icon" Data="{x:Static k:Icons.Check}" Stroke="White" Width="16" Height="16"
-                                                              HorizontalAlignment="Left" IsVisible="{Binding IsSelected}" />
-                                                        <TextBlock Grid.Column="1" Text="{Binding Name}" />
-                                                    </Grid>
-                                                </Button>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
+                                    <StackPanel x:Name="SpeedPanel" Width="180" Spacing="2">
+                                        <TextBlock Classes="menuHeader" Text="Speed" />
+                                        <ItemsControl ItemsSource="{Binding Speeds}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:SpeedChoice">
+                                                    <Button Classes="playerRow" Command="{Binding ChooseCommand}">
+                                                        <Grid ColumnDefinitions="26,*">
+                                                            <Path Classes="icon" Data="{x:Static k:Icons.Check}" Stroke="White" Width="16" Height="16"
+                                                                  HorizontalAlignment="Left" IsVisible="{Binding IsSelected}" />
+                                                            <TextBlock Grid.Column="1" Text="{Binding Name}" />
+                                                        </Grid>
+                                                    </Button>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <Border Height="1" Background="#22FFFFFF" Margin="4,6" />
+                                        <TextBlock Classes="menuHeader" Text="Zoom (Z)" />
+                                        <ItemsControl ItemsSource="{Binding Zooms}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:ZoomChoice">
+                                                    <Button Classes="playerRow" Command="{Binding ChooseCommand}">
+                                                        <Grid ColumnDefinitions="26,*">
+                                                            <Path Classes="icon" Data="{x:Static k:Icons.Check}" Stroke="White" Width="16" Height="16"
+                                                                  HorizontalAlignment="Left" IsVisible="{Binding IsSelected}" />
+                                                            <TextBlock Grid.Column="1" Text="{Binding Name}" />
+                                                        </Grid>
+                                                    </Button>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
                                 </Flyout>
                             </DropDownButton.Flyout>
                         </DropDownButton>

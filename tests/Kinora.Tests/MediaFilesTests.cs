@@ -48,6 +48,29 @@ public class MediaFilesTests
         Assert.Null(art.Fanart);
     }
 
+    [Fact]
+    public void Subtitles_are_looked_for_in_the_Subs_folder_next_to_the_video()
+    {
+        var root = Directory.CreateTempSubdirectory("kinora-subs-");
+        try
+        {
+            var withSubs = Directory.CreateDirectory(Path.Combine(root.FullName, "Crime 101 (2026)"));
+            Directory.CreateDirectory(Path.Combine(withSubs.FullName, ".actors"));
+            var subs = Directory.CreateDirectory(Path.Combine(withSubs.FullName, "subs"));
+            var plain = Directory.CreateDirectory(Path.Combine(root.FullName, "Heat (1995)"));
+
+            Assert.Equal(subs.FullName, MediaFiles.SubtitleFolder(Path.Combine(withSubs.FullName, "Crime 101 (2026).mp4")));
+            Assert.Equal(plain.FullName, MediaFiles.SubtitleFolder(Path.Combine(plain.FullName, "Heat (1995).mkv")));
+            Assert.Equal(subs.FullName, MediaFiles.SubtitleFolder(new Uri(Path.Combine(withSubs.FullName, "Crime 101 (2026).mp4")).AbsoluteUri));
+            Assert.Null(MediaFiles.SubtitleFolder("http://192.168.1.10:8096/Videos/12/stream.mkv"));
+            Assert.Null(MediaFiles.SubtitleFolder(Path.Combine(root.FullName, "Gone", "Gone.mkv")));
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
     [Theory]
     [InlineData("Amélie", "amelie")]
     [InlineData("Spider-Man: No Way Home", "spider man no way home")]

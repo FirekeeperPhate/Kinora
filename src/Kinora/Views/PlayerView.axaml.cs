@@ -36,7 +36,11 @@ public partial class PlayerView : UserControl
         _hideTimer.Tick += (_, _) => HideControls();
 
         Surface.Ready += () => Dispatcher.UIThread.Post(() => _vm?.Start());
-        Surface.SizeChanged += (_, _) => FitOverlay();
+        Surface.SizeChanged += (_, _) =>
+        {
+            FitOverlay();
+            _vm?.SetSurfaceSize(Surface.Bounds.Width, Surface.Bounds.Height);
+        };
 
         OverlayRoot.PointerMoved += (_, e) =>
         {
@@ -108,6 +112,7 @@ public partial class PlayerView : UserControl
         if (_vm is null)
             return;
         Surface.Player = _vm.Player;
+        _vm.SetSurfaceSize(Surface.Bounds.Width, Surface.Bounds.Height);
         _vm.FullScreenToggleRequested += ToggleFullScreen;
         _vm.ItemChanged += OnItemChanged;
         _vm.PropertyChanged += (_, args) =>
@@ -220,11 +225,12 @@ public partial class PlayerView : UserControl
         SubtitlesButton.Flyout?.Hide();
         if (_window is not { } window || _vm is not { } vm)
             return;
-        await vm.LoadSubtitles(async () =>
+        await vm.LoadSubtitles(async startIn =>
         {
             var files = await window.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
                 Title = "Load subtitles",
+                SuggestedStartLocation = startIn is null ? null : await window.StorageProvider.TryGetFolderFromPathAsync(startIn),
                 FileTypeFilter = [new FilePickerFileType("Subtitles") { Patterns = ["*.srt", "*.ass", "*.ssa", "*.sub", "*.vtt"] }],
             });
             return files.Count > 0 ? files[0].TryGetLocalPath() : null;
@@ -382,6 +388,9 @@ public partial class PlayerView : UserControl
                 break;
             case Key.T:
                 vm.ToggleOnTop();
+                break;
+            case Key.Z:
+                vm.CycleZoom();
                 break;
             case Key.V:
                 vm.ToggleClearVoices();

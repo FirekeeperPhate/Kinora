@@ -126,8 +126,11 @@ controls sit over it and go away after three seconds without moving the mouse.
 
 - Play/pause, back 10 s, forward 30 s (both can be changed in Settings → Playback), the seek bar,
   volume and mute, full screen; the audio track and the subtitles (the ones in the file and the
-  `.srt` files next to it) from two panels; the chapters of the file, the speed (0.5× to 2×), and a
-  pin that keeps the window over the others.
+  `.srt` files next to it) from two panels; the chapters of the file, the speed (0.5× to 2×) and the
+  zoom, and a pin that keeps the window over the others.
+- **Zoom** (in the speed menu, or Z): Fit shows the whole picture, Fill covers the window and cuts
+  what spills over, 16:9 and 4:3 force that shape on a video that comes out squeezed. It lasts for
+  this viewing, the next episodes included.
 - **Clear voices** (the audio menu, or V): an equalizer that takes the rumble of explosions and
   music down and brings the range of voices up, for the evening. It doesn't even out loud and
   quiet scenes: libvlc lets an app drive no compressor.
@@ -139,12 +142,13 @@ controls sit over it and go away after three seconds without moving the mouse.
 - The audio and subtitles you choose are remembered, for the show and in general: the next title
   starts on the same track, or on one in the same language; "Off" counts as a choice.
 - The subtitle panel has the delay, the size of text subtitles, Find subtitles (OpenSubtitles, with
-  the video paused; what you download starts right away) and Load a file. Changing the size restarts
+  the video paused; what you download starts right away) and Load a file, which opens in the
+  video's Subs (or Subtitles) folder if it has one, otherwise in its own. Changing the size restarts
   VLC's engine: the picture goes black for a moment and comes back where it was.
 - Keys: Space or K play/pause, ← →  back and forward (Ctrl+→ a minute), ↑ ↓ volume, M mute,
   F or a double click full screen, A and S the next audio track or subtitle, G and H subtitles
   earlier or later, N and P next and previous episode, I skip intro, C chapters, − and + speed,
-  T keep on top, V clear voices, Esc leaves full screen, then the player.
+  T keep on top, V clear voices, Z zoom, Esc leaves full screen, then the player.
 - Media keys (Windows): play/pause, stop, next and previous, and the forward and rewind buttons of
   remotes work even when Kinora is minimized or another window is in front, and so do the buttons
   of Bluetooth headphones. Windows' media panel shows the title and the poster. Windows sends the

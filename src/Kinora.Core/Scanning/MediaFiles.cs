@@ -38,6 +38,38 @@ public static partial class MediaFiles
 
     public static bool IsVideo(string fileName) => VideoExtensions.Contains(Path.GetExtension(fileName));
 
+    /// <summary>The folders where subtitles are kept next to a video, the same names VLC looks in.</summary>
+    private static readonly string[] SubtitleFolders = ["Subs", "Subtitles", "Sub"];
+
+    /// <summary>
+    /// Where to start looking for a subtitle file of this video: its Subs (or Subtitles) folder if it has one,
+    /// else the video's own folder. Null for a stream from a server or a folder that isn't there.
+    /// </summary>
+    public static string? SubtitleFolder(string videoPath)
+    {
+        if (Uri.TryCreate(videoPath, UriKind.Absolute, out var uri) && !uri.IsFile)
+            return null;
+        try
+        {
+            var folder = Path.GetDirectoryName(uri?.IsFile == true ? uri.LocalPath : videoPath);
+            if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
+                return null;
+            foreach (var name in SubtitleFolders)
+            {
+                // The name as it is on disk: on Linux "subs" isn't "Subs"
+                var found = Directory.EnumerateDirectories(folder)
+                    .FirstOrDefault(d => string.Equals(Path.GetFileName(d), name, StringComparison.OrdinalIgnoreCase));
+                if (found is not null)
+                    return found;
+            }
+            return folder;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>For folders inside a movie or show: housekeeping and extras.</summary>
     public static bool IsIgnoredFolder(string name) =>
         IsHousekeepingFolder(name) || ExtrasFolders.Contains(name);

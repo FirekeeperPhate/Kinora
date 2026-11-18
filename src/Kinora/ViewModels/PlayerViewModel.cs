@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Kinora.Core.Data;
 using Kinora.Core.Playback;
+using Kinora.Core.Scanning;
 using Kinora.Services;
 using LibVLCSharp.Shared;
 
@@ -62,6 +63,23 @@ public sealed partial class ChapterChoice(string name, long startMs, Action<Chap
     private void Choose() => choose(this);
 }
 
+/// <summary>How the picture fills the window.</summary>
+public enum VideoZoom { Fit, Fill, Wide, Standard }
+
+/// <summary>A zoom in the player's menu.</summary>
+public sealed partial class ZoomChoice(VideoZoom zoom, string name) : ObservableObject
+{
+    public VideoZoom Zoom { get; } = zoom;
+    public string Name { get; } = name;
+    public event Action? Chosen;
+
+    [ObservableProperty]
+    public partial bool IsSelected { get; set; }
+
+    [RelayCommand]
+    private void Choose() => Chosen?.Invoke();
+}
+
 /// <summary>A speed in the player's menu.</summary>
 public sealed partial class SpeedChoice(float rate, Action<SpeedChoice> choose) : ObservableObject
 {
@@ -115,6 +133,8 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
     private bool _introSkipped;
     private CancellationTokenSource _introLookup = new();
     private float _rate = 1;
+    private VideoZoom _zoom = VideoZoom.Fit;
+    private (int Width, int Height) _surface;
 
     /// <summary>Where the video really was: the clock without the jumps VLC makes when a read fails.</summary>
     private long _lastGoodMs;
@@ -143,6 +163,11 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
         ClearVoices = s.Settings.ClearVoices;
         foreach (var rate in new[] { 0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f })
             Speeds.Add(new SpeedChoice(rate, c => SetRate(c.Rate)) { IsSelected = rate == 1 });
+        foreach (var z in Zooms)
+        {
+            z.Chosen += () => SetZoom(z.Zoom);
+            z.IsSelected = z.Zoom == VideoZoom.Fit;
+        }
         Prepare();
 
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
@@ -255,6 +280,12 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
 
     public ObservableCollection<SpeedChoice> Speeds { get; } = [];
 
+    /// <summary>How the picture fills the window: for this viewing, the next episodes included.</summary>
+    public ObservableCollection<ZoomChoice> Zooms { get; } =
+    [
+        new(VideoZoom.Fit, "Fit"), new(VideoZoom.Fill, "Fill"), new(VideoZoom.Wide, "16:9"), new(VideoZoom.Standard, "4:3"),
+    ];
+
     public string RateText => SpeedText(_rate);
     public bool IsRateChanged => _rate != 1;
 
@@ -288,6 +319,8 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
                 Player.SetSpuDelay(_subtitleDelayMs * 1000);
             if (_rate != 1)
                 Player.SetRate(_rate);
+            if (_zoom != VideoZoom.Fit)
+                ApplyZoom();
             ApplyClearVoices();
             RefreshTracks();
             RefreshChapters();
@@ -650,6 +683,42 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
         ShowToast(rate == 1 ? "Normal speed" : $"Speed {SpeedText(rate)}");
     }
 
+    /// <summary>The next zoom of the menu, from the Z key.</summary>
+    public void CycleZoom()
+    {
+        var i = Zooms.ToList().FindIndex(z => z.Zoom == _zoom);
+        SetZoom(Zooms[(i + 1) % Zooms.Count].Zoom);
+    }
+
+    private void SetZoom(VideoZoom zoom)
+    {
+        _zoom = zoom;
+        foreach (var z in Zooms)
+            z.IsSelected = z.Zoom == zoom;
+        ApplyZoom();
+        ShowToast($"Zoom: {Zooms.First(z => z.Zoom == zoom).Name}");
+    }
+
+    /// <summary>The size of the picture's window: Fill cuts the video to its shape.</summary>
+    public void SetSurfaceSize(double width, double height)
+    {
+        var size = ((int)Math.Round(width), (int)Math.Round(height));
+        if (size == _surface || size.Item1 <= 0 || size.Item2 <= 0)
+            return;
+        _surface = size;
+        if (_zoom == VideoZoom.Fill)
+            ApplyZoom();
+    }
+
+    private void ApplyZoom()
+    {
+        Player.AspectRatio = _zoom switch { VideoZoom.Wide => "16:9", VideoZoom.Standard => "4:3", _ => null };
+        // VLC crops to a shape given as "width:height": the window's, and the picture covers it
+        Player.CropGeometry = _zoom == VideoZoom.Fill && _surface.Width > 0
+            ? string.Create(CultureInfo.InvariantCulture, $"{_surface.Width}:{_surface.Height}")
+            : null;
+    }
+
     [RelayCommand]
     public void ToggleOnTop() => IsOnTop = !IsOnTop;
 
@@ -830,13 +899,14 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
         }));
     }
 
-    /// <summary>A file chosen by the user, for this viewing.</summary>
-    public Task LoadSubtitles(Func<Task<string?>> choose)
+    /// <summary>A file chosen by the user, for this viewing; the picker starts in the video's Subs folder, or its own.</summary>
+    public Task LoadSubtitles(Func<string?, Task<string?>> choose)
     {
         var request = _request;
         return WhilePaused(async () =>
         {
-            if (await choose() is { } file && request == _request)
+            var startIn = await Task.Run(() => MediaFiles.SubtitleFolder(request.Path));   // a NAS may be slow to answer
+            if (await choose(startIn) is { } file && request == _request)
                 AddSubtitleFile(file);
         });
     }
