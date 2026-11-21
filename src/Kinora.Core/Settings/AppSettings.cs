@@ -47,6 +47,12 @@ public sealed class AppSettings
     /// <summary>After a scan, ask TMDB about what is missing.</summary>
     public bool FetchAfterScan { get; set; } = true;
 
+    /// <summary>IMDb's ratings, from the file IMDb publishes (no key needed), for the titles with an IMDb id.</summary>
+    public bool DownloadImdbRatings { get; set; } = true;
+
+    /// <summary>The rating the library sorts and filters by.</summary>
+    public Kinora.Core.Models.RatingSource MainRating { get; set; } = Kinora.Core.Models.RatingSource.Default;
+
     // ---- OpenSubtitles ----
 
     public string? OpenSubtitlesKeyStored { get; set; }

@@ -92,6 +92,8 @@ public partial class SettingsViewModel : ViewModelBase
         MetadataLanguage = Languages.FirstOrDefault(l => l.Code == _s.Settings.MetadataLanguage)
                            ?? new MetadataLanguageOption(_s.Settings.MetadataLanguage, _s.Settings.MetadataLanguage);
         FetchAfterScan = _s.Settings.FetchAfterScan;
+        DownloadImdbRatings = _s.Settings.DownloadImdbRatings;
+        MainRating = RatingSources.FirstOrDefault(o => o.Source == _s.Settings.MainRating) ?? RatingSources[0];
         LoadSubtitleSettings();
         LoadServerSettings();
     }
@@ -131,6 +133,27 @@ public partial class SettingsViewModel : ViewModelBase
 
     partial void OnMetadataLanguageChanged(MetadataLanguageOption value) => _s.Settings.MetadataLanguage = value.Code;
     partial void OnFetchAfterScanChanged(bool value) => _s.Settings.FetchAfterScan = value;
+
+    [ObservableProperty]
+    public partial bool DownloadImdbRatings { get; set; }
+
+    partial void OnDownloadImdbRatingsChanged(bool value) => _s.Settings.DownloadImdbRatings = value;
+
+    public IReadOnlyList<RatingSourceOption> RatingSources { get; } =
+    [
+        new(RatingSource.Default, "The nfo's own rating"),
+        new(RatingSource.Imdb, "IMDb"),
+        new(RatingSource.Tmdb, "TMDB"),
+    ];
+
+    [ObservableProperty]
+    public partial RatingSourceOption MainRating { get; set; }
+
+    partial void OnMainRatingChanged(RatingSourceOption value)
+    {
+        if (value is not null)
+            _s.Settings.MainRating = value.Source;
+    }
 
     [RelayCommand]
     private async Task TestKey()
@@ -561,4 +584,9 @@ public partial class SettingsViewModel : ViewModelBase
 public sealed record MetadataLanguageOption(string Code, string Name)
 {
     public override string ToString() => $"{Name} ({Code})";
+}
+
+public sealed record RatingSourceOption(RatingSource Source, string Name)
+{
+    public override string ToString() => Name;
 }

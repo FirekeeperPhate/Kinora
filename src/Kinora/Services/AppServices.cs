@@ -39,6 +39,9 @@ public sealed class AppServices
     /// <summary>The actors' photos on the movie and show pages.</summary>
     public CastPhotos CastPhotos { get; }
 
+    /// <summary>IMDb's ratings for the library, from IMDb's own file.</summary>
+    public ImdbRatings Imdb { get; }
+
     public AppServices()
     {
         PosterLoader = new PosterLoader(Posters);
@@ -49,6 +52,7 @@ public sealed class AppServices
         Mover = new Kinora.Core.Moving.LibraryMover(Database, Scanner, SeriesScanner);
         Deleter = new Kinora.Core.Moving.LibraryDeleter(Database, Scanner, SeriesScanner);
         CastPhotos = new CastPhotos(Database, People);
+        Imdb = new ImdbRatings(Database, AppPaths.ImdbRatings);
     }
 
     /// <summary>Null without a key: Kinora then works with the folders alone.</summary>

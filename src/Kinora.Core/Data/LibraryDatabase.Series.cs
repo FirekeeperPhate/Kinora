@@ -9,10 +9,10 @@ namespace Kinora.Core.Data;
 public sealed partial class LibraryDatabase
 {
     private const string SeriesSelect = """
-        SELECT s.*,
+        SELECT s.*, ir.rating AS imdb_latest_rating, ir.votes AS imdb_latest_votes,
                (SELECT count(*) FROM episodes e WHERE e.series_id = s.id) AS episode_count,
                (SELECT count(*) FROM episodes e WHERE e.series_id = s.id AND e.watched = 1) AS watched_count
-        FROM series s
+        FROM series s LEFT JOIN imdb_ratings ir ON ir.imdb_id = s.imdb_id
         """;
 
     public List<Series> GetSeries(long? rootId = null)
@@ -247,7 +247,7 @@ public sealed partial class LibraryDatabase
 
     private static readonly string[] SeriesColumns =
     [
-        "root_id", "folder", "stamp", "title", "original_title", "sort_title", "year", "end_year", "plot", "rating", "mpaa",
+        "root_id", "folder", "stamp", "title", "original_title", "sort_title", "year", "end_year", "plot", "rating", "imdb_rating", "imdb_votes", "tmdb_rating", "user_rating", "mpaa",
         "premiered", "status", "imdb_id", "tmdb_id", "tvdb_id", "genres", "studios", "poster_file", "fanart_file", "logo_file",
         "thumb_key", "online_poster", "online_fanart", "online_logo", "date_added", "last_episode_added",
     ];

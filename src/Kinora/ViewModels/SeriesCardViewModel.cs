@@ -26,7 +26,7 @@ public sealed class SeriesCardViewModel : CardViewModel
     public override long RootId => Series.RootId;
     public override string Title => Series.Title;
     public override int? Year => Series.Year;
-    public override double? Rating => Series.Rating;
+    public override double? Rating => Series.By(RatingSource);
 
     /// <summary>For "recently added" and the date order, a show is as new as its newest episode.</summary>
     public override long DateAdded => Math.Max(Series.LastEpisodeAdded, Series.DateAdded);

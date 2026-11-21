@@ -1,7 +1,7 @@
 namespace Kinora.Core.Models;
 
 /// <summary>A TV show: its folder in a TV root, with the seasons and episodes below it.</summary>
-public sealed class Series
+public sealed class Series : IRated
 {
     public long Id { get; set; }
     public long RootId { get; set; }
@@ -19,6 +19,12 @@ public sealed class Series
     public int? EndYear { get; set; }
     public string? Plot { get; set; }
     public double? Rating { get; set; }
+    public double? ImdbRating { get; set; }
+    public int? ImdbVotes { get; set; }
+    public double? TmdbRating { get; set; }
+    public double? UserRating { get; set; }
+    public double? ImdbLatestRating { get; set; }
+    public int? ImdbLatestVotes { get; set; }
     public string? Mpaa { get; set; }
     public string? Premiered { get; set; }
     public string? Status { get; set; }

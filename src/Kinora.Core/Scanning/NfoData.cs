@@ -11,6 +11,12 @@ public sealed class NfoData
     public string? Tagline { get; set; }
     public int? Runtime { get; set; }
     public double? Rating { get; set; }
+
+    /// <summary>The ratings by source, as Kodi's ratings element names them; userrating is the owner's own.</summary>
+    public double? ImdbRating { get; set; }
+    public int? ImdbVotes { get; set; }
+    public double? TmdbRating { get; set; }
+    public double? UserRating { get; set; }
     public int? CriticRating { get; set; }
     public string? Mpaa { get; set; }
     public string? Premiered { get; set; }
@@ -53,6 +59,13 @@ public sealed class NfoData
         Tagline ??= other.Tagline;
         Runtime ??= other.Runtime;
         Rating ??= other.Rating;
+        if (ImdbRating is null)
+        {
+            ImdbRating = other.ImdbRating;
+            ImdbVotes = other.ImdbVotes;
+        }
+        TmdbRating ??= other.TmdbRating;
+        UserRating ??= other.UserRating;
         CriticRating ??= other.CriticRating;
         Mpaa ??= other.Mpaa;
         Premiered ??= other.Premiered;

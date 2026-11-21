@@ -2,6 +2,7 @@ using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Kinora.Core;
+using Kinora.Core.Models;
 using Kinora.Services;
 
 namespace Kinora.ViewModels;
@@ -20,7 +21,11 @@ public abstract partial class CardViewModel : ViewModelBase, IPosterHolder
     public abstract string Title { get; }
     public abstract string Subtitle { get; }
     public abstract int? Year { get; }
+    /// <summary>The rating sorted and filtered by, from the source chosen in the settings.</summary>
     public abstract double? Rating { get; }
+
+    /// <summary>Which rating <see cref="Rating"/> is: one choice for the whole library.</summary>
+    public static RatingSource RatingSource { get; set; }
     public abstract long DateAdded { get; }
     public abstract bool NeedsMatch { get; }
     public abstract IReadOnlyList<string> Genres { get; }

@@ -99,7 +99,7 @@ public partial class MovieDetailViewModel : ViewModelBase, IDisposable
     public string? RuntimeText => Movie.Runtime is { } r ? Format.Runtime(r) : null;
     public string? Mpaa => Movie.Mpaa;
     public string? Resolution => Movie.Resolution;
-    public string? RatingText => Movie.Rating is { } r ? r.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) : null;
+    public IReadOnlyList<RatingBadge> Ratings => RatingBadge.For(Movie);
     public IReadOnlyList<string> Genres => Movie.GenreList;
     public string? Directors => Join(Movie.DirectorList);
     public IReadOnlyList<string> DirectorNames => Movie.DirectorList;

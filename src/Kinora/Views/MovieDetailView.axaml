@@ -104,10 +104,24 @@
                             <Border Classes="badge" IsVisible="{Binding Resolution, Converter={x:Static ObjectConverters.IsNotNull}}" VerticalAlignment="Center">
                                 <TextBlock Text="{Binding Resolution}" FontSize="12" />
                             </Border>
-                            <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding RatingText, Converter={x:Static ObjectConverters.IsNotNull}}" VerticalAlignment="Center">
-                                <TextBlock Text="★" Foreground="#F5B83D" />
-                                <TextBlock Text="{Binding RatingText}" FontWeight="SemiBold" />
-                            </StackPanel>
+                            <ItemsControl ItemsSource="{Binding Ratings}" VerticalAlignment="Center">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="14" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:RatingBadge">
+                                        <StackPanel Orientation="Horizontal" Spacing="5" Background="Transparent" ToolTip.Tip="{Binding Tip}">
+                                            <TextBlock Text="★" Foreground="#F5B83D" IsVisible="{Binding !IsMine}" VerticalAlignment="Center" />
+                                            <TextBlock Text="♥" Foreground="{DynamicResource AccentBrush}" IsVisible="{Binding IsMine}" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding Value}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding Source}" Classes="subtle" FontSize="12" VerticalAlignment="Center" IsVisible="{Binding HasSource}" />
+                                            <TextBlock Text="{Binding Votes, StringFormat='({0})'}" Classes="subtle" FontSize="12" VerticalAlignment="Center" IsVisible="{Binding HasVotes}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </WrapPanel>
 
                         <ItemsControl ItemsSource="{Binding Genres}">

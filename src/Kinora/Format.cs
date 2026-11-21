@@ -26,6 +26,13 @@ public static class Format
 
     public static string Count(int n, string one, string many) => n == 1 ? $"1 {one}" : $"{n:N0} {many}";
 
+    /// <summary>1234567 → "1.2M", 45210 → "45K", 812 → "812".</summary>
+    public static string Votes(int n) =>
+        n >= 1_000_000 ? (n / 1_000_000.0).ToString("0.#", CultureInfo.InvariantCulture) + "M"
+        : n >= 10_000 ? (n / 1000).ToString(CultureInfo.InvariantCulture) + "K"
+        : n >= 1000 ? (n / 1000.0).ToString("0.#", CultureInfo.InvariantCulture) + "K"
+        : n.ToString(CultureInfo.InvariantCulture);
+
     /// <summary>"en" -> "English", "en forced" -> "English (forced)", "und" -> "Unknown".</summary>
     public static string Language(string tag)
     {

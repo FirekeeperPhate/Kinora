@@ -74,6 +74,10 @@ public static partial class NfoReader
             Tagline = Str(root, "tagline"),
             Runtime = Int(Str(root, "runtime")),
             Rating = Rating(root),
+            ImdbRating = NamedRating(root, "imdb")?.Value,
+            ImdbVotes = NamedRating(root, "imdb")?.Votes,
+            TmdbRating = (NamedRating(root, "themoviedb") ?? NamedRating(root, "tmdb"))?.Value,
+            UserRating = Dbl(Str(root, "userrating")) is > 0 and var mine ? mine : null,
             CriticRating = Int(Str(root, "criticrating")),
             Mpaa = Str(root, "mpaa"),
             Premiered = Date(Str(root, "premiered") ?? Str(root, "releasedate") ?? Str(root, "aired")),
@@ -176,6 +180,18 @@ public static partial class NfoReader
         }
         var direct = root.Element("rating");
         return direct is { HasElements: false } ? Dbl(direct.Value.Trim()) : null;
+    }
+
+    /// <summary>One of Kodi's named ratings: &lt;rating name="imdb"&gt;&lt;value&gt;7.8&lt;/value&gt;&lt;votes&gt;123456&lt;/votes&gt;.</summary>
+    private static (double Value, int? Votes)? NamedRating(XElement root, string name)
+    {
+        var rating = root.Element("ratings")?.Elements("rating")
+                         .FirstOrDefault(r => string.Equals((string?)r.Attribute("name"), name, StringComparison.OrdinalIgnoreCase));
+        if (rating is null || Dbl(Str(rating, "value")) is not { } value || value <= 0)
+            return null;
+        // Some tools write the votes with separators: 1,234,567
+        var votes = Int(Str(rating, "votes")?.Replace(",", "").Replace(".", ""));
+        return (value, votes > 0 ? votes : null);
     }
 
     private static string? UniqueId(XElement root, string type)

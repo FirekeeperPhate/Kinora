@@ -118,6 +118,18 @@ With a TMDB API key (Settings), what the folders don't say comes from The Movie 
 The key is stored encrypted for the Windows user (DPAPI); on Linux and macOS in a settings file
 only the user can read.
 
+## Ratings
+
+- A movie or show page shows every rating the nfo has: IMDb's (with the votes), TMDB's (also
+  from TMDB, with a key) and your own `<userrating>`. An nfo with one unnamed `<rating>` shows that one.
+- **IMDb ratings** (Settings → Ratings, on by default, no key or account): after a scan Kinora
+  downloads the ratings file IMDb publishes for personal and non-commercial use
+  (`title.ratings.tsv.gz`, about 9 MB, again when it is three days old) and keeps the ratings of the
+  titles with an IMDb id; nothing about the library is sent. IMDb's latest rating wins over the
+  nfo's, and a rescan doesn't lose it (it is kept apart). Turned off, the pages go back to the nfo's.
+- **Sort and filter by**: the nfo's own rating (the default one in the nfo, else TMDB's), IMDb's
+  or TMDB's. A title without the chosen one falls back to the nfo's.
+
 ## Playing
 
 Play opens the video in Kinora's player, over the whole window: VLC's engine draws it (hardware
@@ -310,4 +322,5 @@ Kinora is released under the [MIT License](LICENSE). The software it uses, and s
 packages, is listed with its licenses in [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt).
 
 This product uses the TMDB API but is not endorsed or certified by TMDB. Subtitles come from
-OpenSubtitles.com.
+OpenSubtitles.com. IMDb ratings: information courtesy of IMDb (https://www.imdb.com). Used with
+permission.

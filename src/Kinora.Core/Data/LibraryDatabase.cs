@@ -11,7 +11,7 @@ namespace Kinora.Core.Data;
 /// </summary>
 public sealed partial class LibraryDatabase
 {
-    private const int SchemaVersion = 10;
+    private const int SchemaVersion = 11;
 
     private readonly string _connectionString;
 
@@ -376,6 +376,30 @@ public sealed partial class LibraryDatabase
                 END;
                 """, transaction: tx);
         }
+        if (version < 11)
+        {
+            c.Execute("""
+                -- The ratings by source, as the nfo says them (TMDB's also from TMDB)
+                ALTER TABLE movies ADD COLUMN imdb_rating REAL;
+                ALTER TABLE movies ADD COLUMN imdb_votes INTEGER;
+                ALTER TABLE movies ADD COLUMN tmdb_rating REAL;
+                ALTER TABLE movies ADD COLUMN user_rating REAL;
+                ALTER TABLE series ADD COLUMN imdb_rating REAL;
+                ALTER TABLE series ADD COLUMN imdb_votes INTEGER;
+                ALTER TABLE series ADD COLUMN tmdb_rating REAL;
+                ALTER TABLE series ADD COLUMN user_rating REAL;
+                -- IMDb's ratings from its daily file, only for the titles in the library. Apart from
+                -- the titles: a scan rebuilds them from the nfo files
+                CREATE TABLE imdb_ratings (
+                    imdb_id TEXT PRIMARY KEY,
+                    rating REAL NOT NULL,
+                    votes INTEGER NOT NULL
+                );
+                -- Read every nfo again once, for the ratings it holds
+                UPDATE movies SET stamp = 0;
+                UPDATE series SET stamp = 0;
+                """, transaction: tx);
+        }
         c.Execute($"PRAGMA user_version = {SchemaVersion};", transaction: tx);
         tx.Commit();
     }
@@ -422,14 +446,14 @@ public sealed partial class LibraryDatabase
     {
         using var c = Open();
         return rootId is null
-            ? c.Query<Movie>("SELECT * FROM movies").ToList()
-            : c.Query<Movie>("SELECT * FROM movies WHERE root_id = @rootId", new { rootId }).ToList();
+            ? c.Query<Movie>(MovieSelect).ToList()
+            : c.Query<Movie>(MovieSelect + " WHERE m.root_id = @rootId", new { rootId }).ToList();
     }
 
     public Movie? GetMovie(long id)
     {
         using var c = Open();
-        return c.QuerySingleOrDefault<Movie>("SELECT * FROM movies WHERE id = @id", new { id });
+        return c.QuerySingleOrDefault<Movie>(MovieSelect + " WHERE m.id = @id", new { id });
     }
 
     /// <summary>The cast of every movie in one string each, for the search.</summary>
@@ -597,7 +621,7 @@ public sealed partial class LibraryDatabase
     private static readonly string[] MovieColumns =
     [
         "root_id", "folder", "video_file", "video_size", "stamp", "title", "original_title", "sort_title", "year",
-        "plot", "tagline", "runtime", "rating", "critic_rating", "mpaa", "premiered", "imdb_id", "tmdb_id",
+        "plot", "tagline", "runtime", "rating", "critic_rating", "imdb_rating", "imdb_votes", "tmdb_rating", "user_rating", "mpaa", "premiered", "imdb_id", "tmdb_id",
         "collection", "genres", "studios", "directors", "countries", "poster_file", "fanart_file", "logo_file",
         "thumb_key", "resolution", "video_codec", "audio_codec", "audio_channels", "subtitles", "other_videos", "watched", "date_added", "online_poster", "online_fanart", "online_logo", "hdr",
     ];

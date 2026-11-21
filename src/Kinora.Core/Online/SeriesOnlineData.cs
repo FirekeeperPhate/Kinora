@@ -67,6 +67,7 @@ public sealed class SeriesOnlineData
         s.EndYear ??= t.EndYear;
         s.Plot ??= t.Overview;
         s.Rating ??= t.VoteAverage;
+        s.TmdbRating ??= t.VoteAverage;
         s.Mpaa ??= t.Certification;
         s.Premiered ??= t.FirstAirDate;
         s.Status ??= t.Status;

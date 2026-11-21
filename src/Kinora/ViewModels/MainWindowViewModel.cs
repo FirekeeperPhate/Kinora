@@ -193,6 +193,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public void Initialize()
     {
+        CardViewModel.RatingSource = _s.Settings.MainRating;
         Reload();
         _ = ScanAndSyncOnStartupAsync();
         _ = CheckForUpdatesOnStartupAsync();
@@ -203,6 +204,8 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         if (_s.Settings.ScanOnStartup && _roots.Count > 0)
             await RunScanAsync(full: false);
+        else
+            await RefreshImdbRatingsAsync();
         if (_s.Settings is { SyncOnStartup: true, HasMediaServer: true })
             await SyncMediaServerAsync(asked: false);
         if (_s.Settings.HasTmdbKey && _shows.Count > 0
@@ -376,7 +379,7 @@ public partial class MainWindowViewModel : ViewModelBase
         var query = Core.SearchText.Normalize(SearchText);
         var filter = CurrentFilter;
         var items = InView(nav).Where(c => Core.SearchText.Matches(c.SearchKey, query))
-                               .Where(c => c is MovieCardViewModel m ? filter.Allows(m.Movie) : filter.Allows(c.Year, c.Rating))
+                               .Where(c => c is MovieCardViewModel m ? filter.Allows(m.Movie, CardViewModel.RatingSource) : filter.Allows(c.Year, c.Rating))
                                .Where(c => !OnlyUnwatched || !c.Watched);
 
         IEnumerable<CardViewModel> sorted;
@@ -866,6 +869,34 @@ public partial class MainWindowViewModel : ViewModelBase
 
         if (!cancelled && stopped is null && _s.Settings.FetchAfterScan && _s.Settings.HasTmdbKey)
             await RunFetchAsync(retryNotFound: false, asked: false);
+        if (!cancelled && stopped is null)
+            await RefreshImdbRatingsAsync();   // after TMDB, which tells the IMDb id of the titles without an nfo
+    }
+
+    // ---- IMDb ratings ----
+
+    private bool _imdbRefreshing;
+
+    /// <summary>IMDb's file, downloaded again when a few days old, read for the titles it wasn't read for yet.</summary>
+    private async Task RefreshImdbRatingsAsync()
+    {
+        if (!_s.Settings.DownloadImdbRatings || _imdbRefreshing)
+            return;
+        _imdbRefreshing = true;
+        try
+        {
+            if (await Task.Run(() => _s.Imdb.RefreshAsync(CancellationToken.None)) > 0)
+                Reload();
+        }
+        catch (Exception e) when (e is HttpRequestException or IOException or InvalidDataException or TaskCanceledException
+                                      or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
+        {
+            ShowStatusFor($"IMDb ratings not updated: {e.Message}", 12);
+        }
+        finally
+        {
+            _imdbRefreshing = false;
+        }
     }
 
     // ---- Emby or Jellyfin ----
@@ -2900,10 +2931,18 @@ public partial class MainWindowViewModel : ViewModelBase
         var settings = new SettingsViewModel(_s, Dialogs, CheckForUpdatesAsync);
         var cardWidth = _s.Settings.CardWidth;
         var ignoreArticles = _s.Settings.IgnoreLeadingArticles;
+        var imdb = _s.Settings.DownloadImdbRatings;
         await Dialogs.ShowSettingsAsync(settings);
         _s.SaveSettings();
-        if (ignoreArticles != _s.Settings.IgnoreLeadingArticles)
+        if (ignoreArticles != _s.Settings.IgnoreLeadingArticles || CardViewModel.RatingSource != _s.Settings.MainRating)
+        {
+            CardViewModel.RatingSource = _s.Settings.MainRating;
             ApplyFilter();
+        }
+        if (!imdb && _s.Settings.DownloadImdbRatings)
+            _ = RefreshImdbRatingsAsync();
+        else if (imdb && !_s.Settings.DownloadImdbRatings && _s.Imdb.Clear() > 0)
+            Reload();   // back to what the nfo files say
         OnPropertyChanged(nameof(HasMediaServer));
         OnPropertyChanged(nameof(SyncMenuText));
         if (Math.Abs(cardWidth - _s.Settings.CardWidth) > 0.5)

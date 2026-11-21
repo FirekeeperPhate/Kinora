@@ -130,6 +130,29 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Ratings -->
+                <Border Classes="card">
+                    <StackPanel Spacing="12">
+                        <StackPanel Spacing="4">
+                            <TextBlock Classes="heading" Text="Ratings" />
+                            <TextBlock Classes="subtle" TextWrapping="Wrap"
+                                       Text="A movie or show page shows every rating its nfo has (IMDb, TMDB, your own), with IMDb's latest one. The library sorts and filters by one of them." />
+                        </StackPanel>
+                        <StackPanel Spacing="2">
+                            <CheckBox IsChecked="{Binding DownloadImdbRatings}" Content="Download IMDb ratings" />
+                            <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="28,0,0,0" FontSize="12"
+                                       Text="No key or account: after a scan Kinora downloads the ratings file IMDb publishes for personal use (about 9 MB, every few days) and keeps the ratings of the titles with an IMDb id. Nothing about your library is sent." />
+                        </StackPanel>
+                        <Grid ColumnDefinitions="140,*">
+                            <TextBlock Text="Sort and filter by" VerticalAlignment="Center" />
+                            <ComboBox Grid.Column="1" ItemsSource="{Binding RatingSources}" SelectedItem="{Binding MainRating}" MinWidth="240" />
+                        </Grid>
+                        <!-- Required by IMDb's terms for its data -->
+                        <TextBlock Classes="subtle" FontSize="12" TextWrapping="Wrap"
+                                   Text="Information courtesy of IMDb (https://www.imdb.com). Used with permission." />
+                    </StackPanel>
+                </Border>
+
                 <!-- Subtitles -->
                 <Border Classes="card">
                     <StackPanel Spacing="12">

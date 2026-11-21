@@ -24,7 +24,7 @@ public sealed class MovieCardViewModel : CardViewModel
     public override long RootId => Movie.RootId;
     public override string Title => Movie.Title;
     public override int? Year => Movie.Year;
-    public override double? Rating => Movie.Rating;
+    public override double? Rating => Movie.By(RatingSource);
     public override long DateAdded => Movie.DateAdded;
     public override bool NeedsMatch => Movie.NeedsMatch;
     public override IReadOnlyList<string> Genres => Movie.GenreList;

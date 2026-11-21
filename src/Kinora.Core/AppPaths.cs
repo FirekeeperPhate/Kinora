@@ -17,6 +17,9 @@ public static class AppPaths
     public static string StillCache => Path.Combine(DataDir, "cache", "stills");
     public static string PeopleCache => Path.Combine(DataDir, "cache", "people");
 
+    /// <summary>IMDb's ratings file, as IMDb publishes it.</summary>
+    public static string ImdbRatings => Path.Combine(DataDir, "cache", "imdb", "title.ratings.tsv.gz");
+
     private static string Resolve()
     {
         var custom = Environment.GetEnvironmentVariable("KINORA_DATA");

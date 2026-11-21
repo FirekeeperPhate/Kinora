@@ -23,6 +23,7 @@ public static class MetadataMerger
         m.Tagline ??= t.Tagline;
         m.Runtime ??= t.Runtime;
         m.Rating ??= t.VoteAverage;
+        m.TmdbRating ??= t.VoteAverage;
         m.Mpaa ??= t.Certification;
         m.Premiered ??= t.ReleaseDate;
         m.Collection ??= t.Collection;

@@ -235,7 +235,7 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
     public string? YearsText => Card.Subtitle.Split("  ·  ")[0] is { Length: > 0 } y && Series.Year is not null ? y : null;
     public string? Mpaa => Series.Mpaa;
     public string? Status => Series.Status;
-    public string? RatingText => Series.Rating is { } r ? r.ToString("0.0", CultureInfo.InvariantCulture) : null;
+    public IReadOnlyList<RatingBadge> Ratings => RatingBadge.For(Series);
     public IReadOnlyList<string> Genres => Series.GenreList;
     public string? Networks => Series.StudioList.Count > 0 ? string.Join(", ", Series.StudioList.Take(3)) : null;
     public string EpisodesText => Format.Count(_episodes.Count, "episode", "episodes") + (Series.WatchedCount > 0 ? $", {Series.WatchedCount:N0} watched" : "");

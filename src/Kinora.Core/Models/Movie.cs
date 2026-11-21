@@ -6,7 +6,7 @@ namespace Kinora.Core.Models;
 /// A movie as the library keeps it. Paths are relative to the root; list fields are stored
 /// joined with <see cref="ListSeparator"/> and read through the <c>…List</c> helpers.
 /// </summary>
-public sealed partial class Movie
+public sealed partial class Movie : IRated
 {
     public const char ListSeparator = '|';
 
@@ -30,6 +30,12 @@ public sealed partial class Movie
     public int? Runtime { get; set; }
     public double? Rating { get; set; }
     public int? CriticRating { get; set; }
+    public double? ImdbRating { get; set; }
+    public int? ImdbVotes { get; set; }
+    public double? TmdbRating { get; set; }
+    public double? UserRating { get; set; }
+    public double? ImdbLatestRating { get; set; }
+    public int? ImdbLatestVotes { get; set; }
     public string? Mpaa { get; set; }
     public string? Premiered { get; set; }
     public string? ImdbId { get; set; }

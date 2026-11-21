@@ -21,8 +21,8 @@ public sealed record LibraryFilter
         (Decade is not { } decade || (year is { } y && y / 10 * 10 == decade))
         && (MinRating is not { } min || rating >= min);
 
-    public bool Allows(Movie movie) =>
-        Allows(movie.Year, movie.Rating)
+    public bool Allows(Movie movie, RatingSource rating = RatingSource.Default) =>
+        Allows(movie.Year, movie.By(rating))
         && (!Hdr || movie.IsHdr)
         && (Collection is null || string.Equals(Collection, movie.Collection, StringComparison.CurrentCultureIgnoreCase))
         && Resolution switch

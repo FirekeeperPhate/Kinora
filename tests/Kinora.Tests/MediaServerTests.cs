@@ -727,6 +727,13 @@ public sealed class MediaServerTests : IDisposable
         Assert.Contains(server.Requests, r => r.StartsWith("GET /Items?userId=u1&ids=a", StringComparison.Ordinal));
     }
 
+    /// <summary>What schema 11 added, taken away again to make an older library.</summary>
+    internal const string LibraryV11 = """
+        DROP TABLE imdb_ratings;
+        ALTER TABLE movies DROP COLUMN imdb_rating; ALTER TABLE movies DROP COLUMN imdb_votes; ALTER TABLE movies DROP COLUMN tmdb_rating; ALTER TABLE movies DROP COLUMN user_rating;
+        ALTER TABLE series DROP COLUMN imdb_rating; ALTER TABLE series DROP COLUMN imdb_votes; ALTER TABLE series DROP COLUMN tmdb_rating; ALTER TABLE series DROP COLUMN user_rating;
+        """;
+
     [Fact]
     public void A_library_synced_by_the_version_before_keeps_what_was_agreed()
     {
@@ -739,7 +746,7 @@ public sealed class MediaServerTests : IDisposable
         {
             c.Open();
             using var cmd = c.CreateCommand();
-            cmd.CommandText = "ALTER TABLE server_sync DROP COLUMN server_id; DROP TABLE tmdb_similar; DROP TABLE watch_history; PRAGMA user_version = 7;";
+            cmd.CommandText = LibraryV11 + "ALTER TABLE server_sync DROP COLUMN server_id; DROP TABLE tmdb_similar; DROP TABLE watch_history; PRAGMA user_version = 7;";
             cmd.ExecuteNonQuery();
         }
 
