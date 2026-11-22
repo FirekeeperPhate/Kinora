@@ -106,6 +106,36 @@ public sealed class AppSettings
     public bool HasMediaServer => !string.IsNullOrWhiteSpace(MediaServerUrl) && !string.IsNullOrEmpty(MediaServerUserId)
                                   && !string.IsNullOrEmpty(MediaServerKeyStored) && MediaServerKey.Length > 0;
 
+    // ---- Radarr and Sonarr ----
+
+    public string? RadarrUrl { get; set; }
+    public string? RadarrKeyStored { get; set; }
+    public string? SonarrUrl { get; set; }
+    public string? SonarrKeyStored { get; set; }
+
+    /// <summary>A movie or show deleted here goes on their exclusion list too: import lists don't add it back.</summary>
+    public bool ArrExclude { get; set; } = true;
+
+    [JsonIgnore]
+    public string RadarrKey
+    {
+        get => SecretText.Unprotect(RadarrKeyStored);
+        set => RadarrKeyStored = SecretText.Protect(value.Trim());
+    }
+
+    [JsonIgnore]
+    public string SonarrKey
+    {
+        get => SecretText.Unprotect(SonarrKeyStored);
+        set => SonarrKeyStored = SecretText.Protect(value.Trim());
+    }
+
+    [JsonIgnore]
+    public bool HasRadarr => !string.IsNullOrWhiteSpace(RadarrUrl) && !string.IsNullOrEmpty(RadarrKeyStored) && RadarrKey.Length > 0;
+
+    [JsonIgnore]
+    public bool HasSonarr => !string.IsNullOrWhiteSpace(SonarrUrl) && !string.IsNullOrEmpty(SonarrKeyStored) && SonarrKey.Length > 0;
+
     /// <summary>Subtitle languages in order of preference, as ISO codes: "en, it".</summary>
     public string SubtitleLanguages { get; set; } = "en";
 

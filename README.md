@@ -258,6 +258,22 @@ Recycle Bin.
 - The library changes only for what really went: if the NAS drops out, nothing is removed from
   it; if a delete stops halfway, the title is read again from the disk.
 
+### Radarr and Sonarr
+
+With Radarr and Sonarr in **Settings → Radarr and Sonarr** (address and API key, from their
+Settings → General), what is deleted here isn't downloaded again:
+
+- a movie deleted in Kinora goes from Radarr, a show from Sonarr, and (unless turned off) onto
+  their exclusion list, so an import list doesn't add it back;
+- a deleted episode stops being monitored in Sonarr; the rest of the show stays as it is.
+
+Kinora deletes the files itself, with the guards above, and only then tells Radarr or Sonarr,
+asking them to leave the files alone; a delete that fails leaves them as they were. Titles are
+found by their TMDB and IMDb ids (Radarr) or TVDB, IMDb and TMDB ids (Sonarr), never by path, so
+it works whatever the folders are called on the NAS. The question before deleting says what will
+happen there, or that they haven't got the title, or that they don't answer (then the files go
+anyway and the title stays in Radarr or Sonarr). Tried with Radarr 7.0 and Sonarr 4.0.
+
 ## Installing
 
 Every package has the .NET runtime inside: nothing else to install. `installer\build.ps1` makes

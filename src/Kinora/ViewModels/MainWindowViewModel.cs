@@ -2472,6 +2472,8 @@ public partial class MainWindowViewModel : ViewModelBase
             message += $"\n\nWatch out: {Format.Count(unknown.Count, "video that isn't part of it goes", "videos that aren't part of it go")} too:\n"
                        + string.Join("\n", unknown.Take(6)) + (unknown.Count > 6 ? $"\nand {unknown.Count - 6} more" : "");
         message += "\n\nThis can't be undone: the files don't go to the Recycle Bin.";
+        var arr = await FindInArrAsync(ok.Select(p => p.Card).ToList());
+        message += ArrText(arr.Values.ToList(), ok.Count);
         if (refused.Count > 0)
             message += "\n\nLeft out: " + string.Join("; ", refused.Take(3)) + (refused.Count > 3 ? $"; and {refused.Count - 3} more" : "") + ".";
         ScanStatus = "Delete: waiting for your answer";
@@ -2481,6 +2483,7 @@ public partial class MainWindowViewModel : ViewModelBase
         int deleted = 0;
         var touched = false;
         var problems = new List<string>(refused);
+        var fromArr = new SortedSet<Core.Arr.ArrKind>();
         for (var n = 0; n < ok.Count; n++)
         {
             var card = ok[n].Card;
@@ -2504,6 +2507,15 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 deleted++;
                 gone.Add(card);
+                // Only once the files are gone: a delete that fails leaves Radarr as it was
+                if (arr.TryGetValue(card, out var there) && there.Has)
+                {
+                    ScanStatus = $"Removing {card.Title} from {there.Kind}…";
+                    if (await _s.Arr.RemoveAsync(there, CancellationToken.None) is { } why)
+                        problems.Add($"“{card.Title}” is still in {there.Kind}: {why}");
+                    else
+                        fromArr.Add(there.Kind);
+                }
             }
             else
             {
@@ -2513,9 +2525,72 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         var text = ok.Count == 1 && deleted == 1 ? $"“{ok[0].Card.Title}” deleted" : $"{Format.Count(deleted, "title", "titles")} deleted";
+        if (fromArr.Count > 0)
+            text += $", from {string.Join(" and ", fromArr)} too";
         if (problems.Count > 0)
             text += " · " + string.Join(" · ", problems.Take(3)) + (problems.Count > 3 ? $" · and {problems.Count - 3} more" : "");
         return (text, touched);
+    }
+
+    /// <summary>
+    /// What Radarr (movies) and Sonarr (shows) have of these titles, for the question; nothing
+    /// for the ones without Radarr or Sonarr in the settings. One that doesn't answer isn't asked
+    /// again for the rest.
+    /// </summary>
+    private async Task<Dictionary<CardViewModel, Core.Arr.ArrFound>> FindInArrAsync(IReadOnlyList<CardViewModel> cards)
+    {
+        var found = new Dictionary<CardViewModel, Core.Arr.ArrFound>();
+        if (!_s.Arr.HasRadarr && !_s.Arr.HasSonarr)
+            return found;
+        var down = new Dictionary<Core.Arr.ArrKind, string>();
+        foreach (var card in cards)
+        {
+            var kind = card is SeriesCardViewModel ? Core.Arr.ArrKind.Sonarr : Core.Arr.ArrKind.Radarr;
+            if (down.TryGetValue(kind, out var why))
+            {
+                found[card] = new Core.Arr.ArrFound(kind, null, why);
+                continue;
+            }
+            ScanStatus = $"Asking {kind}…";
+            var f = card switch
+            {
+                MovieCardViewModel m => await _s.Arr.FindAsync(m.Movie, CancellationToken.None),
+                SeriesCardViewModel s => await _s.Arr.FindAsync(s.Series, CancellationToken.None),
+                _ => null,
+            };
+            if (f is null)
+                continue;
+            found[card] = f;
+            if (f.Error is { } error)
+                down[kind] = error;
+        }
+        return found;
+    }
+
+    private string ArrText(IReadOnlyList<Core.Arr.ArrFound> found, int titles)
+    {
+        var parts = new List<string>();
+        var back = _s.Arr.Exclude ? ", and onto its exclusion list so it isn't added back" : "";
+        foreach (var kind in found.GroupBy(f => f.Kind).OrderBy(g => g.Key))
+        {
+            var has = kind.Count(f => f.Has);
+            var error = kind.FirstOrDefault(f => f.Error is not null)?.Error;
+            if (titles == 1)
+            {
+                var f = kind.First();
+                parts.Add(f.Has ? $"{f.Kind} has it as “{f.Title!.Title}”: it goes from there too{back}."
+                    : error is not null ? $"{f.Kind} can't be asked ({error}): it stays there, and may download it again."
+                    : $"{f.Kind} hasn't got it.");
+                continue;
+            }
+            if (has > 0)
+                parts.Add($"{kind.Key} has {has} of them: they go from there too{back.Replace("so it isn't", "so they aren't")}.");
+            if (error is not null)
+                parts.Add($"{kind.Key} can't be asked ({error}): {Format.Count(kind.Count(f => f.Error is not null), "title stays", "titles stay")} there.");
+            else if (has < kind.Count())
+                parts.Add($"{kind.Key} hasn't got {Format.Count(kind.Count() - has, "of them", "of them")}.");
+        }
+        return parts.Count == 0 ? "" : "\n\n" + string.Join("\n", parts);
     }
 
     private static string FileList(IReadOnlyList<string> files) =>
@@ -2555,10 +2630,23 @@ public partial class MainWindowViewModel : ViewModelBase
                 status = $"“{name}” not deleted: {plan.Refusal}";
                 return;
             }
+            Core.Arr.ArrFound? show = null;
+            if (_s.Arr.HasSonarr && episode.Season is not null && episode.Number is not null)
+            {
+                ScanStatus = "Asking Sonarr…";
+                show = await _s.Arr.FindAsync(card.Series, CancellationToken.None);
+            }
+            var sonarr = show switch
+            {
+                null => "",
+                { Has: true } => "\n\nSonarr stops monitoring it, so it isn't downloaded again; the rest of the show stays as it is.",
+                { Error: { } why } => $"\n\nSonarr can't be asked ({why}): it may download it again.",
+                _ => "\n\nSonarr hasn't got the show.",
+            };
             ScanStatus = "Delete: waiting for your answer";
             if (!await Dialogs.ConfirmAsync("Delete episode",
                     $"Delete “{name}”?\n\n{Format.Count(plan.FileCount, "file goes", "files go")} from the disk, {Format.Size(plan.Size)}:\n{FileList(plan.Files)}"
-                    + "\n\nThis can't be undone: the files don't go to the Recycle Bin.", "Delete", destructive: true))
+                    + "\n\nThis can't be undone: the files don't go to the Recycle Bin." + sonarr, "Delete", destructive: true))
                 return;
 
             ScanStatus = $"Deleting {name}…";
@@ -2575,6 +2663,13 @@ public partial class MainWindowViewModel : ViewModelBase
             status = result.Deleted ? $"“{name}” deleted"
                 : result.Partly ? $"“{name}” only partly deleted: {result.Error}"
                 : $"“{name}” not deleted: {result.Error}";
+            if (result.Deleted && show is { Has: true })
+            {
+                ScanStatus = "Telling Sonarr…";
+                status = await _s.Arr.UnmonitorAsync(show, episode, CancellationToken.None) is { } why
+                    ? $"{status} · Sonarr still monitors it: {why}"
+                    : $"{status}, no longer monitored in Sonarr";
+            }
         }
         finally
         {

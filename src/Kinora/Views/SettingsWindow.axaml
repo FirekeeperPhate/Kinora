@@ -217,6 +217,41 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Radarr and Sonarr -->
+                <Border Classes="card">
+                    <StackPanel Spacing="12">
+                        <StackPanel Spacing="4">
+                            <TextBlock Classes="heading" Text="Radarr and Sonarr" />
+                            <TextBlock Classes="subtle" TextWrapping="Wrap"
+                                       Text="So that what you delete here isn't downloaded again. A movie deleted in Kinora goes from Radarr too, a show from Sonarr; a deleted episode is no longer monitored in Sonarr. Kinora deletes the files itself and tells them to leave the files alone. Titles are found by their IMDb, TMDB and TVDB ids." />
+                        </StackPanel>
+                        <Grid ColumnDefinitions="140,*,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+                            <TextBlock Text="Radarr address" VerticalAlignment="Center" />
+                            <TextBox Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding RadarrUrl}" PlaceholderText="http://nas:7878" />
+                            <TextBlock Grid.Row="1" Text="Radarr API key" VerticalAlignment="Center" Margin="0,8,0,0" />
+                            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding RadarrKey}" PasswordChar="●" Margin="0,8,0,0"
+                                     PlaceholderText="Settings → General → API Key" />
+                            <Button Grid.Row="1" Grid.Column="2" Content="Test" Margin="8,8,0,0" Command="{Binding TestRadarrCommand}" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding RadarrStatus}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                       IsVisible="{Binding RadarrStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+                            <TextBlock Grid.Row="3" Text="Sonarr address" VerticalAlignment="Center" Margin="0,16,0,0" />
+                            <TextBox Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding SonarrUrl}" PlaceholderText="http://nas:8989" Margin="0,16,0,0" />
+                            <TextBlock Grid.Row="4" Text="Sonarr API key" VerticalAlignment="Center" Margin="0,8,0,0" />
+                            <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding SonarrKey}" PasswordChar="●" Margin="0,8,0,0"
+                                     PlaceholderText="Settings → General → API Key" />
+                            <Button Grid.Row="4" Grid.Column="2" Content="Test" Margin="8,8,0,0" Command="{Binding TestSonarrCommand}" />
+                            <TextBlock Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding SonarrStatus}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                       IsVisible="{Binding SonarrStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                        </Grid>
+                        <StackPanel Spacing="2">
+                            <CheckBox IsChecked="{Binding ArrExclude}" Content="Also put deleted movies and shows on their exclusion list" />
+                            <TextBlock Classes="subtle" FontSize="12" TextWrapping="Wrap" Margin="28,0,0,0"
+                                       Text="Then an import list (a watchlist, a popular list) doesn't add them back." />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
                 <!-- Appearance -->
                 <Border Classes="card">
                     <StackPanel Spacing="14">

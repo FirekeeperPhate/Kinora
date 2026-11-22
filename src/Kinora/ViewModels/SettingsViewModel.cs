@@ -96,6 +96,7 @@ public partial class SettingsViewModel : ViewModelBase
         MainRating = RatingSources.FirstOrDefault(o => o.Source == _s.Settings.MainRating) ?? RatingSources[0];
         LoadSubtitleSettings();
         LoadServerSettings();
+        LoadArrSettings();
     }
 
     private readonly string _originalKey;
@@ -392,6 +393,69 @@ public partial class SettingsViewModel : ViewModelBase
         catch (Exception e) when (e is MediaServerException or HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
         {
             ServerStatus = e is MediaServerException ? e.Message : "Can't reach the server: " + e.Message;
+        }
+    }
+
+    // ---- Radarr and Sonarr ----
+
+    [ObservableProperty]
+    public partial string RadarrUrl { get; set; } = "";
+
+    [ObservableProperty]
+    public partial string RadarrKey { get; set; } = "";
+
+    [ObservableProperty]
+    public partial string? RadarrStatus { get; private set; }
+
+    [ObservableProperty]
+    public partial string SonarrUrl { get; set; } = "";
+
+    [ObservableProperty]
+    public partial string SonarrKey { get; set; } = "";
+
+    [ObservableProperty]
+    public partial string? SonarrStatus { get; private set; }
+
+    [ObservableProperty]
+    public partial bool ArrExclude { get; set; }
+
+    private void LoadArrSettings()
+    {
+        RadarrUrl = _s.Settings.RadarrUrl ?? "";
+        RadarrKey = _s.Settings.RadarrKey;
+        SonarrUrl = _s.Settings.SonarrUrl ?? "";
+        SonarrKey = _s.Settings.SonarrKey;
+        ArrExclude = _s.Settings.ArrExclude;
+        RadarrStatus = SonarrStatus = null;
+    }
+
+    partial void OnRadarrUrlChanged(string value) { _s.Settings.RadarrUrl = value.Trim(); RadarrStatus = null; }
+    partial void OnRadarrKeyChanged(string value) { _s.Settings.RadarrKey = value; RadarrStatus = null; }
+    partial void OnSonarrUrlChanged(string value) { _s.Settings.SonarrUrl = value.Trim(); SonarrStatus = null; }
+    partial void OnSonarrKeyChanged(string value) { _s.Settings.SonarrKey = value; SonarrStatus = null; }
+    partial void OnArrExcludeChanged(bool value) => _s.Settings.ArrExclude = value;
+
+    [RelayCommand]
+    private async Task TestRadarr() => RadarrStatus = await TestArr(Kinora.Core.Arr.ArrKind.Radarr, RadarrUrl, RadarrKey, s => RadarrStatus = s);
+
+    [RelayCommand]
+    private async Task TestSonarr() => SonarrStatus = await TestArr(Kinora.Core.Arr.ArrKind.Sonarr, SonarrUrl, SonarrKey, s => SonarrStatus = s);
+
+    private static async Task<string> TestArr(Kinora.Core.Arr.ArrKind kind, string url, string key, Action<string> show)
+    {
+        if (url.Trim().Length == 0 || key.Trim().Length == 0)
+            return "Write the address and paste the key first.";
+        show("Checking…");
+        try
+        {
+            using var client = new Kinora.Core.Arr.ArrClient(kind, url, key);
+            var status = await client.TestAsync(CancellationToken.None);
+            return $"{status.AppName} {status.Version} answers"
+                   + (status.InstanceName is { Length: > 0 } name && name != status.AppName ? $": {name}." : ".");
+        }
+        catch (Exception e) when (e is Kinora.Core.Arr.ArrException or HttpRequestException or TaskCanceledException)
+        {
+            return e is Kinora.Core.Arr.ArrException ? e.Message : $"Can't reach {kind}: " + e.Message;
         }
     }
 
