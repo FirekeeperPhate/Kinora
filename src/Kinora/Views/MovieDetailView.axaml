@@ -302,12 +302,17 @@
                                                            Margin="8" Classes="subtle" FontSize="12" />
                                                 <Image Source="{Binding Card.Poster}" Stretch="UniformToFill" IsVisible="{Binding InLibrary}" />
                                                 <Image Source="{Binding Picture}" Stretch="UniformToFill" IsVisible="{Binding !InLibrary}" Opacity="0.75" />
+                                                <StackPanel Classes="cardActions" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="8" IsVisible="{Binding CanAdd}">
+                                                    <Button Classes="cardAction" Command="{Binding AddCommand}" ToolTip.Tip="{Binding AddTip}">
+                                                        <Path Data="{x:Static k:Icons.Plus}" StrokeThickness="2.4" StrokeLineCap="Round" Stretch="Uniform" Width="12" Height="12" Stroke="White" />
+                                                    </Button>
+                                                </StackPanel>
                                             </Panel>
                                         </Border>
                                         <TextBlock Classes="cardTitle" Text="{Binding Title}" Margin="2,8,2,0" FontWeight="SemiBold"
                                                    TextTrimming="CharacterEllipsis" />
                                         <TextBlock Margin="2,2,2,0" FontSize="12" Classes="subtle" Text="{Binding YearText}" />
-                                        <TextBlock Margin="2,0,2,0" FontSize="12" Classes="subtle" Text="{Binding Note}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Margin="2,0,2,0" FontSize="12" Classes="subtle" Text="{Binding Note}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding NoteTip}" />
                                     </StackPanel>
                                 </Button>
                             </DataTemplate>
@@ -333,12 +338,17 @@
                                                            Margin="8" Classes="subtle" FontSize="12" />
                                                 <Image Source="{Binding Card.Poster}" Stretch="UniformToFill" IsVisible="{Binding InLibrary}" />
                                                 <Image Source="{Binding Picture}" Stretch="UniformToFill" IsVisible="{Binding !InLibrary}" Opacity="0.75" />
+                                                <StackPanel Classes="cardActions" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="8" IsVisible="{Binding CanAdd}">
+                                                    <Button Classes="cardAction" Command="{Binding AddCommand}" ToolTip.Tip="{Binding AddTip}">
+                                                        <Path Data="{x:Static k:Icons.Plus}" StrokeThickness="2.4" StrokeLineCap="Round" Stretch="Uniform" Width="12" Height="12" Stroke="White" />
+                                                    </Button>
+                                                </StackPanel>
                                             </Panel>
                                         </Border>
                                         <TextBlock Classes="cardTitle" Text="{Binding Title}" Margin="2,8,2,0" FontWeight="SemiBold"
                                                    TextTrimming="CharacterEllipsis" />
                                         <TextBlock Margin="2,2,2,0" FontSize="12" Classes="subtle" Text="{Binding YearText}" />
-                                        <TextBlock Margin="2,0,2,0" FontSize="12" Classes="subtle" Text="{Binding Note}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Margin="2,0,2,0" FontSize="12" Classes="subtle" Text="{Binding Note}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding NoteTip}" />
                                     </StackPanel>
                                 </Button>
                             </DataTemplate>

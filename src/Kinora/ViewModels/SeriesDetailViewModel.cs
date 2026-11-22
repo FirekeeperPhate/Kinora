@@ -212,7 +212,7 @@ public partial class SeriesDetailViewModel : ViewModelBase, IDisposable
                 return;
             var items = similar.Select(t => _owner.ShowByTmdbId(t.Id) is { } card
                     ? new ShelfItem(card, "In your library", () => _owner.OpenSeries(card))
-                    : new ShelfItem(t, () => Core.Platform.Launcher.OpenUrl($"https://www.themoviedb.org/tv/{Uri.EscapeDataString(t.Id)}")))
+                    : _owner.OnlineItem(t, series: true))
                 .Where(i => i.Card != Card)
                 .OrderByDescending(i => i.InLibrary)
                 .ToList();

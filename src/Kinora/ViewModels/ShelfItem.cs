@@ -55,22 +55,61 @@ public sealed partial class ShelfItem : ObservableObject
         _open = open;
     }
 
-    public ShelfItem(TmdbSimilar similar, Action open)
+    /// <param name="add">
+    /// Adds it to Radarr or Sonarr (<paramref name="addTo"/>), giving the note to show after:
+    /// "Added to Radarr", or what went wrong ("Radarr: …"); null when the user changed their mind.
+    /// </param>
+    public ShelfItem(TmdbSimilar similar, Action open, string? note = null, string? addTo = null, Func<Task<string?>>? add = null)
     {
         Similar = similar;
         Title = similar.Title;
         YearText = similar.Year?.ToString(CultureInfo.InvariantCulture);
-        Note = similar.Rating is { } r ? $"★ {r.ToString("0.0", CultureInfo.InvariantCulture)} · on TMDB" : "On TMDB";
+        Note = note ?? (similar.Rating is { } r ? $"★ {r.ToString("0.0", CultureInfo.InvariantCulture)} · on TMDB" : "On TMDB");
         _open = open;
+        _add = add;
+        AddTo = addTo;
+        CanAdd = add is not null && addTo is not null;
     }
+
+    private readonly Func<Task<string?>>? _add;
 
     public CardViewModel? Card { get; }
     public TmdbSimilar? Similar { get; }
     public bool InLibrary => Card is not null;
     public string Title { get; }
     public string? YearText { get; }
-    public string Note { get; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(NoteTip))]
+    public partial string Note { get; private set; }
+
+    /// <summary>The note in full, for one cut short (an error).</summary>
+    public string NoteTip => Note;
+
     public string Tip => InLibrary ? Title : $"{Title}: open on TMDB";
+
+    /// <summary>"Radarr" or "Sonarr", where the + button adds it.</summary>
+    public string? AddTo { get; }
+    public string AddTip => $"Add to {AddTo}: it looks for it and downloads it";
+
+    [ObservableProperty]
+    public partial bool CanAdd { get; private set; }
+
+    [RelayCommand]
+    private async Task Add()
+    {
+        if (_add is null || !CanAdd)
+            return;
+        CanAdd = false;
+        var note = await _add();
+        if (note is null)
+        {
+            CanAdd = true;   // not added after all
+            return;
+        }
+        Note = note;
+        CanAdd = note.StartsWith(AddTo + ":", StringComparison.Ordinal);   // an error: it can be tried again
+    }
 
     /// <summary>TMDB's poster, for a movie not in the library; the library's come from the card.</summary>
     [ObservableProperty]

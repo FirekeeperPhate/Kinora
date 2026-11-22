@@ -105,6 +105,127 @@ public sealed class ArrTests
         Assert.Equal(down.Error, await link.RemoveAsync(new ArrFound(ArrKind.Sonarr, new ArrTitle(3, "Severance")), CancellationToken.None));
     }
 
+    [Fact]
+    public async Task A_movie_is_added_with_the_chosen_profile_and_folder_and_only_once()
+    {
+        var radarr = new FakeArr("Radarr");
+        radarr.Lookups.Add(new JsonObject { ["title"] = "Heat", ["year"] = 1995, ["tmdbId"] = 949, ["images"] = new JsonArray(), ["id"] = 0 });
+        var settings = new AppSettings { RadarrUrl = "nas:7878", RadarrKey = FakeArr.Key, RadarrProfileId = 6, RadarrRootFolder = "/more" };
+        var link = new ArrLink(settings, radarr);
+
+        var added = await link.AddMovieAsync("949", CancellationToken.None);
+        Assert.False(added.Already);
+        Assert.Equal("Heat", added.Title.Title);
+        var post = radarr.Changes.Single();
+        Assert.StartsWith("POST /api/v3/movie ", post);
+        var body = JsonNode.Parse(post[(post.IndexOf('{'))..])!;
+        Assert.Equal(6, (int)body["qualityProfileId"]!);
+        Assert.Equal("/more", (string)body["rootFolderPath"]!);
+        Assert.True((bool)body["monitored"]!);
+        Assert.True((bool)body["addOptions"]!["searchForMovie"]!);
+        Assert.Null(body["images"]);   // only what Radarr needs
+
+        // Again: it has it, nothing is sent
+        Assert.True((await link.AddMovieAsync("949", CancellationToken.None)).Already);
+        Assert.Single(radarr.Changes);
+
+        // A profile and a folder that are gone: the first ones
+        settings.RadarrProfileId = 99;
+        settings.RadarrRootFolder = "/gone";
+        radarr.Lookups.Add(new JsonObject { ["title"] = "Up", ["year"] = 2009, ["tmdbId"] = 14160 });
+        await link.AddMovieAsync("14160", CancellationToken.None);
+        Assert.Contains("\"qualityProfileId\":4", radarr.Changes.Last());
+        Assert.Contains("\"rootFolderPath\":\"/movie\"", radarr.Changes.Last());
+
+        Assert.Equal("Radarr doesn't find this movie.",
+                     (await Assert.ThrowsAsync<ArrException>(() => link.AddMovieAsync("1", CancellationToken.None))).Message);
+    }
+
+    [Fact]
+    public async Task A_show_is_added_by_tvdb_with_the_episodes_chosen()
+    {
+        var sonarr = new FakeArr("Sonarr");
+        sonarr.Lookups.Add(new JsonObject { ["title"] = "Severance", ["tvdbId"] = 371980, ["seriesType"] = "standard", ["seasons"] = new JsonArray() });
+        var settings = new AppSettings { SonarrUrl = "nas:8989", SonarrKey = FakeArr.Key, SonarrMonitor = "firstSeason" };
+        var link = new ArrLink(settings, sonarr);
+
+        var added = await link.AddSeriesAsync("371980", CancellationToken.None);
+        Assert.Equal(("Severance", false), (added.Title.Title, added.Already));
+        var post = sonarr.Changes.Single();
+        var body = JsonNode.Parse(post[(post.IndexOf('{'))..])!;
+        Assert.Equal(4, (int)body["qualityProfileId"]!);
+        Assert.Equal("/series", (string)body["rootFolderPath"]!);
+        Assert.Equal("firstSeason", (string)body["addOptions"]!["monitor"]!);
+        Assert.True((bool)body["addOptions"]!["searchForMissingEpisodes"]!);
+        Assert.Equal("standard", (string)body["seriesType"]!);   // the lookup goes back as it came
+        Assert.Null(body["languageProfileId"]);                    // Sonarr 4 has none
+
+        Assert.True((await link.AddSeriesAsync("371980", CancellationToken.None)).Already);
+        await Assert.ThrowsAsync<ArrException>(() => link.AddSeriesAsync("", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task The_calendar_puts_episodes_and_movies_together_by_day()
+    {
+        var today = new DateTime(2026, 11, 22);
+        var sonarr = new FakeArr("Sonarr")
+        {
+            Calendar =
+            [
+                new JsonObject
+                {
+                    ["seasonNumber"] = 2, ["episodeNumber"] = 5, ["title"] = "Trojan's Horse", ["airDateUtc"] = "2026-11-23T02:00:00Z", ["hasFile"] = false,
+                    ["series"] = new JsonObject { ["title"] = "Severance", ["tvdbId"] = 371980, ["imdbId"] = "tt11280740", ["tmdbId"] = 95396 },
+                },
+                new JsonObject
+                {
+                    ["seasonNumber"] = 1, ["episodeNumber"] = 1, ["title"] = "TBA", ["airDateUtc"] = "2026-11-22T20:00:00Z", ["hasFile"] = true,
+                    ["series"] = new JsonObject { ["title"] = "Andor", ["tvdbId"] = 393189 },
+                },
+            ],
+        };
+        var radarr = new FakeArr("Radarr")
+        {
+            Calendar =
+            [
+                // in cinemas before the days asked, digitally inside: only the digital one
+                new JsonObject { ["title"] = "Heat 2", ["tmdbId"] = 1, ["inCinemas"] = "2026-10-01T00:00:00Z", ["digitalRelease"] = "2026-11-23T00:00:00Z", ["hasFile"] = false },
+            ],
+        };
+        var settings = new AppSettings { SonarrUrl = "nas:8989", SonarrKey = FakeArr.Key, RadarrUrl = "nas:7878", RadarrKey = FakeArr.Key };
+        var link = new ArrLink(settings, new ByPort(sonarr, radarr));
+
+        var (releases, problems) = await link.CalendarAsync(today, 7, CancellationToken.None);
+        Assert.Empty(problems);
+        Assert.Equal(3, releases.Count);
+        var andor = releases.Single(r => r.Title == "Andor");
+        Assert.Equal(("S01E01", true, true), (andor.What, andor.HasTime, andor.HasFile));
+        var movie = releases.Single(r => r.Kind == ArrKind.Radarr);
+        Assert.Equal(("Digital release", false, new DateTime(2026, 11, 23)), (movie.What, movie.HasTime, movie.When.Date));
+        var severance = releases.Single(r => r.Title == "Severance");
+        Assert.Equal(("S02E05", "Trojan's Horse", "371980", "95396"), (severance.What, severance.EpisodeTitle, severance.TvdbId, severance.TmdbId));
+        // By day, and on a day the hours first, the movies after
+        Assert.True(releases.IndexOf(andor) < releases.IndexOf(severance) || andor.When.Date < severance.When.Date);
+        Assert.Contains("unmonitored=false", sonarr.Asked.Single());
+        Assert.Contains("includeSeries=true", sonarr.Asked.Single());
+
+        // One of the two down: the other's are there, and what went wrong
+        radarr.Down = true;
+        (releases, problems) = await link.CalendarAsync(today, 7, CancellationToken.None);
+        Assert.Equal(2, releases.Count);
+        Assert.StartsWith("Radarr: ", problems.Single());
+    }
+
+    /// <summary>Two fakes behind one handler: Sonarr on 8989, Radarr on 7878.</summary>
+    private sealed class ByPort(FakeArr sonarr, FakeArr radarr) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            var target = request.RequestUri!.Port == 8989 ? sonarr : radarr;
+            return target.Send(request, ct);
+        }
+    }
+
     /// <summary>
     /// Radarr or Sonarr as far as Kinora uses them, at any address: the API under the host,
     /// the web pages elsewhere. Changes are kept, in order.
@@ -116,9 +237,14 @@ public sealed class ArrTests
         public JsonArray Titles { get; } = [];
         public JsonArray Episodes { get; } = [];
         public List<string> Changes { get; } = [];
+        public JsonArray Lookups { get; } = [];
+        public JsonArray Calendar { get; set; } = [];
+        public List<string> Asked { get; } = [];
         public bool Down { get; set; }
 
         private string What => app == "Radarr" ? "movie" : "series";
+
+        public Task<HttpResponseMessage> Send(HttpRequestMessage request, CancellationToken ct) => SendAsync(request, ct);
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
@@ -148,6 +274,28 @@ public sealed class ArrTests
                 var body = await request.Content!.ReadAsStringAsync(ct);
                 Changes.Add($"PUT {path} {body}");
                 return Json(new JsonArray());
+            }
+            if (method == "GET" && path == "/api/v3/qualityprofile")
+                return Json(new JsonArray(new JsonObject { ["id"] = 4, ["name"] = "HD-1080p" }, new JsonObject { ["id"] = 6, ["name"] = "Ultra-HD" }));
+            if (method == "GET" && path == "/api/v3/rootfolder")
+                return Json(new JsonArray(new JsonObject { ["id"] = 1, ["path"] = $"/{What}" }, new JsonObject { ["id"] = 2, ["path"] = "/more" }));
+            if (method == "GET" && path == "/api/v3/movie/lookup/tmdb")
+                return Lookups.OfType<JsonObject>().FirstOrDefault(l => l["tmdbId"]?.ToString() == query["tmdbId"]) is { } m
+                    ? Json(m.DeepClone()) : new HttpResponseMessage(HttpStatusCode.NotFound);
+            if (method == "GET" && path == "/api/v3/series/lookup")
+                return Json(new JsonArray(Lookups.OfType<JsonObject>().Where(l => "tvdb:" + l["tvdbId"] == query["term"]).Select(l => l.DeepClone()).ToArray()));
+            if (method == "POST" && path == $"/api/v3/{What}")
+            {
+                var body = JsonNode.Parse(await request.Content!.ReadAsStringAsync(ct))!.AsObject();
+                Changes.Add($"POST {path} {body.ToJsonString()}");
+                body["id"] = 50 + Titles.Count;
+                Titles.Add(body.DeepClone());
+                return Json(body);
+            }
+            if (method == "GET" && path == "/api/v3/calendar")
+            {
+                Asked.Add(uri.Query);
+                return Json(Calendar.DeepClone());
             }
             if (method == "DELETE" && path.StartsWith($"/api/v3/{What}/", StringComparison.Ordinal))
             {

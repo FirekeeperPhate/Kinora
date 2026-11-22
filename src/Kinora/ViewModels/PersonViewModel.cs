@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Globalization;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -29,6 +30,7 @@ public partial class PersonViewModel : ViewModelBase, IDisposable
     private readonly bool _director;
     private readonly IReadOnlyList<(string? Thumb, string? TitleFolder)> _appearances;
     private bool _disposed;
+    private readonly CancellationTokenSource _gone = new();
 
     public PersonViewModel(MainWindowViewModel owner, AppServices services, string name, string? tmdbId, bool director, List<PersonTitle> titles,
                            IReadOnlyList<(string? Thumb, string? TitleFolder)> appearances)
@@ -103,6 +105,7 @@ public partial class PersonViewModel : ViewModelBase, IDisposable
 
             Biography = person.Biography ?? "No biography on TMDB.";
             Facts = BuildFacts(person);
+            _ = LoadMissingAsync(id);
             if (Photo is null && person.ProfilePath is { } path)
             {
                 var key = Core.Imaging.ImageCache.KeyForOnline(path);
@@ -120,6 +123,46 @@ public partial class PersonViewModel : ViewModelBase, IDisposable
         {
             IsLoading = false;
         }
+    }
+
+    /// <summary>Their most known movies and shows the library hasn't got, from TMDB: to open there, or to add to Radarr and Sonarr.</summary>
+    public ObservableCollection<ShelfItem> Missing { get; } = [];
+
+    [ObservableProperty]
+    public partial bool HasMissing { get; private set; }
+
+    public const int MostMissing = 24;
+
+    private async Task LoadMissingAsync(string id)
+    {
+        try
+        {
+            using var client = _s.CreateTmdbClient();
+            if (client is null)
+                return;
+            var credits = await client.GetPersonCreditsAsync(id, _director, _gone.Token);
+            var items = credits
+                .Where(c => (c.Series ? (CardViewModel?)_owner.ShowByTmdbId(c.Id) : _owner.MovieByTmdbId(c.Id)) is null)
+                .Take(MostMissing)
+                .Select(c => _owner.OnlineItem(c.AsSimilar, c.Series, Note(c)))
+                .ToList();
+            if (_disposed)
+                return;
+            foreach (var item in items)
+                Missing.Add(item);
+            HasMissing = Missing.Count > 0;
+            await ShelfPosters.LoadAsync(_s, items, () => _disposed, _gone.Token);
+        }
+        catch (Exception e) when (e is HttpRequestException or TmdbException or OperationCanceledException or IOException)
+        {
+            // the page stays as it is: the library's titles and the biography
+        }
+    }
+
+    private static string Note(TmdbPersonCredit c)
+    {
+        var kind = c.Series ? "TV show" : "Movie";
+        return c.Role is { Length: > 0 } role ? $"{kind} · {role}" : kind;
     }
 
     /// <summary>The photo the library has for them: no need to ask TMDB for one.</summary>
@@ -190,6 +233,9 @@ public partial class PersonViewModel : ViewModelBase, IDisposable
     public void Dispose()
     {
         _disposed = true;
+        _gone.Cancel();
+        foreach (var item in Missing)
+            item.Picture?.Dispose();
         Photo?.Dispose();
     }
 }

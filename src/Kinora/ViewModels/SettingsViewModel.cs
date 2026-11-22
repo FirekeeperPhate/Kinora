@@ -426,7 +426,89 @@ public partial class SettingsViewModel : ViewModelBase
         SonarrUrl = _s.Settings.SonarrUrl ?? "";
         SonarrKey = _s.Settings.SonarrKey;
         ArrExclude = _s.Settings.ArrExclude;
+        SonarrMonitorIndex = Math.Max(0, Array.IndexOf(MonitorValues, _s.Settings.SonarrMonitor));
         RadarrStatus = SonarrStatus = null;
+        if (_s.Settings.HasRadarr)
+            _ = LoadChoicesAsync(Kinora.Core.Arr.ArrKind.Radarr);
+        if (_s.Settings.HasSonarr)
+            _ = LoadChoicesAsync(Kinora.Core.Arr.ArrKind.Sonarr);
+    }
+
+    // What a title added from Kinora gets: asked of Radarr and Sonarr when the settings open and after a test
+
+    public ObservableCollection<Kinora.Core.Arr.ArrChoice> RadarrProfiles { get; } = [];
+    public ObservableCollection<string> RadarrFolders { get; } = [];
+    public ObservableCollection<Kinora.Core.Arr.ArrChoice> SonarrProfiles { get; } = [];
+    public ObservableCollection<string> SonarrFolders { get; } = [];
+
+    [ObservableProperty]
+    public partial bool HasRadarrChoices { get; private set; }
+
+    [ObservableProperty]
+    public partial bool HasSonarrChoices { get; private set; }
+
+    [ObservableProperty]
+    public partial Kinora.Core.Arr.ArrChoice? RadarrProfile { get; set; }
+
+    [ObservableProperty]
+    public partial string? RadarrFolder { get; set; }
+
+    [ObservableProperty]
+    public partial Kinora.Core.Arr.ArrChoice? SonarrProfile { get; set; }
+
+    [ObservableProperty]
+    public partial string? SonarrFolder { get; set; }
+
+    private static readonly string[] MonitorValues = ["all", "firstSeason", "future"];
+    public List<string> MonitorOptions { get; } = ["All the episodes", "The first season", "Only the episodes still to come"];
+
+    [ObservableProperty]
+    public partial int SonarrMonitorIndex { get; set; }
+
+    private bool _loadingChoices;
+
+    partial void OnRadarrProfileChanged(Kinora.Core.Arr.ArrChoice? value) { if (!_loadingChoices && value is not null) _s.Settings.RadarrProfileId = value.Id; }
+    partial void OnRadarrFolderChanged(string? value) { if (!_loadingChoices && value is not null) _s.Settings.RadarrRootFolder = value; }
+    partial void OnSonarrProfileChanged(Kinora.Core.Arr.ArrChoice? value) { if (!_loadingChoices && value is not null) _s.Settings.SonarrProfileId = value.Id; }
+    partial void OnSonarrFolderChanged(string? value) { if (!_loadingChoices && value is not null) _s.Settings.SonarrRootFolder = value; }
+    partial void OnSonarrMonitorIndexChanged(int value) => _s.Settings.SonarrMonitor = MonitorValues[Math.Clamp(value, 0, MonitorValues.Length - 1)];
+
+    private async Task LoadChoicesAsync(Kinora.Core.Arr.ArrKind kind)
+    {
+        var radarr = kind == Kinora.Core.Arr.ArrKind.Radarr;
+        try
+        {
+            using var client = radarr
+                ? new Kinora.Core.Arr.ArrClient(kind, RadarrUrl, RadarrKey)
+                : new Kinora.Core.Arr.ArrClient(kind, SonarrUrl, SonarrKey);
+            var (profiles, folders) = await Kinora.Core.Arr.ArrLink.GetChoicesAsync(client, CancellationToken.None);
+            var (profileList, folderList) = radarr ? (RadarrProfiles, RadarrFolders) : (SonarrProfiles, SonarrFolders);
+            var savedProfile = radarr ? _s.Settings.RadarrProfileId : _s.Settings.SonarrProfileId;
+            var savedFolder = radarr ? _s.Settings.RadarrRootFolder : _s.Settings.SonarrRootFolder;
+            _loadingChoices = true;
+            try
+            {
+                profileList.Clear();
+                foreach (var p in profiles)
+                    profileList.Add(p);
+                folderList.Clear();
+                foreach (var f in folders)
+                    folderList.Add(f);
+                // What was chosen, or the first: that is what adding uses when nothing is chosen
+                var profile = profiles.FirstOrDefault(p => p.Id == savedProfile) ?? profiles.FirstOrDefault();
+                var folder = folders.FirstOrDefault(f => f == savedFolder) ?? folders.FirstOrDefault();
+                if (radarr) { RadarrProfile = profile; RadarrFolder = folder; HasRadarrChoices = profiles.Count > 0; }
+                else { SonarrProfile = profile; SonarrFolder = folder; HasSonarrChoices = profiles.Count > 0; }
+            }
+            finally
+            {
+                _loadingChoices = false;
+            }
+        }
+        catch (Exception e) when (e is Kinora.Core.Arr.ArrException or HttpRequestException or TaskCanceledException)
+        {
+            // the test says what is wrong; without the lists, adding uses the first profile and folder
+        }
     }
 
     partial void OnRadarrUrlChanged(string value) { _s.Settings.RadarrUrl = value.Trim(); RadarrStatus = null; }
@@ -436,10 +518,18 @@ public partial class SettingsViewModel : ViewModelBase
     partial void OnArrExcludeChanged(bool value) => _s.Settings.ArrExclude = value;
 
     [RelayCommand]
-    private async Task TestRadarr() => RadarrStatus = await TestArr(Kinora.Core.Arr.ArrKind.Radarr, RadarrUrl, RadarrKey, s => RadarrStatus = s);
+    private async Task TestRadarr()
+    {
+        RadarrStatus = await TestArr(Kinora.Core.Arr.ArrKind.Radarr, RadarrUrl, RadarrKey, s => RadarrStatus = s);
+        await LoadChoicesAsync(Kinora.Core.Arr.ArrKind.Radarr);
+    }
 
     [RelayCommand]
-    private async Task TestSonarr() => SonarrStatus = await TestArr(Kinora.Core.Arr.ArrKind.Sonarr, SonarrUrl, SonarrKey, s => SonarrStatus = s);
+    private async Task TestSonarr()
+    {
+        SonarrStatus = await TestArr(Kinora.Core.Arr.ArrKind.Sonarr, SonarrUrl, SonarrKey, s => SonarrStatus = s);
+        await LoadChoicesAsync(Kinora.Core.Arr.ArrKind.Sonarr);
+    }
 
     private static async Task<string> TestArr(Kinora.Core.Arr.ArrKind kind, string url, string key, Action<string> show)
     {

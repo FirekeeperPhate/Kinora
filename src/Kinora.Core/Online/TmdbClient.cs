@@ -191,6 +191,51 @@ public sealed class TmdbClient : IDisposable
         return person;
     }
 
+    /// <summary>
+    /// The movies and shows a person is in (as an actor) or directed, the most known first; a show
+    /// they were in once as themselves, a talk show, doesn't count.
+    /// </summary>
+    public async Task<List<TmdbPersonCredit>> GetPersonCreditsAsync(string tmdbId, bool director, CancellationToken ct)
+    {
+        JsonDocument doc;
+        try
+        {
+            doc = await GetJsonAsync($"person/{Uri.EscapeDataString(tmdbId)}/combined_credits", [("language", Language)], ct);
+        }
+        catch (TmdbException e) when (e.Status == HttpStatusCode.NotFound)
+        {
+            return [];
+        }
+        using (doc)
+        {
+            var found = new Dictionary<string, TmdbPersonCredit>();
+            if (!doc.RootElement.TryGetProperty(director ? "crew" : "cast", out var list))
+                return [];
+            foreach (var c in list.EnumerateArray())
+            {
+                if (!c.TryGetProperty("id", out var id) || Str(c, "media_type") is not ("movie" or "tv") || director && Str(c, "job") != "Director")
+                    continue;
+                var series = Str(c, "media_type") == "tv";
+                if (series && c.TryGetProperty("genre_ids", out var genres)
+                    && genres.EnumerateArray().Any(g => g.ValueKind == JsonValueKind.Number && g.GetInt32() is 10767 or 10763 or 10764))
+                    continue;   // talk, news, reality
+                if (Str(c, series ? "name" : "title") is not { } title)
+                    continue;
+                var key = (series ? "tv" : "movie") + id.GetRawText();
+                if (found.ContainsKey(key))
+                    continue;
+                var date = Str(c, series ? "first_air_date" : "release_date");
+                found[key] = new TmdbPersonCredit(id.GetRawText(), series, title,
+                    date is { Length: >= 4 } && int.TryParse(date[..4], out var y) ? y : null,
+                    Str(c, "poster_path"),
+                    c.TryGetProperty("vote_average", out var va) && va.ValueKind == JsonValueKind.Number && va.GetDouble() > 0 ? Math.Round(va.GetDouble(), 1) : null,
+                    c.TryGetProperty("vote_count", out var vc) && vc.ValueKind == JsonValueKind.Number ? vc.GetInt32() : 0,
+                    director ? "Director" : Str(c, "character"));
+            }
+            return found.Values.Where(c => c.Year is not null).OrderByDescending(c => c.Votes).ToList();
+        }
+    }
+
     // ---- TV ----
 
     public async Task<List<TmdbSearchResult>> SearchTvAsync(string query, int? year, CancellationToken ct)

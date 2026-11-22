@@ -116,6 +116,15 @@ public sealed class AppSettings
     /// <summary>A movie or show deleted here goes on their exclusion list too: import lists don't add it back.</summary>
     public bool ArrExclude { get; set; } = true;
 
+    /// <summary>What a title added from Kinora gets: null means the first profile and folder there.</summary>
+    public int? RadarrProfileId { get; set; }
+    public string? RadarrRootFolder { get; set; }
+    public int? SonarrProfileId { get; set; }
+    public string? SonarrRootFolder { get; set; }
+
+    /// <summary>Which episodes of a show added from Kinora Sonarr gets: "all", "firstSeason", "future".</summary>
+    public string SonarrMonitor { get; set; } = "all";
+
     [JsonIgnore]
     public string RadarrKey
     {
@@ -183,6 +192,10 @@ public sealed class AppSettings
     public double WindowWidth { get; set; } = 1280;
     public double WindowHeight { get; set; } = 820;
     public bool WindowMaximized { get; set; }
+
+    /// <summary>Where the window's top left corner was, in screen pixels, when it wasn't maximized; null the first time.</summary>
+    public int? WindowX { get; set; }
+    public int? WindowY { get; set; }
 
     /// <summary>The sidebar folded to a column of icons.</summary>
     public bool SidebarCollapsed { get; set; }

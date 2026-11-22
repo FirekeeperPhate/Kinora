@@ -30,4 +30,10 @@ public sealed class TmdbPerson
     }
 }
 
+/// <summary>A movie or show of a person's, as TMDB lists them.</summary>
+public sealed record TmdbPersonCredit(string Id, bool Series, string Title, int? Year, string? PosterPath, double? Rating, int Votes, string? Role)
+{
+    public TmdbSimilar AsSimilar => new(Id, Title, Year, PosterPath, Rating);
+}
+
 public sealed record TmdbPersonResult(string Id, string Name, string? KnownFor, double Popularity, string? ProfilePath);

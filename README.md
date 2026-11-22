@@ -70,6 +70,8 @@ engine), or, if you prefer, in the player the OS associates with it. Windows, Li
   Esc in the library leaves it. Full screen turned on in the player ends with the player.
 - **A foldable sidebar**: the button next to the name, or Ctrl+B, folds it to a column of icons
   (their names show under the mouse) and gives the posters the room; it stays as you left it.
+- **The window** opens where it was closed, at that size, maximized if it was (on the screen it was
+  on); a place no screen shows any more, a monitor unplugged since, puts it in the middle.
 - Folders that are mounted somewhere else later (another drive letter, another OS): change the
   root's path in Settings, nothing is scanned again. Paths are stored relative to the root.
 - Names that Windows normally tidies up, ending with a dot or a space (`S.W.A.T.`), are read,
@@ -258,10 +260,15 @@ Recycle Bin.
 - The library changes only for what really went: if the NAS drops out, nothing is removed from
   it; if a delete stops halfway, the title is read again from the disk.
 
-### Radarr and Sonarr
+## Radarr and Sonarr
 
 With Radarr and Sonarr in **Settings → Radarr and Sonarr** (address and API key, from their
-Settings → General), what is deleted here isn't downloaded again:
+Settings → General, then Test), what is deleted here isn't downloaded again, what is missing can
+be added, and what is coming shows up.
+
+### Deleting
+
+What is deleted here isn't downloaded again:
 
 - a movie deleted in Kinora goes from Radarr, a show from Sonarr, and (unless turned off) onto
   their exclusion list, so an import list doesn't add it back;
@@ -272,7 +279,26 @@ asking them to leave the files alone; a delete that fails leaves them as they we
 found by their TMDB and IMDb ids (Radarr) or TVDB, IMDb and TMDB ids (Sonarr), never by path, so
 it works whatever the folders are called on the NAS. The question before deleting says what will
 happen there, or that they haven't got the title, or that they don't answer (then the files go
-anyway and the title stays in Radarr or Sonarr). Tried with Radarr 7.0 and Sonarr 4.0.
+anyway and the title stays in Radarr or Sonarr).
+
+### Adding what you haven't got
+
+The posters of titles not in the library (a page's **Similar**, and **Not in your library** on an
+actor's or a director's page: their most known movies and shows you haven't got, from TMDB)
+have a **+** under the mouse: it adds the movie to Radarr or the show to Sonarr, which start looking
+for it. The note under the poster then says "Added to Radarr", or "Already in Radarr" when it was
+there. The settings, after a Test, choose the quality profile and the root folder (the first ones
+until you do) and, for Sonarr, which episodes: all, the first season, or only those still to come.
+Sonarr knows shows by TVDB's id, which TMDB gives: adding a show needs the TMDB key.
+
+### Coming up
+
+**Coming up**, in the sidebar above Settings, lists by day what Sonarr and Radarr monitor coming
+out in the next 7 days to 8 weeks: the episodes at the hour they air, the movies on the day they
+come out in cinemas, digitally or on disc. What is already downloaded, and what is in the library
+(a click opens it), is marked. One of the two not answering, the other's are there all the same.
+
+Tried with Radarr 7.0 and Sonarr 4.0.
 
 ## Installing
 

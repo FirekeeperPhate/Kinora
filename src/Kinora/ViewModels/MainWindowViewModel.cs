@@ -130,7 +130,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(ShowLibrary))]
     public partial PersonViewModel? Person { get; private set; }
 
-    public bool ShowLibrary => Detail is null && SeriesDetail is null && Person is null;
+    public bool ShowLibrary => Detail is null && SeriesDetail is null && Person is null && Calendar is null;
 
     /// <summary>The built-in player, over everything else while a video plays.</summary>
     [ObservableProperty]
@@ -1415,6 +1415,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private sealed record MoviePage(long Id, bool FromRandom) : Page;
     private sealed record ShowPage(long Id, int? Season, bool FromRandom) : Page;
     private sealed record PersonPage(string Name, string? TmdbId, bool Director) : Page;
+    private sealed record CalendarPage : Page;
 
     private const int MostPagesKept = 100;
     private readonly List<Page> _backPages = [];
@@ -1423,6 +1424,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private Page CurrentPage() =>
         Person is { } p ? new PersonPage(p.Name, p.KnownId, p.IsDirector)
+        : Calendar is not null ? new CalendarPage()
         : Detail is { } m ? new MoviePage(m.Card.Movie.Id, m.FromRandom)
         : SeriesDetail is { } s ? new ShowPage(s.Card.Series.Id, s.SelectedSeason?.Number, s.FromRandom)
         : new LibraryPage();
@@ -1433,6 +1435,7 @@ public partial class MainWindowViewModel : ViewModelBase
         (ShowPage x, ShowPage y) => x.Id == y.Id,
         (PersonPage x, PersonPage y) => x.Name == y.Name && x.TmdbId == y.TmdbId && x.Director == y.Director,
         (LibraryPage, LibraryPage) => true,
+        (CalendarPage, CalendarPage) => true,
         _ => false,
     };
 
@@ -1517,6 +1520,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 case LibraryPage:
                     CloseDetail();
                     ClosePerson();
+                    CloseCalendar();
                     return true;
                 case MoviePage m when _movies.FirstOrDefault(c => c.Movie.Id == m.Id) is { } card:
                     if (Person is not null && Detail?.Card == card)
@@ -1532,6 +1536,9 @@ public partial class MainWindowViewModel : ViewModelBase
                     return true;
                 case PersonPage p:
                     OpenPerson(p.Name, p.TmdbId, p.Director);
+                    return true;
+                case CalendarPage when HasArr:
+                    OpenCalendar();
                     return true;
                 default:
                     return false;
@@ -1700,6 +1707,7 @@ public partial class MainWindowViewModel : ViewModelBase
             movie.Dispose();
         }
         ClosePerson();
+        CloseCalendar();
     }
 
     // ---- playing and folders ----
@@ -3039,6 +3047,7 @@ public partial class MainWindowViewModel : ViewModelBase
         else if (imdb && !_s.Settings.DownloadImdbRatings && _s.Imdb.Clear() > 0)
             Reload();   // back to what the nfo files say
         OnPropertyChanged(nameof(HasMediaServer));
+        OnPropertyChanged(nameof(HasArr));
         OnPropertyChanged(nameof(SyncMenuText));
         if (Math.Abs(cardWidth - _s.Settings.CardWidth) > 0.5)
             LayoutRows();

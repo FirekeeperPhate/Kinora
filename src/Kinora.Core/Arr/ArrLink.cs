@@ -90,6 +90,78 @@ public sealed class ArrLink(AppSettings settings, HttpMessageHandler? handler = 
         }
     }
 
+    // ---- adding ----
+
+    /// <summary>Adds the movie with this TMDB id to Radarr, which looks for it.</summary>
+    public async Task<ArrAdded> AddMovieAsync(string tmdbId, CancellationToken ct)
+    {
+        if (!int.TryParse(tmdbId, out var id) || id <= 0)
+            throw new ArrException("This movie has no TMDB id.");
+        try
+        {
+            using var client = Radarr();
+            return await client.AddMovieAsync(id, new ArrAddOptions(settings.RadarrProfileId, settings.RadarrRootFolder), ct);
+        }
+        catch (Exception e) when (IsTrouble(e) && e is not ArrException)
+        {
+            throw new ArrException(Why(e), e);
+        }
+    }
+
+    /// <summary>Adds the show with this TVDB id to Sonarr, which looks for its episodes.</summary>
+    public async Task<ArrAdded> AddSeriesAsync(string tvdbId, CancellationToken ct)
+    {
+        if (!int.TryParse(tvdbId, out var id) || id <= 0)
+            throw new ArrException("TVDB doesn't know this show, and Sonarr finds shows by TVDB.");
+        try
+        {
+            using var client = Sonarr();
+            return await client.AddSeriesAsync(id, new ArrAddOptions(settings.SonarrProfileId, settings.SonarrRootFolder, settings.SonarrMonitor), ct);
+        }
+        catch (Exception e) when (IsTrouble(e) && e is not ArrException)
+        {
+            throw new ArrException(Why(e), e);
+        }
+    }
+
+    /// <summary>Its quality profiles and root folders, for the settings.</summary>
+    public static async Task<(List<ArrChoice> Profiles, List<string> Folders)> GetChoicesAsync(ArrClient client, CancellationToken ct) =>
+        (await client.GetProfilesAsync(ct), await client.GetRootFoldersAsync(ct));
+
+    // ---- calendar ----
+
+    /// <summary>
+    /// What Sonarr and Radarr have coming out from today for these many days, together; and what
+    /// went wrong asking either (the other's are there all the same).
+    /// </summary>
+    public async Task<(List<ArrRelease> Releases, List<string> Problems)> CalendarAsync(DateTime today, int days, CancellationToken ct)
+    {
+        var from = today.Date;
+        var to = from.AddDays(days).AddTicks(-1);
+        var asks = new List<(ArrKind Kind, Func<ArrClient> Make)>();
+        if (HasSonarr)
+            asks.Add((ArrKind.Sonarr, Sonarr));
+        if (HasRadarr)
+            asks.Add((ArrKind.Radarr, Radarr));
+        var results = await Task.WhenAll(asks.Select(async a =>
+        {
+            try
+            {
+                using var client = a.Make();
+                return (List: await client.GetCalendarAsync(from, to, ct), Problem: (string?)null);
+            }
+            catch (Exception e) when (IsTrouble(e))
+            {
+                return (List: new List<ArrRelease>(), Problem: $"{a.Kind}: {Why(e)}");
+            }
+        }));
+        var releases = results.SelectMany(r => r.List)
+                              .OrderBy(r => r.When.Date).ThenBy(r => r.HasTime ? 0 : 1).ThenBy(r => r.When)
+                              .ThenBy(r => r.Title, StringComparer.CurrentCultureIgnoreCase).ThenBy(r => r.What, StringComparer.Ordinal)
+                              .ToList();
+        return (releases, results.Select(r => r.Problem).OfType<string>().ToList());
+    }
+
     private static bool IsTrouble(Exception e) =>
         e is ArrException or HttpRequestException or TaskCanceledException or System.Text.Json.JsonException;
 

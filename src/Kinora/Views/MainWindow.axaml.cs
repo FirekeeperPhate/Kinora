@@ -22,6 +22,7 @@ public partial class MainWindow : Window, IDialogs
                 vm.LastModifiers = e.KeyModifiers;
         }, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(PointerPressedEvent, OnMouseSideButton, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+        PositionChanged += OnPositionChanged;
     }
 
     private DateTime _sideButtonAt;
@@ -61,9 +62,44 @@ public partial class MainWindow : Window, IDialogs
         var settings = vm.Services.Settings;
         Width = Math.Max(MinWidth, settings.WindowWidth);
         Height = Math.Max(MinHeight, settings.WindowHeight);
-        WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        // Where it was closed, if that is still on a screen (not on a monitor unplugged since);
+        // maximized, it opens maximized on that screen
+        if (settings is { WindowX: { } x, WindowY: { } y } && OnAScreen(new PixelPoint(x, y)))
+        {
+            WindowStartupLocation = WindowStartupLocation.Manual;
+            Position = new PixelPoint(x, y);
+            _normalPosition = Position;
+        }
+        else
+            WindowStartupLocation = WindowStartupLocation.CenterScreen;
         if (settings.WindowMaximized)
             WindowState = WindowState.Maximized;
+    }
+
+    /// <summary>Enough of the title bar on a screen to grab it.</summary>
+    private bool OnAScreen(PixelPoint corner)
+    {
+        var screens = Screens.All;
+        if (screens.Count == 0)
+            return true;   // can't tell: as it was
+        return screens.Any(s => s.WorkingArea.Contains(new PixelPoint(corner.X + 120, corner.Y + 16))
+                                || s.WorkingArea.Contains(new PixelPoint(corner.X + 40, corner.Y + 16)));
+    }
+
+    // The window's place when not maximized: kept while it moves, since maximized or in full
+    // screen it is somewhere else. Windows moves it to the corner just before it says maximized:
+    // a move right before that doesn't count.
+    private PixelPoint? _normalPosition;
+    private PixelPoint? _positionBefore;
+    private DateTime _movedAt;
+
+    private void OnPositionChanged(object? sender, PixelPointEventArgs e)
+    {
+        if (WindowState != WindowState.Normal)
+            return;
+        _positionBefore = _normalPosition;
+        _normalPosition = e.Point;
+        _movedAt = DateTime.UtcNow;
     }
 
     protected override void OnOpened(EventArgs e)
@@ -91,6 +127,12 @@ public partial class MainWindow : Window, IDialogs
             {
                 settings.WindowWidth = Width;
                 settings.WindowHeight = Height;
+                _normalPosition = Position;
+            }
+            if (_normalPosition is { } p)
+            {
+                settings.WindowX = p.X;
+                settings.WindowY = p.Y;
             }
         }
         base.OnClosing(e);
@@ -117,6 +159,9 @@ public partial class MainWindow : Window, IDialogs
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
+        if (change.Property == WindowStateProperty && WindowState != WindowState.Normal
+            && DateTime.UtcNow - _movedAt < TimeSpan.FromMilliseconds(300))
+            _normalPosition = _positionBefore ?? _normalPosition;
         if (change.Property == WindowStateProperty && Vm is { } vm)
             vm.IsFullScreen = WindowState == WindowState.FullScreen;
     }

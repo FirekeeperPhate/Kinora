@@ -61,6 +61,12 @@
                         <Setter Property="ToolTip.Tip" Value="Settings" />
                         <Setter Property="ToolTip.Placement" Value="Right" />
                     </Style>
+                    <Style Selector="Border.sidebar Button.calendar">
+                        <Setter Property="Margin" Value="10,8,10,0" />
+                    </Style>
+                    <Style Selector="Border.sidebar.folded Button.calendar">
+                        <Setter Property="Margin" Value="8,8,8,0" />
+                    </Style>
                 </Border.Styles>
                 <DockPanel>
                     <Grid DockPanel.Dock="Top" Classes="open" ColumnDefinitions="*,Auto" Margin="22,22,12,18">
@@ -107,6 +113,14 @@
                         <StackPanel Orientation="Horizontal">
                             <Path Classes="icon navicon" Data="{x:Static k:Icons.Sliders}" />
                             <TextBlock Classes="open" Text="Settings" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button DockPanel.Dock="Bottom" Classes="nav settings calendar" HorizontalAlignment="Stretch" Background="Transparent"
+                            Command="{Binding OpenCalendarCommand}" IsVisible="{Binding HasArr}"
+                            ToolTip.Tip="What comes out in the next weeks, from Sonarr and Radarr" ToolTip.Placement="Right">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Classes="icon navicon" Data="{x:Static k:Icons.Calendar}" />
+                            <TextBlock Classes="open" Text="Coming up" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
 
@@ -458,6 +472,8 @@
                                 IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).SeriesDetail, Converter={x:Static ObjectConverters.IsNotNull}}" />
         <views:PersonView DataContext="{Binding Person}"
                           IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).Person, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <views:CalendarView DataContext="{Binding Calendar}"
+                            IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).Calendar, Converter={x:Static ObjectConverters.IsNotNull}}" />
 
         <!-- Full screen on the movie, show and person pages; in the library it is in the toolbar -->
         <Button Classes="pill" Command="{Binding ToggleFullScreenCommand}" IsVisible="{Binding !ShowLibrary}" ToolTip.Tip="Full screen (F11)"

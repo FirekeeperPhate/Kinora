@@ -72,7 +72,7 @@ public partial class MovieDetailViewModel : ViewModelBase, IDisposable
                 return;
             var items = similar.Select(t => _owner.MovieByTmdbId(t.Id) is { } card && card != Card
                     ? new ShelfItem(card, "In your library", () => _owner.OpenDetail(card))
-                    : new ShelfItem(t, () => Core.Platform.Launcher.OpenUrl($"https://www.themoviedb.org/movie/{Uri.EscapeDataString(t.Id)}")))
+                    : _owner.OnlineItem(t, series: false))
                 .Where(i => i.Card != Card)
                 .OrderByDescending(i => i.InLibrary)
                 .ToList();
