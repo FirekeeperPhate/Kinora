@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Platform.Storage;
 using Avalonia.VisualTree;
 using Kinora.ViewModels;
+using Kinora.Services;
 
 namespace Kinora.Views;
 
@@ -12,6 +13,7 @@ public partial class MainWindow : Window, IDialogs
     public MainWindow()
     {
         InitializeComponent();
+        Services.UiScale.Attach(this, growWindow: false);
         GridScroller.SizeChanged += (_, _) => UpdateViewport();
         AddHandler(KeyDownEvent, OnKeyDownTunnel, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         new WheelScroller(() => Vm?.Services.Settings.ScrollSpeed ?? 3).Attach(this);
@@ -23,6 +25,27 @@ public partial class MainWindow : Window, IDialogs
         }, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(PointerPressedEvent, OnMouseSideButton, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         PositionChanged += OnPositionChanged;
+        Header.SizeChanged += (_, _) => FitHeader();
+    }
+
+    /// <summary>The title needs at least this much next to the toolbar, or the toolbar goes under it.</summary>
+    private const double TitleRoom = 240;
+
+    /// <summary>
+    /// The toolbar next to the title while there is room for both; under it, going on to a second
+    /// line if it must, when there isn't (a big interface size, a narrow window).
+    /// </summary>
+    private void FitHeader()
+    {
+        Toolbar.Measure(Size.Infinity);
+        var below = Header.Bounds.Width - Toolbar.DesiredSize.Width < TitleRoom;
+        if (below == (Grid.GetRow(Toolbar) == 1))
+            return;
+        Grid.SetRow(Toolbar, below ? 1 : 0);
+        Grid.SetColumn(Toolbar, below ? 0 : 1);
+        Grid.SetColumnSpan(Toolbar, below ? 2 : 1);
+        Toolbar.HorizontalAlignment = below ? Avalonia.Layout.HorizontalAlignment.Left : Avalonia.Layout.HorizontalAlignment.Right;
+        Toolbar.Margin = below ? new Thickness(0, 12, 0, 0) : default;
     }
 
     private DateTime _sideButtonAt;
@@ -172,7 +195,7 @@ public partial class MainWindow : Window, IDialogs
         var margin = GridItems.Margin;
         var width = GridScroller.Bounds.Width - margin.Left - margin.Right;
         if (width > 0)
-            Vm?.SetViewport(width, RenderScaling);
+            Vm?.SetViewport(width, RenderScaling * UiScale.Current);
     }
 
     private void OnKeyDownTunnel(object? sender, KeyEventArgs e)
@@ -191,6 +214,15 @@ public partial class MainWindow : Window, IDialogs
         if (e.Key is Key.Left or Key.Right && e.KeyModifiers == KeyModifiers.Alt)
         {
             Travel(vm, back: e.Key == Key.Left);
+            e.Handled = true;
+            return;
+        }
+        // Ctrl+plus, Ctrl+minus, Ctrl+0: the size of everything, as in a browser
+        // (Ctrl+Shift+= on a US keyboard is Ctrl+plus too; Ctrl+Shift+0 is not Ctrl+0)
+        if ((e.KeyModifiers & ~KeyModifiers.Shift) == KeyModifiers.Control && e.Key is Key.OemPlus or Key.Add or Key.OemMinus or Key.Subtract
+            || e.KeyModifiers == KeyModifiers.Control && e.Key is Key.D0 or Key.NumPad0)
+        {
+            vm.ChangeUiScale(e.Key is Key.D0 or Key.NumPad0 ? 1 : UiScale.Step(e.Key is Key.OemPlus or Key.Add ? 1 : -1));
             e.Handled = true;
             return;
         }
@@ -230,6 +262,11 @@ public partial class MainWindow : Window, IDialogs
         else if (e.Key == Key.Escape && vm.HasSelection)
         {
             vm.ClearSelection();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape && vm.InCollection)
+        {
+            vm.CloseCollection();   // back to all the collections
             e.Handled = true;
         }
         else if (e.Key == Key.A && e.KeyModifiers.HasFlag(KeyModifiers.Control) && vm.ShowLibrary && !SearchBox.IsFocused)

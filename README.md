@@ -42,8 +42,12 @@ engine), or, if you prefer, in the player the OS associates with it. Windows, Li
   by title "The Matrix" goes under M, or under T if you untick that in Settings → Library.
 - **Filters** in the toolbar: resolution, HDR, decade, rating, collection (for shows decade and
   rating), and only unwatched, which works in any view (a genre, a folder) and stays on from one
-  to the next. The collection on a movie's page opens the other movies in it. HDR comes from the nfo's
+  to the next. HDR comes from the nfo's
   `hdrtype` or the file name; for what is already in the library the nfo is read by a full scan.
+- **Collections**, in the sidebar of the movies: every collection as a poster (one of its movies'), with
+  how many movies it has and their years; the search finds a collection by its name or by one of its
+  movies. A click shows its movies in the order they came out; Back, or Esc, returns to them all. The
+  collection on a movie's page opens it here.
 - **Duplicates**, in the sidebar when there are any: the same movie or show more than once, in the
   same folder or in two (an id in common, or the same name and year without ids), side by side
   with the size, the resolution and the folder of each copy.
@@ -70,6 +74,10 @@ engine), or, if you prefer, in the player the OS associates with it. Windows, Li
   Esc in the library leaves it. Full screen turned on in the player ends with the player.
 - **A foldable sidebar**: the button next to the name, or Ctrl+B, folds it to a column of icons
   (their names show under the mouse) and gives the posters the room; it stays as you left it.
+- **Interface size**, for a TV across the room: Settings → Appearance, or Ctrl+plus and Ctrl+minus
+  anywhere (Ctrl+0 back to 100%), makes everything bigger, from 100% to 200%: text, buttons,
+  posters, the pages and the player's controls. The toolbar goes under the title when it no longer
+  fits next to it.
 - **The window** opens where it was closed, at that size, maximized if it was (on the screen it was
   on); a place no screen shows any more, a monitor unplugged since, puts it in the middle.
 - Folders that are mounted somewhere else later (another drive letter, another OS): change the

@@ -19,6 +19,8 @@ public partial class App : Application
         {
             var services = new AppServices();
             ApplyTheme(services.Settings.Theme);
+            UiScale.Set(services.Settings.UiScale);
+            UiScale.ApplyToPopups();
             var window = new MainWindow { DataContext = new MainWindowViewModel(services) };
             desktop.MainWindow = window;
             desktop.ShutdownRequested += (_, _) => services.SaveSettings();

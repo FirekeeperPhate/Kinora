@@ -44,6 +44,7 @@ public static class Icons
     public static Geometry Trailer { get; } = Geometry.Parse("M3.5,6.5 A2,2 0 0 1 5.5,4.5 H18.5 A2,2 0 0 1 20.5,6.5 V17.5 A2,2 0 0 1 18.5,19.5 H5.5 A2,2 0 0 1 3.5,17.5 Z M10,9 L15,12 L10,15 Z");
     public static Geometry Wrench { get; } = Geometry.Parse("M14.5,4 A4.5,4.5 0 0 0 10.2,9.8 L4,16 A2.1,2.1 0 0 0 7,19 L13.2,12.8 A4.5,4.5 0 0 0 19,8.5 L16.3,11.2 L13.8,10.2 L12.8,7.7 L15.5,5 A4.5,4.5 0 0 0 14.5,4 Z");
     public static Geometry Plus { get; } = Geometry.Parse("M12,5 V19 M5,12 H19");
+    public static Geometry Collection { get; } = Geometry.Parse("M7,7.5 H19.5 V20.5 H7 Z M4.5,17.5 V5 H16.5");
     public static Geometry Calendar { get; } = Geometry.Parse("M4,6.5 A1.5,1.5 0 0 1 5.5,5 H18.5 A1.5,1.5 0 0 1 20,6.5 V18.5 A1.5,1.5 0 0 1 18.5,20 H5.5 A1.5,1.5 0 0 1 4,18.5 Z M4,10 H20 M8.5,3 V7 M15.5,3 V7");
     public static Geometry Missing { get; } = Geometry.Parse("M4,5.5 H20 V18.5 H4 Z M9,9.5 L15,14.5 M15,9.5 L9,14.5");
     public static Geometry ExitFullScreen { get; } = Geometry.Parse("M9,4 V9 H4 M20,9 H15 V4 M15,20 V15 H20 M4,15 H9 V20");

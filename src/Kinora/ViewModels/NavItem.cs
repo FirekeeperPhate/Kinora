@@ -10,6 +10,7 @@ public enum NavKind
     Continue,
     Unwatched,
     RecentlyAdded,
+    Collections,
     History,
     NeedsMetadata,
     Duplicates,

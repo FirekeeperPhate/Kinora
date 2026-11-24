@@ -167,19 +167,26 @@
             <!-- Main area -->
             <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*,Auto">
 
-                <Grid ColumnDefinitions="*,Auto" Margin="32,22,32,14">
+                <Grid x:Name="Header" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" Margin="32,22,32,14">
                     <StackPanel VerticalAlignment="Center">
+                        <Button Classes="link" Command="{Binding CloseCollectionCommand}" IsVisible="{Binding InCollection}" Margin="0,0,0,4"
+                                ToolTip.Tip="Back to all the collections (Esc)">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <Path Classes="icon" Data="{x:Static k:Icons.Back}" Width="12" Height="12" />
+                                <TextBlock Text="Collections" FontSize="13" />
+                            </StackPanel>
+                        </Button>
                         <TextBlock Text="{Binding ViewTitle}" FontSize="27" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
                         <TextBlock Text="{Binding CountText}" Classes="subtle" Margin="0,2,0,0" />
                     </StackPanel>
-                    <StackPanel Grid.Column="1" Classes="toolbar" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                        <StackPanel.Styles>
-                            <Style Selector="StackPanel.toolbar > TextBox, StackPanel.toolbar > ComboBox, StackPanel.toolbar > Button, StackPanel.toolbar > ToggleButton, StackPanel.toolbar > SplitButton, StackPanel.toolbar > DropDownButton">
+                    <WrapPanel x:Name="Toolbar" Grid.Column="1" Classes="toolbar" ItemSpacing="8" LineSpacing="8" VerticalAlignment="Center">
+                        <WrapPanel.Styles>
+                            <Style Selector="WrapPanel.toolbar > TextBox, WrapPanel.toolbar > ComboBox, WrapPanel.toolbar > Button, WrapPanel.toolbar > ToggleButton, WrapPanel.toolbar > SplitButton, WrapPanel.toolbar > DropDownButton">
                                 <Setter Property="Height" Value="38" />
                                 <Setter Property="MinHeight" Value="38" />
                                 <Setter Property="VerticalAlignment" Value="Center" />
                             </Style>
-                        </StackPanel.Styles>
+                        </WrapPanel.Styles>
                         <Button Command="{Binding RandomCommand}" ToolTip.Tip="What to watch: a title you haven&#x27;t seen, picked at random from this view and its filters" Padding="12,0">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <Path Classes="icon" Data="{x:Static k:Icons.Dice}" Width="16" Height="16" />
@@ -249,7 +256,7 @@
                                 <Path Classes="icon" Data="{x:Static k:Icons.ExitFullScreen}" Width="16" Height="16" IsVisible="{Binding IsFullScreen}" />
                             </Panel>
                         </Button>
-                    </StackPanel>
+                    </WrapPanel>
                 </Grid>
 
                 <StackPanel Grid.Row="1">
@@ -329,8 +336,8 @@
                                 <VirtualizingStackPanel />
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:MovieRow">
+                        <ItemsControl.DataTemplates>
+                            <DataTemplate DataType="vm:MovieRow">
                                 <ItemsControl ItemsSource="{Binding Items}" Margin="0,0,0,26">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
@@ -428,7 +435,49 @@
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
                             </DataTemplate>
-                        </ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="vm:CollectionRow">
+                                <ItemsControl ItemsSource="{Binding Items}" Margin="0,0,0,26">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="22" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:CollectionTile">
+                                            <Button Classes="card" Width="{Binding Width}" Command="{Binding OpenCommand}"
+                                                    ToolTip.Tip="{Binding Name}" ToolTip.ShowDelay="900">
+                                                <StackPanel>
+                                                    <!-- A stack of posters: the cover in front, two edges behind it -->
+                                                    <Panel Height="{Binding PosterHeight}">
+                                                        <Border Classes="poster" Margin="14,0,14,12" Background="{DynamicResource SubtleText}" Opacity="0.3" />
+                                                        <Border Classes="poster" Margin="7,6,7,6" Background="{DynamicResource SubtleText}" Opacity="0.55" />
+                                                        <Border Classes="poster" Margin="0,12,0,0">
+                                                            <Panel>
+                                                                <TextBlock Text="{Binding Name}" TextWrapping="Wrap" TextAlignment="Center"
+                                                                           VerticalAlignment="Center" Margin="14" Classes="subtle"
+                                                                           IsVisible="{Binding !Cover.HasPoster}" />
+                                                                <Image Source="{Binding Cover.Poster}" Stretch="UniformToFill" />
+                                                                <Border IsVisible="{Binding AllWatched}" Width="26" Height="26" CornerRadius="13"
+                                                                        Margin="8" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                                        Background="{DynamicResource AccentBrush}" ToolTip.Tip="All watched">
+                                                                    <Path Data="{x:Static k:Icons.Check}" Stroke="White" StrokeThickness="2.6"
+                                                                          StrokeLineCap="Round" StrokeJoin="Round" Stretch="Uniform"
+                                                                          Width="13" Height="13" />
+                                                                </Border>
+                                                            </Panel>
+                                                        </Border>
+                                                    </Panel>
+                                                    <TextBlock Classes="cardTitle" Text="{Binding Name}" Margin="2,10,2,0"
+                                                               FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Text="{Binding CountText}" Margin="2,2,2,0" FontSize="12" Classes="subtle" />
+                                                    <TextBlock Text="{Binding YearsText}" Margin="2,2,2,0" FontSize="12" Classes="subtle" />
+                                                </StackPanel>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </DataTemplate>
+                        </ItemsControl.DataTemplates>
                     </ItemsControl>
                 </ScrollViewer>
 

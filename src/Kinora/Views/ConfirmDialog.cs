@@ -46,6 +46,7 @@ public static class ConfirmDialog
                 },
             },
         };
+        Services.UiScale.Attach(window, growWindow: true);
         await window.ShowDialog(owner);
         return result;
     }

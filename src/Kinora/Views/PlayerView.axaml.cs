@@ -145,6 +145,9 @@ public partial class PlayerView : UserControl
         if (_vm is not null)
             _vm.IsFullScreen = _fullScreenAtOpen;
         _overlay = new PlayerOverlayWindow(OverlayRoot) { DataContext = DataContext };
+        // The controls are as big as the rest of Kinora: their window covers the video, their content is scaled
+        Services.UiScale.Attach(_overlay, growWindow: false);
+        Services.UiScale.Changed += FitOverlay;
         // A click on the controls moves Avalonia's keyboard focus over there: the keys still
         // work, and the focus goes back to Kinora's window right after
         _overlay.AddHandler(KeyDownEvent, (_, args) => args.Handled = HandleKey(args), RoutingStrategies.Tunnel);
@@ -242,6 +245,7 @@ public partial class PlayerView : UserControl
         _hideTimer.Stop();
         _mediaKeys?.Dispose();
         _mediaKeys = null;
+        Services.UiScale.Changed -= FitOverlay;
         if (_overlay is not null)
         {
             _overlay.Close();
@@ -281,8 +285,10 @@ public partial class PlayerView : UserControl
         var size = Surface.Bounds.Size;
         if (_overlay is null || size.Width <= 0 || size.Height <= 0 || !Surface.IsAttachedToVisualTree())
             return;
-        _overlay.Width = size.Width;
-        _overlay.Height = size.Height;
+        // The surface's size is in Kinora's scaled units; the overlay's window is a window of its own
+        var scale = Services.UiScale.Current;
+        _overlay.Width = size.Width * scale;
+        _overlay.Height = size.Height * scale;
         _overlay.Position = Surface.PointToScreen(new Point(0, 0));
     }
 

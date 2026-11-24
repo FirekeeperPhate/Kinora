@@ -82,7 +82,7 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [ObservableProperty]
-    public partial IReadOnlyList<MovieRow> Rows { get; private set; } = [];
+    public partial IReadOnlyList<object> Rows { get; private set; } = [];
 
     [ObservableProperty]
     public partial NavItem? SelectedNav { get; set; }
@@ -171,6 +171,11 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             SelectedNav = oldValue;
             return;
+        }
+        if (newValue is null || !newValue.SameAs(oldValue))
+        {
+            OpenCollectionName = null;
+            _collectionFromPage = false;
         }
         ApplyFilter(toTop: true);
     }
@@ -296,6 +301,9 @@ public partial class MainWindowViewModel : ViewModelBase
             NavItems.Add(new NavItem(NavKind.Continue, "Continue watching", Icons.Play) { Count = going });
         NavItems.Add(new NavItem(NavKind.Unwatched, "Unwatched", Icons.Eye) { Count = cards.Count(c => !c.Watched) });
         NavItems.Add(new NavItem(NavKind.RecentlyAdded, "Recently added", Icons.Clock) { Count = Math.Min(RecentCount, cards.Count) });
+        var collections = movies ? CollectionCount() : 0;
+        if (collections > 0)
+            NavItems.Add(new NavItem(NavKind.Collections, "Collections", Icons.Collection) { Count = collections });
         var seen = cards.Count(c => LastWatched(c) is not null);
         if (seen > 0)
             NavItems.Add(new NavItem(NavKind.History, "History", Icons.History) { Count = seen });
@@ -361,6 +369,9 @@ public partial class MainWindowViewModel : ViewModelBase
             NavKind.NeedsAttention => cards.Where(_attention.ContainsKey),
             NavKind.Root => cards.Where(c => c.RootId == nav.RootId),
             NavKind.Genre => cards.Where(c => c.Genres.Contains(nav.Genre!, StringComparer.CurrentCultureIgnoreCase)),
+            NavKind.Collections => OpenCollectionName is { } name
+                ? _movies.Where(c => Core.MovieCollections.Same(c.Movie.Collection, name))
+                : _movies,
             _ => cards,
         };
     }
@@ -382,6 +393,13 @@ public partial class MainWindowViewModel : ViewModelBase
                                .Where(c => c is MovieCardViewModel m ? filter.Allows(m.Movie, CardViewModel.RatingSource) : filter.Allows(c.Year, c.Rating))
                                .Where(c => !OnlyUnwatched || !c.Watched);
 
+        if (nav.Kind == NavKind.Collections && OpenCollectionName is null)
+        {
+            ShowTiles(query, toTop);
+            return;
+        }
+        _tiles = [];
+
         IEnumerable<CardViewModel> sorted;
         if (nav.Kind == NavKind.RecentlyAdded)
         {
@@ -398,6 +416,10 @@ public partial class MainWindowViewModel : ViewModelBase
         else if (nav.Kind == NavKind.Duplicates)
         {
             sorted = items.OrderBy(c => _duplicates[c]);   // each title next to its copies
+        }
+        else if (nav.Kind == NavKind.Collections)
+        {
+            sorted = items.OrderBy(c => c.Year ?? int.MaxValue).ThenBy(c => TitleKey(c), StringComparer.Ordinal);   // as they came out
         }
         else
         {
@@ -438,7 +460,7 @@ public partial class MainWindowViewModel : ViewModelBase
         OnPropertyChanged(nameof(EmptyFolders));
         OnPropertyChanged(nameof(EmptyFoldersTitle));
         OnPropertyChanged(nameof(ShowEmptyFolders));
-        ViewTitle = nav.Title;
+        ViewTitle = nav.Kind == NavKind.Collections && OpenCollectionName is { } open ? open : nav.Title;
         var (one, many) = Mode == LibraryMode.Movies ? ("movie", "movies") : ("show", "shows");
         CountText = query.Length > 0
             ? $"{Format.Count(_filtered.Count, one, many)} matching “{SearchText.Trim()}”"
@@ -749,8 +771,16 @@ public partial class MainWindowViewModel : ViewModelBase
         Mode = LibraryMode.Movies;
         ClearFilters();
         SearchText = "";
-        SelectedNav = NavItems[0];
-        SelectedCollection = name;
+        if (NavItems.FirstOrDefault(n => n.Kind == NavKind.Collections) is { } collections)
+        {
+            SelectedNav = collections;
+            OpenCollection(name, fromPage: true);
+        }
+        else
+        {
+            SelectedNav = NavItems[0];
+            SelectedCollection = name;
+        }
     }
 
     /// <summary>Another view, search or order: start from the top, not where the last one was.</summary>
@@ -775,7 +805,14 @@ public partial class MainWindowViewModel : ViewModelBase
         CardViewModel.DecodeWidth = Math.Min(AppServices.PosterWidth, (int)Math.Ceiling(width * _scaling));
         foreach (var card in _filtered)
             card.CardWidth = width;
-        Rows = _filtered.Chunk(columns).Select(chunk => new MovieRow(chunk)).ToList();
+        if (_tiles.Count > 0)
+        {
+            foreach (var tile in _tiles)
+                tile.Width = width;
+            Rows = _tiles.Chunk(columns).Select(chunk => (object)new CollectionRow(chunk)).ToList();
+            return;
+        }
+        Rows = _filtered.Chunk(columns).Select(chunk => (object)new MovieRow(chunk)).ToList();
     }
 
     // ---- scanning ----
@@ -1407,6 +1444,15 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void ToggleFullScreen() => FullScreenToggleRequested?.Invoke();
 
+    /// <summary>The size of everything (Ctrl+plus, Ctrl+minus, Ctrl+0), kept for next time.</summary>
+    public void ChangeUiScale(double scale)
+    {
+        scale = UiScale.Clamp(scale);
+        _s.Settings.UiScale = scale;
+        UiScale.Set(scale);
+        ShowStatusFor($"Interface size {UiScale.Percent(scale)}" + (scale > 1 ? "  ·  Ctrl+0 for 100%" : ""), 4);
+    }
+
     // ---- back and forward, as in a browser ----
 
     /// <summary>A page that can be opened again: by id, since a reload makes new cards.</summary>
@@ -1477,6 +1523,8 @@ public partial class MainWindowViewModel : ViewModelBase
     /// <summary>The page before (Back, Esc, the mouse's back button); from the first one, the library.</summary>
     public void GoBack()
     {
+        if (BackOutOfCollection())
+            return;
         if (!Travel(_backPages, _forwardPages) && !ShowLibrary)
         {
             // Nothing left behind (or all of it gone from the library): the library is always there
@@ -2183,8 +2231,10 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void Random()
     {
-        var unseen = _filtered.Where(c => !c.Watched).ToList();
-        var all = unseen.Count > 0 ? unseen : _filtered;
+        // Among all the collections: from their movies
+        var source = _tiles.Count > 0 ? _tiles.SelectMany(t => t.Movies).Cast<CardViewModel>().ToList() : _filtered;
+        var unseen = source.Where(c => !c.Watched).ToList();
+        var all = unseen.Count > 0 ? unseen : source;
         var pool = all.Where(c => !_randomShown.Contains(c)).ToList();
         if (pool.Count == 0)
         {

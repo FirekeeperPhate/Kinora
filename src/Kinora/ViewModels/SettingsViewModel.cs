@@ -85,6 +85,7 @@ public partial class SettingsViewModel : ViewModelBase
         SkipBackSeconds = SkipChoices.Contains(_s.Settings.SkipBackSeconds) ? _s.Settings.SkipBackSeconds : 10;
         SkipForwardSeconds = SkipChoices.Contains(_s.Settings.SkipForwardSeconds) ? _s.Settings.SkipForwardSeconds : 30;
         CardWidth = _s.Settings.CardWidth;
+        UiScaleIndex = Math.Max(0, Array.FindIndex(UiScale.Steps, s => Math.Abs(s - UiScale.Current) < 0.001));
         ScrollSpeed = _s.Settings.ScrollSpeed;
         TmdbKey = _s.Settings.TmdbKey;
         _originalKey = TmdbKey;
@@ -630,6 +631,18 @@ public partial class SettingsViewModel : ViewModelBase
         + (OperatingSystem.IsWindows() ? "Uses VLC's engine, which comes with Kinora."
            : "Uses VLC's engine: VLC must be installed on this computer.");
     partial void OnCardWidthChanged(double value) => _s.Settings.CardWidth = Math.Round(value);
+
+    public List<string> UiScaleOptions { get; } = UiScale.Steps.Select(s => UiScale.Percent(s) + (s == 1 ? " (normal)" : "")).ToList();
+
+    [ObservableProperty]
+    public partial int UiScaleIndex { get; set; }
+
+    partial void OnUiScaleIndexChanged(int value)
+    {
+        var scale = UiScale.Steps[Math.Clamp(value, 0, UiScale.Steps.Length - 1)];
+        _s.Settings.UiScale = scale;
+        UiScale.Set(scale);
+    }
 
     [ObservableProperty]
     public partial double ScrollSpeed { get; set; }

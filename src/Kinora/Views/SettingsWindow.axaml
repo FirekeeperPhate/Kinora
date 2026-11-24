@@ -269,7 +269,7 @@
                 <Border Classes="card">
                     <StackPanel Spacing="14">
                         <TextBlock Classes="heading" Text="Appearance" />
-                        <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto" >
+                        <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" >
                             <TextBlock Text="Theme" VerticalAlignment="Center" />
                             <ComboBox Grid.Column="1" SelectedIndex="{Binding ThemeIndex}" MinWidth="200">
                                 <ComboBoxItem Content="Same as the system" />
@@ -283,6 +283,10 @@
                             <Slider Grid.Row="2" Grid.Column="1" Minimum="1" Maximum="6" TickFrequency="0.5" IsSnapToTickEnabled="True"
                                     Value="{Binding ScrollSpeed}" ToolTip.Tip="How far one notch of the mouse wheel scrolls"
                                     MaxWidth="320" HorizontalAlignment="Left" Width="320" Margin="0,12,0,0" />
+                            <TextBlock Grid.Row="3" Text="Interface size" VerticalAlignment="Center" Margin="0,12,0,0" />
+                            <ComboBox Grid.Row="3" Grid.Column="1" ItemsSource="{Binding UiScaleOptions}" SelectedIndex="{Binding UiScaleIndex}" MinWidth="200" Margin="0,12,0,0" />
+                            <TextBlock Grid.Row="4" Grid.Column="1" Classes="subtle" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"
+                                       Text="Everything bigger, text and buttons and posters: for a TV across the room. Ctrl+plus and Ctrl+minus change it from anywhere, Ctrl+0 goes back to 100%." />
                         </Grid>
                     </StackPanel>
                 </Border>

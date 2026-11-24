@@ -10,6 +10,7 @@ public partial class SubtitlesWindow : Window
     public SubtitlesWindow()
     {
         InitializeComponent();
+        Services.UiScale.Attach(this, growWindow: true);
         DataContextChanged += (_, _) =>
         {
             if (DataContext is SubtitlesViewModel vm)

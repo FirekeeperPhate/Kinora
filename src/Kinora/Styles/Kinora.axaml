@@ -248,6 +248,15 @@
         <Setter Property="LetterSpacing" Value="1" />
         <Setter Property="Foreground" Value="{DynamicResource SubtleText}" />
     </Style>
+    <!-- Tooltips, menus and the lists of a ComboBox open in windows of their own, out of reach of the
+         interface size: their text follows it through these (see UiScale) -->
+    <Style Selector="ToolTip">
+        <Setter Property="FontSize" Value="{DynamicResource KinoraTipFontSize}" />
+    </Style>
+    <Style Selector="MenuItem, ComboBoxItem">
+        <Setter Property="FontSize" Value="{DynamicResource KinoraPopupFontSize}" />
+    </Style>
+
     <Style Selector="TextBlock.subtle">
         <Setter Property="Foreground" Value="{DynamicResource SubtleText}" />
     </Style>

@@ -10,6 +10,7 @@ public partial class IdentifyWindow : Window
     public IdentifyWindow()
     {
         InitializeComponent();
+        Services.UiScale.Attach(this, growWindow: true);
         DataContextChanged += (_, _) =>
         {
             if (DataContext is IdentifyViewModel vm)

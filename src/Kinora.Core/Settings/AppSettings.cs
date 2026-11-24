@@ -153,6 +153,9 @@ public sealed class AppSettings
     public bool SortDescending { get; set; }
     public double CardWidth { get; set; } = 170;
 
+    /// <summary>The size of everything in the windows, 1 to 2: bigger for a TV across the room.</summary>
+    public double UiScale { get; set; } = 1;
+
     /// <summary>Sorting by title skips "The", "A" and "An" in front: "The Matrix" goes under M.</summary>
     public bool IgnoreLeadingArticles { get; set; } = true;
 
